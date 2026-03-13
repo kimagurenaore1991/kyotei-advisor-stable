@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Kyotei Advisor</title>
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#1e293b">
+    <link rel="apple-touch-icon" href="./icons/icon-192x192.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        #drawer {
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .drawer-open {
+            transform: translateX(0) !important;
+        }
+
+        @media (max-width: 767px) {
+            #drawer {
+                transform: translateX(-100%);
+            }
+        }
+
+        input[type=range] {
+            accent-color: #3b82f6;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 2px;
+        }
+
+        .grade-sg {
+            background: #f59e0b;
+            color: #fff;
+        }
+
+        .grade-g1 {
+            background: #ef4444;
+            color: #fff;
+        }
+
+        .grade-g2 {
+            background: #3b82f6;
+            color: #fff;
+        }
+
+        .grade-g3 {
+            background: #22c55e;
+            color: #fff;
+        }
+
+        .grade-lady {
+            background: #ec4899;
+            color: #fff;
+        }
+
+        .grade-gen {
+            background: #64748b;
+            color: #e2e8f0;
+        }
+
+        @keyframes pulse-fast {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: .4
+            }
+        }
+
+        .animate-pulse-fast {
+            animation: pulse-fast 1s ease-in-out infinite;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-900 h-screen flex overflow-hidden text-slate-200">
+
+    <!-- Mobile Header -->
+    <div
+        class="md:hidden fixed top-0 w-full bg-slate-800 text-white px-4 py-3 flex justify-between items-center z-20 shadow-lg border-b border-slate-700">
+        <h1 class="text-lg font-black tracking-tight">⛵ Kyotei Advisor</h1>
+        <button id="menu-btn" class="focus:outline-none p-1">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+        </button>
+    </div>
+
+    <!-- Left Sidebar -->
+    <div id="drawer"
+        class="fixed md:relative z-10 w-72 h-full bg-slate-800 shadow-2xl flex flex-col pt-14 md:pt-0 border-r border-slate-700">
+        <!-- Header -->
+        <div class="hidden md:block px-5 py-4 bg-slate-900 border-b border-slate-700">
+            <h1 class="text-xl font-black tracking-tight">⛵ Kyotei Advisor</h1>
+            <p class="text-xs text-slate-400 mt-0.5">Data Analysis & AI Prediction</p>
+        </div>
+
+        <!-- 一括取得ボタン -->
+        <div class="mx-3 mt-3 mb-1">
+            <button id="force-scrape-btn"
+                class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors shadow">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                📥 データ一括取得
+            </button>
+        </div>
+
+        <!-- Scraping indicator -->
+        <div id="scraping-indicator"
+            class="hidden mx-3 mt-2 mb-1 px-3 py-2 bg-blue-900/60 border border-blue-700 rounded-lg text-xs text-blue-300 flex items-center gap-2">
+            <svg class="animate-spin h-3.5 w-3.5 text-blue-400 flex-shrink-0" xmlns="http://www.w3.org/2000/svg"
+                fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                <path class="opacity-75" fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+            <span id="scraping-label">データ取得中... (しばらくお待ちください)</span>
+        </div>
+
+        <!-- Place list -->
+        <div class="overflow-y-auto flex-1 px-2 py-2 custom-scrollbar">
+            <p class="text-[10px] font-semibold text-slate-500 px-2 mb-1 uppercase tracking-widest">本日の開催場</p>
+            <ul id="place-list">
+                <li class="px-3 py-3 text-sm text-slate-500 text-center animate-pulse-fast">読み込み中...</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Overlay (mobile) -->
+    <div id="drawer-overlay" class="fixed inset-0 bg-black/60 z-9 hidden md:hidden"></div>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex flex-col h-full bg-slate-900 pt-14 md:pt-0 overflow-y-auto">
+
+        <!-- Race Header -->
+        <div id="race-header"
+            class="hidden sticky top-0 z-10 bg-slate-800 px-5 py-3 border-b border-slate-700 flex justify-between items-center">
+            <div>
+                <h2 id="race-title" class="text-xl font-black text-white">-- 場 --R</h2>
+                <span id="race-grade-badge" class="text-xs px-2 py-0.5 rounded font-bold hidden"></span>
+            </div>
+            <div id="weather-info" class="text-xs text-slate-400 text-right leading-tight"></div>
+        </div>
+
+        <!-- Main Panel (hidden until race selected) -->
+        <div id="main-content" class="hidden p-4 lg:p-6 max-w-5xl mx-auto w-full space-y-5 pb-20">
+
+            <!-- Predictions + Settings -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+                <!-- Settings -->
+                <div class="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                    <h3
+                        class="font-bold text-slate-300 mb-3 pb-2 border-b border-slate-700 text-sm flex items-center gap-2">
+                        <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                        </svg>
+                        予想カスタマイズ
+                    </h3>
+                    <div class="flex gap-2 mb-4 text-xs">
+                        <div class="flex-1">
+                            <label class="block text-slate-400 mb-1">券種</label>
+                            <select id="setting-bet-type"
+                                class="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-slate-200 outline-none focus:border-blue-500">
+                                <option value="単勝">単勝</option>
+                                <option value="2連単">2連単</option>
+                                <option value="2連複">2連複</option>
+                                <option value="3連単" selected>3連単</option>
+                                <option value="3連複">3連複</option>
+                            </select>
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-slate-400 mb-1">表示点数</label>
+                            <select id="setting-max-items"
+                                class="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-slate-200 outline-none focus:border-blue-500">
+                                <option value="3">3点</option>
+                                <option value="5">5点</option>
+                                <option value="8" selected>8点</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="space-y-3 text-xs" id="weight-sliders">
+                        <div>
+                            <div class="flex justify-between mb-1 text-slate-400"><span>勝率重視</span><span id="val-win"
+                                    class="text-blue-400 font-mono">1.0</span></div><input type="range" id="w-win"
+                                min="0" max="3" step="0.1" value="1.0" class="w-full h-1.5 rounded">
+                        </div>
+                        <div>
+                            <div class="flex justify-between mb-1 text-slate-400"><span>モーター重視</span><span id="val-moto"
+                                    class="text-blue-400 font-mono">1.0</span></div><input type="range" id="w-moto"
+                                min="0" max="3" step="0.1" value="1.0" class="w-full h-1.5 rounded">
+                        </div>
+                        <div>
+                            <div class="flex justify-between mb-1 text-slate-400"><span>展示タイム重視</span><span id="val-ex"
+                                    class="text-blue-400 font-mono">1.0</span></div><input type="range" id="w-ex"
+                                min="0" max="3" step="0.1" value="1.0" class="w-full h-1.5 rounded">
+                        </div>
+                        <div>
+                            <div class="flex justify-between mb-1 text-slate-400"><span>ST重視</span><span id="val-st"
+                                    class="text-blue-400 font-mono">1.0</span></div><input type="range" id="w-st"
+                                min="0" max="3" step="0.1" value="1.0" class="w-full h-1.5 rounded">
+                        </div>
+                        <div>
+                            <div class="flex justify-between mb-1 text-slate-400"><span>インコース有利度</span><span
+                                    id="val-course" class="text-blue-400 font-mono">1.0</span></div><input type="range"
+                                id="w-course" min="0" max="2" step="0.1" value="1.0" class="w-full h-1.5 rounded">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Predictions -->
+                <div class="col-span-1 lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Custom -->
+                    <div
+                        class="bg-gradient-to-br from-slate-800 to-blue-900/40 p-4 rounded-xl border border-blue-800/50">
+                        <h3 class="font-bold text-blue-300 mb-2 pb-2 border-b border-blue-800/50 text-sm">🧑‍💻 カスタム予想
+                        </h3>
+                        <div id="rule-focus" class="space-y-1 my-2 overflow-y-auto max-h-44 custom-scrollbar"></div>
+                        <p class="text-[10px] text-blue-500 text-center mt-1">設定に応じてリアルタイム変動</p>
+                    </div>
+                    <!-- AI -->
+                    <div class="bg-gradient-to-br from-slate-800 to-slate-900 p-4 rounded-xl border border-slate-600">
+                        <h3 class="font-bold text-slate-300 mb-2 pb-2 border-b border-slate-600 text-sm">🤖 AI解析予想</h3>
+                        <div id="ai-focus" class="space-y-1 my-2 overflow-y-auto max-h-44 custom-scrollbar"></div>
+                        <p class="text-[10px] text-slate-500 text-center mt-1">非線形特徴量からの学習推論</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scenario Alert -->
+            <div id="scenario-box" class="hidden bg-red-950/60 p-4 rounded-xl border-l-4 border-red-500">
+                <h3 class="font-bold text-red-400 mb-1 flex items-center gap-1 text-sm">
+                    ⚡ 展開特注アラート
+                    <span class="bg-red-600 text-white text-xs px-2 py-0.5 rounded ml-1">確率 <span
+                            id="makuri-prob"></span>%</span>
+                </h3>
+                <p id="scenario-text" class="text-sm text-red-300 mb-2"></p>
+                <div class="inline-block bg-red-900/50 border border-red-700 font-bold px-3 py-1 rounded tracking-widest text-red-200 text-sm"
+                    id="scenario-focus"></div>
+            </div>
+
+            <!-- Entry Table -->
+            <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                <div class="px-4 py-3 bg-slate-750 border-b border-slate-700 flex justify-between items-center">
+                    <h3 class="font-bold text-slate-300 text-sm flex items-center gap-2">
+                        📋 詳細出走表
+                    </h3>
+                    <div class="flex gap-2">
+                        <button id="reset-btn"
+                            class="text-xs bg-slate-600 hover:bg-slate-500 text-white py-1.5 px-3 rounded transition-colors flex items-center gap-1">
+                            ↺ リセット
+                        </button>
+                        <button id="manual-apply-btn"
+                            class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white py-1.5 px-3 rounded transition-colors flex items-center gap-1">
+                            ✍ 手動反映
+                        </button>
+                        <button id="recalc-btn"
+                            class="text-xs bg-blue-600 hover:bg-blue-700 text-white py-1.5 px-3 rounded transition-colors flex items-center gap-1">
+                            🔄 展示情報更新
+                        </button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <!-- Mobile cards -->
+                    <div id="player-cards-mobile" class="lg:hidden divide-y divide-slate-700"></div>
+                    <!-- Desktop table -->
+                    <table class="w-full text-sm hidden lg:table whitespace-nowrap">
+                        <thead class="bg-slate-700/50 text-slate-400 text-xs">
+                            <tr>
+                                <th class="px-3 py-2 text-center w-10 cursor-pointer hover:text-white"
+                                    onclick="sortTable('boat_number')">枠↕</th>
+                                <th class="px-3 py-2 text-left">選手名/級</th>
+                                <th class="px-3 py-2 text-center cursor-pointer hover:text-white"
+                                    onclick="sortTable('global_win_rate')">全国勝率↕</th>
+                                <th class="px-3 py-2 text-center cursor-pointer hover:text-white"
+                                    onclick="sortTable('local_win_rate')">当地勝率↕</th>
+                                <th class="px-3 py-2 text-center border-l border-slate-600 cursor-pointer hover:text-white"
+                                    onclick="sortTable('motor_2_quinella')">ﾓｰﾀｰ2連↕</th>
+                                <th class="px-3 py-2 text-center">ﾓｰﾀｰNo</th>
+                                <th class="px-3 py-2 text-center border-l border-slate-600 bg-amber-900/20">進入</th>
+                                <th class="px-3 py-2 text-center bg-amber-900/20">展示T</th>
+                                <th class="px-3 py-2 text-center bg-amber-900/20">ST</th>
+                                <th class="px-3 py-2 text-center border-l border-slate-600">AI/ｶｽﾀﾑ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="player-table-body" class="divide-y divide-slate-700/50 text-slate-200"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Odds Section -->
+            <div id="odds-result-section" class="hidden space-y-4">
+                <!-- Result Banner -->
+                <div id="result-banner"
+                    class="hidden bg-gradient-to-r from-emerald-700 to-teal-700 text-white rounded-xl p-5 shadow-lg">
+                    <h3 class="font-bold text-lg mb-3">🏆 レース結果</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-xs opacity-70 mb-1">着順</p>
+                            <p id="result-ranking" class="text-4xl font-black tracking-widest">--</p>
+                        </div>
+                        <div id="result-payouts" class="space-y-1 text-sm"></div>
+                    </div>
+                </div>
+                <!-- Live Odds -->
+                <div id="odds-box" class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                    <div class="px-4 py-3 bg-slate-750 border-b border-slate-700 flex justify-between items-center">
+                        <h3 class="font-bold text-slate-300 text-sm">📊 リアルタイムオッズ（3連単）</h3>
+                        <button onclick="loadOdds()"
+                            class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded transition-colors">🔄
+                            更新</button>
+                    </div>
+                    <div id="odds-content" class="p-3">
+                        <p class="text-sm text-slate-500 text-center py-4">レースを選択してください</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Welcome Screen -->
+        <div id="welcome-screen" class="flex-1 flex flex-col items-center justify-center p-8 text-center">
+            <div class="text-6xl mb-4">⛵</div>
+            <h2 class="text-2xl font-black text-slate-300 mb-2">Kyotei Advisor</h2>
+            <p class="text-sm text-slate-500 max-w-xs">左メニューから本日開催場を選択し、レース番号をクリックしてください</p>
+        </div>
+    </div>
+
+    <!-- Player Modal -->
+    <div id="player-modal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4"
+        onclick="if(event.target===this)closeModal()">
+        <div
+            class="bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto border border-slate-600">
+            <div class="flex items-center justify-between p-5 border-b border-slate-700 sticky top-0 bg-slate-800 z-10">
+                <h2 id="modal-player-name" class="text-xl font-black text-white">選手詳細</h2>
+                <button onclick="closeModal()"
+                    class="p-2 hover:bg-slate-700 rounded-full transition-colors text-slate-400">✕</button>
+            </div>
+            <div id="modal-content" class="p-5"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api';
+        let currentRaceId = null;
+        let currentPlayersData = [];
+        let originalPlayersSnapshot = [];
+        let isFirstLoad = true;
+
+        const boatColors = [
+            'bg-white text-slate-900 border-slate-300',
+            'bg-slate-900 text-white border-slate-600',
+            'bg-red-500 text-white border-red-600',
+            'bg-blue-500 text-white border-blue-600',
+            'bg-yellow-400 text-slate-900 border-yellow-500',
+            'bg-green-500 text-white border-green-600'
+        ];
+
+        // ─── Grade detection ───────────────────────────────────────────────────
+        function getGradeInfo(race_title) {
+            if (!race_title) return { label: '一般', cls: 'grade-gen' };
+            const t = race_title.toUpperCase();
+            if (t.includes('SG')) return { label: 'SG', cls: 'grade-sg' };
+            if (t.includes('G1') || t.includes('GⅠ')) return { label: 'G1', cls: 'grade-g1' };
+            if (t.includes('G2') || t.includes('GⅡ')) return { label: 'G2', cls: 'grade-g2' };
+            if (t.includes('G3') || t.includes('GⅢ')) return { label: 'G3', cls: 'grade-g3' };
+            if (race_title.includes('ヴィーナス') || race_title.includes('レディース') || race_title.includes('女子'))
+                return { label: '女子', cls: 'grade-lady' };
+            return { label: '一般', cls: 'grade-gen' };
+        }
+
+        function gradeBadge(label, cls, small = false) {
+            const sz = small ? 'text-[0.55rem] px-1 py-px' : 'text-xs px-1.5 py-px';
+            return `<span class="inline-block rounded font-bold ${sz} ${cls}">${label}</span>`;
+        }
+
+        // ─── Drawer ────────────────────────────────────────────────────────────
+        const drawer = document.getElementById('drawer');
+        const overlay = document.getElementById('drawer-overlay');
+        document.getElementById('menu-btn').addEventListener('click', () => {
+            drawer.classList.toggle('drawer-open');
+            overlay.classList.toggle('hidden');
+        });
+        overlay.addEventListener('click', () => {
+            drawer.classList.remove('drawer-open');
+            overlay.classList.add('hidden');
+        });
+
+        // ─── Load Places ───────────────────────────────────────────────────────
+        let lastPlacesJson = '';
+        async function loadPlaces() {
+            try {
+                const res = await fetch(`${API_BASE}/places`);
+                const text = await res.text();
+                if (text === lastPlacesJson) return;
+                lastPlacesJson = text;
+                const places = JSON.parse(text);
+                renderPlaces(places);
+            } catch (e) { console.error('loadPlaces', e); }
+        }
+
+        function renderPlaces(places) {
+            const list = document.getElementById('place-list');
+            // 開いているコンテナのplace名を記録して再描画後に復元
+            const openPlaces = [];
+            document.querySelectorAll('[id^="races-container-"]').forEach(el => {
+                if (!el.classList.contains('hidden')) openPlaces.push(el.id.replace('races-container-', ''));
+            });
+
+            list.innerHTML = '';
+            let firstActive = null;
+            places.forEach(p => {
+                if (p.is_active && !firstActive) firstActive = p.place;
+                const li = document.createElement('li');
+                if (p.is_active) {
+                    const gradeInfo = p.grade ? getGradeInfo(p.grade) : { label: '', cls: '' };
+                    const badge = gradeInfo.label ? gradeBadge(gradeInfo.label, gradeInfo.cls, true) : '';
+                    const raceBadge = p.max_race ? `<span class="text-[9px] text-slate-500 ml-1">${p.max_race}R</span>` : '';
+                    li.innerHTML = `
+                <div>
+                    <button onclick="loadRaces('${p.place}')" class="w-full text-left px-3 py-2.5 rounded-lg text-slate-200 font-semibold transition-all hover:bg-slate-700 border-l-4 border-blue-500 flex items-center justify-between bg-slate-700/30">
+                        <span class="flex items-center gap-1.5">${p.place}${raceBadge} ${badge}</span>
+                        <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    </button>
+                    <div id="races-container-${p.place}" class="hidden grid grid-cols-4 gap-1.5 p-2 bg-slate-900/60 mx-1 rounded-b-lg border-x border-b border-slate-700"></div>
+                </div>`;
+                } else {
+                    li.innerHTML = `
+                <div>
+                    <button class="w-full text-left px-3 py-2 rounded-lg text-slate-600 text-sm transition-all cursor-default flex items-center justify-between">
+                        <span>${p.place}</span>
+                        <span class="text-[10px] text-slate-700">非開催</span>
+                    </button>
+                </div>`;
+                }
+                list.appendChild(li);
+            });
+
+            if (isFirstLoad && firstActive) {
+                isFirstLoad = false;
+                setTimeout(() => loadRaces(firstActive, true), 200);
+            } else {
+                // 再描画後、以前開いていた場のコンテナを再ロード
+                openPlaces.forEach(pl => {
+                    const cont = document.getElementById(`races-container-${pl}`);
+                    if (cont) loadRaces(pl);
+                });
+            }
+        }
+
+        // ─── Load Races for a Place ────────────────────────────────────────────
+        async function loadRaces(placeName, autoLoadFirst = false, retryCount = 0) {
+            // 他の場のコンテナを閉じる
+            document.querySelectorAll('[id^="races-container-"]').forEach(el => {
+                if (el.id !== `races-container-${placeName}`) {
+                    el.classList.add('hidden'); el.innerHTML = '';
+                }
+            });
+
+            const container = document.getElementById(`races-container-${placeName}`);
+            if (!container) return;
+            container.classList.remove('hidden');
+            container.innerHTML = '<div class="col-span-4 text-center text-xs py-2 text-slate-500 animate-pulse-fast">取得中...</div>';
+
+            try {
+                const res = await fetch(`${API_BASE}/places/${encodeURIComponent(placeName)}/races`);
+                const races = res.ok ? await res.json() : [];
+
+                if (!races || races.length === 0) {
+                    let stillScraping = false;
+                    try {
+                        const statusRes = await fetch(`${API_BASE}/status`);
+                        stillScraping = (await statusRes.json()).is_scraping;
+                    } catch (_) { }
+
+                    const MAX_RETRIES = 25;
+                    if (retryCount < MAX_RETRIES && (stillScraping || retryCount < 2)) {
+                        // スクレイプ中、またはDB空でも最低2回は試みる
+                        container.innerHTML = `<div class="col-span-4 text-center text-xs py-3 text-blue-400 animate-pulse-fast">
+                            ${stillScraping ? `データ取得中... (${retryCount + 1}回目)` : '確認中...'}
+                        </div>`;
+                        setTimeout(() => loadRaces(placeName, autoLoadFirst, retryCount + 1), stillScraping ? 6000 : 3000);
+                    } else {
+                        container.innerHTML = '<div class="col-span-4 text-center text-xs py-3 text-slate-600">本日のレースなし</div>';
+                    }
+                    return;
+                }
+
+                container.innerHTML = '';
+                races.forEach((r, idx) => {
+                    const g = getGradeInfo(r.race_title || '');
+                    const btn = document.createElement('button');
+                    btn.id = `race-btn-${r.id}`;
+                    btn.className = 'py-1.5 rounded text-xs font-bold transition-all hover:bg-blue-600 bg-slate-700 border border-slate-600 flex flex-col items-center gap-0.5 leading-tight';
+                    btn.innerHTML = `<span class="text-slate-100">${r.race_number}R</span>${r.race_title ? gradeBadge(g.label, g.cls, true) : ''}`;
+                    btn.onclick = () => {
+                        document.querySelectorAll('[id^="race-btn-"]').forEach(b => b.classList.remove('ring-2','ring-blue-400'));
+                        btn.classList.add('ring-2','ring-blue-400');
+                        loadRaceDetail(r.id);
+                        if (window.innerWidth < 768) {
+                            drawer.classList.remove('drawer-open');
+                            overlay.classList.add('hidden');
+                        }
+                    };
+                    container.appendChild(btn);
+                    if (autoLoadFirst && idx === 0) setTimeout(() => btn.click(), 150);
+                });
+            } catch (e) {
+                console.error('loadRaces', e);
+                container.innerHTML = '<div class="col-span-4 text-center text-xs py-2 text-red-400">エラー</div>';
+            }
+        }
+
+        // ─── Race Detail ───────────────────────────────────────────────────────
+        async function loadRaceDetail(raceId) {
+            currentRaceId = raceId;
+            stopOddsAutoRefresh();
+            document.getElementById('welcome-screen').classList.add('hidden');
+            document.getElementById('main-content').classList.remove('hidden');
+            document.getElementById('odds-result-section').classList.remove('hidden');
+            document.getElementById('result-banner').classList.add('hidden');
+            document.getElementById('odds-content').innerHTML = '<p class="text-sm text-slate-500 text-center py-4 animate-pulse">オッズ確認中...</p>';
+
+            const mc = document.getElementById('main-content');
+            mc.style.opacity = '0.4';
+            await requestPrediction();
+            mc.style.opacity = '1';
+            await loadRaceOptions();
+            startOddsAutoRefresh(); // レース選択後に30秒自動更新開始
+        }
+
+        function getWeights() {
+            return {
+                win_rate: parseFloat(document.getElementById('w-win').value),
+                motor: parseFloat(document.getElementById('w-moto').value),
+                exhibition: parseFloat(document.getElementById('w-ex').value),
+                st: parseFloat(document.getElementById('w-st').value),
+                course: parseFloat(document.getElementById('w-course').value)
+            };
+        }
+
+        function getSettings() {
+            return {
+                max_items: parseInt(document.getElementById('setting-max-items').value),
+                bet_type: document.getElementById('setting-bet-type').value
+            };
+        }
+
+        // Sliders
+        ['w-win', 'w-moto', 'w-ex', 'w-st', 'w-course'].forEach(id => {
+            const el = document.getElementById(id);
+            const val = document.getElementById(id.replace('w-', 'val-'));
+            el.addEventListener('input', () => val.textContent = parseFloat(el.value).toFixed(1));
+            el.addEventListener('change', () => { if (currentRaceId) requestPrediction(); });
+        });
+        ['setting-bet-type', 'setting-max-items'].forEach(id => {
+            document.getElementById(id).addEventListener('change', () => { if (currentRaceId) requestPrediction(); });
+        });
+
+        async function requestPrediction() {
+            try {
+                const res = await fetch(`${API_BASE}/races/${currentRaceId}/predict`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ weights: getWeights(), settings: getSettings() })
+                });
+                if (!res.ok) throw new Error(`API ${res.status}`);
+                const data = await res.json();
+                currentPlayersData = data.players;
+                renderRace(data.race, data.players, data.predictions);
+            } catch (e) {
+                console.error('requestPrediction', e);
+            }
+        }
+
+        let currentSort = { col: 'boat_number', asc: true };
+        function sortTable(col) {
+            currentSort.asc = currentSort.col === col ? !currentSort.asc : true;
+            currentSort.col = col;
+            currentPlayersData.sort((a, b) => {
+                const va = a[col] || 0, vb = b[col] || 0;
+                return currentSort.asc ? (va < vb ? -1 : va > vb ? 1 : 0) : (va > vb ? -1 : va < vb ? 1 : 0);
+            });
+            const tb = document.getElementById('player-table-body');
+            tb.innerHTML = '';
+            appendTableRows(tb, currentPlayersData);
+        }
+
+        function renderRace(race, players, predictions) {
+            document.getElementById('race-header').classList.remove('hidden');
+
+            const gradeInfo = getGradeInfo(race.race_title || '');
+            document.getElementById('race-title').textContent = `${race.place_name}  ${race.race_number}R`;
+
+            const badge = document.getElementById('race-grade-badge');
+            badge.className = `text-xs px-2 py-0.5 rounded font-bold mt-0.5 inline-block ${gradeInfo.cls}`;
+            badge.textContent = gradeInfo.label;
+            badge.classList.remove('hidden');
+
+            const w = race.weather || '--', wv = race.wave_height != null ? `波${race.wave_height}cm` : '';
+            const wd = race.wind_direction || '', ws = race.wind_speed != null ? `風${race.wind_speed}m` : '';
+            document.getElementById('weather-info').innerHTML = `${w} ${wv}<br>${wd} ${ws}`;
+
+            // Predictions
+            const renderList = (targetId, items, isDark) => {
+                const el = document.getElementById(targetId);
+                el.innerHTML = '';
+                if (!items || !items.length) { el.innerHTML = '<span class="text-xs text-slate-500 block text-center py-2">データなし</span>'; return; }
+                items.forEach((item, i) => {
+                    const row = document.createElement('div');
+                    const highlight = i === 0 ? (isDark ? 'text-amber-400' : 'text-orange-400') : 'text-slate-200';
+                    row.className = 'flex justify-between items-center px-2 py-1 rounded text-sm bg-white/5 hover:bg-white/10 transition-colors';
+                    row.innerHTML = `<span class="w-4 text-xs text-slate-500">${i + 1}</span>
+                    <span class="font-black font-mono tracking-widest flex-1 ${highlight}">${item.pattern}</span>
+                    <span class="text-xs text-slate-400 font-mono">${item.prob.toFixed(1)}%</span>`;
+                    el.appendChild(row);
+                });
+            };
+            renderList('rule-focus', predictions.rule_focus, false);
+            renderList('ai-focus', predictions.ai_focus, true);
+
+            const sbox = document.getElementById('scenario-box');
+            if (predictions.scenario && predictions.scenario.active) {
+                sbox.classList.remove('hidden');
+                document.getElementById('makuri-prob').textContent = predictions.scenario.probability;
+                document.getElementById('scenario-text').textContent = predictions.scenario.text;
+                document.getElementById('scenario-focus').textContent = predictions.scenario.focus;
+            } else { sbox.classList.add('hidden'); }
+
+            const tb = document.getElementById('player-table-body');
+            const mc = document.getElementById('player-cards-mobile');
+            tb.innerHTML = ''; mc.innerHTML = '';
+
+            originalPlayersSnapshot = JSON.parse(JSON.stringify(players));
+            appendTableRows(tb, players);
+
+            // Mobile cards
+            players.slice().sort((a, b) => a.boat_number - b.boat_number).forEach(p => {
+                const cc = boatColors[p.boat_number - 1];
+                const card = document.createElement('div');
+                card.className = 'p-4 bg-slate-800 border-b border-slate-700 space-y-2';
+                card.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <div class="w-7 h-7 rounded flex items-center justify-center font-bold text-sm border ${cc}">${p.boat_number}</div>
+                        <span class="font-bold text-base">${p.racer_name || '--'}</span>
+                        <span class="text-[10px] px-1 py-px bg-slate-700 rounded">${p.racer_class || '-'}</span>
+                    </div>
+                    <div class="text-sm font-bold flex gap-1 items-center">
+                        <span class="text-slate-300">${p.ai_mark}</span><span class="text-slate-600">|</span><span class="text-blue-400">${p.rule_mark}</span>
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-2 text-xs text-slate-400">
+                    <div>全勝率: <span class="text-slate-200 font-mono font-bold">${p.global_win_rate || 0}</span></div>
+                    <div>ﾓｰﾀｰ2連: <span class="text-slate-200 font-mono font-bold">${p.motor_2_quinella || 0}%</span></div>
+                </div>
+                <div class="grid grid-cols-3 gap-2 text-xs">
+                    <div><label class="block text-slate-500 mb-0.5">進入</label>
+                        <input type="number" id="m-course-${p.boat_number}" value="${p.calc_course || p.boat_number}" class="w-full bg-slate-700 border border-slate-600 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-blue-400"></div>
+                    <div><label class="block text-slate-500 mb-0.5">展示T</label>
+                        <input type="number" step="0.01" id="m-ex-${p.boat_number}" value="${p.calc_ex || 0}" class="w-full bg-amber-900/30 border border-amber-700/50 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-amber-500"></div>
+                    <div><label class="block text-slate-500 mb-0.5">ST</label>
+                        <input type="number" step="0.01" id="m-st-${p.boat_number}" value="${p.calc_st || 0}" class="w-full bg-amber-900/30 border border-amber-700/50 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-amber-500"></div>
+                </div>`;
+                mc.appendChild(card);
+            });
+        }
+
+        function appendTableRows(tb, players) {
+            players.forEach(p => {
+                const cc = boatColors[p.boat_number - 1];
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-700/40 transition-colors';
+                tr.innerHTML = `
+                <td class="px-3 py-2 text-center"><div class="w-6 h-6 rounded flex items-center justify-center font-bold text-xs border mx-auto ${cc}">${p.boat_number}</div></td>
+                <td class="px-3 py-2 cursor-pointer" onclick="openPlayerModal('${p.racer_id || p.toban || ''}','${(p.racer_name || '').replace(/'/g, "\\'")}')">
+                    <div class="font-bold text-slate-200">${p.racer_name || '--'}</div>
+                    <div class="text-[10px] text-slate-500">${p.racer_class || '-'} <span class="text-blue-400">▶ 詳細</span></div>
+                </td>
+                <td class="px-3 py-2 text-center font-mono text-sm text-slate-300">${p.global_win_rate || 0}</td>
+                <td class="px-3 py-2 text-center font-mono text-sm text-slate-300">${p.local_win_rate || 0}</td>
+                <td class="px-3 py-2 text-center border-l border-slate-700"><span class="font-mono text-slate-200">${p.motor_2_quinella || 0}</span><span class="text-xs text-slate-500">%</span></td>
+                <td class="px-3 py-2 text-center text-xs text-slate-500 font-mono">${p.motor_number || '-'}</td>
+                <td class="px-3 py-2 border-l border-slate-700 bg-amber-900/10" onclick="event.stopPropagation()">
+                    <input type="number" id="in-course-${p.boat_number}" value="${p.calc_course || p.boat_number}" onclick="event.stopPropagation()" class="w-14 bg-slate-700 border border-slate-600 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-blue-400"></td>
+                <td class="px-3 py-2 bg-amber-900/10" onclick="event.stopPropagation()">
+                    <input type="number" step="0.01" id="in-ex-${p.boat_number}" value="${p.calc_ex || 0}" onclick="event.stopPropagation()" class="w-16 bg-slate-700 border border-amber-700/40 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-amber-500"></td>
+                <td class="px-3 py-2 bg-amber-900/10" onclick="event.stopPropagation()">
+                    <input type="number" step="0.01" id="in-st-${p.boat_number}" value="${p.calc_st || 0}" onclick="event.stopPropagation()" class="w-16 bg-slate-700 border border-amber-700/40 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-amber-500"></td>
+                <td class="px-3 py-2 text-center border-l border-slate-700">
+                    <div class="flex justify-evenly text-sm font-bold">
+                        <span class="text-slate-300">${p.ai_mark}</span>
+                        <span class="text-slate-600">|</span>
+                        <span class="text-blue-400">${p.rule_mark}</span>
+                    </div>
+                </td>`;
+                tb.appendChild(tr);
+            });
+        }
+
+        // ─── Odds ──────────────────────────────────────────────────────────────
+        let oddsAutoRefreshTimer = null;
+
+        function startOddsAutoRefresh() {
+            stopOddsAutoRefresh();
+            oddsAutoRefreshTimer = setInterval(() => {
+                if (currentRaceId) loadRaceOptions(true);
+            }, 30000); // 30秒ごとに自動更新
+        }
+
+        function stopOddsAutoRefresh() {
+            if (oddsAutoRefreshTimer) { clearInterval(oddsAutoRefreshTimer); oddsAutoRefreshTimer = null; }
+        }
+
+        async function loadRaceOptions(silent = false) {
+            if (!currentRaceId) return;
+            if (!silent) {
+                document.getElementById('odds-content').innerHTML = '<p class="text-sm text-slate-500 text-center py-4 animate-pulse">オッズ確認中...</p>';
+            }
+            try {
+                const res = await fetch(`${API_BASE}/races/${currentRaceId}/options`);
+                if (!res.ok) { document.getElementById('odds-content').innerHTML = '<p class="text-sm text-red-400 text-center py-4">オッズAPIエラー</p>'; return; }
+                const data = await res.json();
+                if (data.result && data.result.finished) {
+                    stopOddsAutoRefresh(); // 結果確定後は自動更新停止
+                    document.getElementById('result-banner').classList.remove('hidden');
+                    document.getElementById('result-ranking').textContent = data.result.ranking_str || '--';
+                    const pe = document.getElementById('result-payouts'); pe.innerHTML = '';
+                    (data.result.payouts || []).slice(0, 5).forEach(p => {
+                        pe.innerHTML += `<div class="flex justify-between gap-4"><span class="opacity-80">${p.type}</span><span class="font-bold">${p.payout}</span></div>`;
+                    });
+                    if (data.odds && data.odds.all_odds) renderOdds(data.odds.all_odds);
+                    else document.getElementById('odds-content').innerHTML = '<p class="text-sm text-slate-500 text-center py-4">最終オッズなし</p>';
+                } else if (data.odds && data.odds.all_odds) {
+                    renderOdds(data.odds.all_odds);
+                    // 次回更新時刻を表示（既存要素を置換）
+                    const nextTime = new Date(Date.now() + 30000).toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+                    document.getElementById('odds-next-refresh')?.remove();
+                    document.getElementById('odds-content').insertAdjacentHTML('afterend', `<p id="odds-next-refresh" class="text-[10px] text-slate-600 text-right pr-2 mt-0.5">🔄 次回自動更新: ${nextTime}</p>`);
+                } else {
+                    document.getElementById('odds-content').innerHTML = '<p class="text-sm text-slate-500 text-center py-4">オッズデータなし（発売前の可能性）</p>';
+                }
+            } catch (e) {
+                if (!silent) document.getElementById('odds-content').innerHTML = '<p class="text-sm text-red-400 text-center py-4">取得エラー</p>';
+            }
+        }
+
+        async function loadOdds() {
+            document.getElementById('odds-content').innerHTML = '<p class="text-sm text-slate-500 text-center py-4 animate-pulse">更新中...</p>';
+            await loadRaceOptions();
+        }
+
+        function renderOdds(odds_list) {
+            const el = document.getElementById('odds-content');
+            if (!odds_list || !odds_list.length) { el.innerHTML = '<p class="text-sm text-slate-500 text-center py-4">オッズ情報なし</p>'; return; }
+            const SHOW = 15;
+            const mkItem = (item, i) => {
+                const cls = i === 0 ? 'bg-amber-500/20 border-amber-500/40 text-amber-300' : i < 3 ? 'bg-blue-900/30 border-blue-700/40 text-blue-300' : 'bg-slate-700/30 border-slate-600/40 text-slate-300';
+                return `<div class="flex justify-between items-center px-2.5 py-1.5 rounded border text-xs font-mono ${cls}"><span class="font-bold">${(item && item.pattern) ? item.pattern : '?'}</span><span>${(item && item.odds != null) ? item.odds : '??'}倍</span></div>`;
+            };
+            const top = odds_list.slice(0, SHOW), rest = odds_list.slice(SHOW);
+            let html = `<div class="grid grid-cols-2 sm:grid-cols-3 gap-1">${top.map(mkItem).join('')}</div>`;
+            if (rest.length) {
+                html += `<div id="odds-more" class="hidden mt-1"><div class="grid grid-cols-2 sm:grid-cols-3 gap-1">${rest.map((it, i) => mkItem(it, i + SHOW)).join('')}</div></div>
+            <button onclick="document.getElementById('odds-more').classList.toggle('hidden');this.textContent=this.textContent.includes('もっと')?'折りたたむ ▲':'もっと見る (${rest.length}件) ▼'" class="w-full mt-2 text-xs text-blue-400 hover:text-blue-300 font-semibold py-1 border-t border-slate-700">もっと見る (${rest.length}件) ▼</button>`;
+            }
+            el.innerHTML = html;
+        }
+
+        // ─── Exhibition buttons ────────────────────────────────────────────────
+        document.getElementById('recalc-btn').addEventListener('click', async () => {
+            if (!currentRaceId) return;
+            const btn = document.getElementById('recalc-btn');
+            btn.disabled = true; btn.textContent = '取得中...';
+            try {
+                const res = await fetch(`${API_BASE}/races/${currentRaceId}/exhibition/scrape`);
+                if (!res.ok) { const err = await res.json(); alert(`展示情報取得失敗: ${err.detail || '不明'}`); return; }
+                const data = await res.json();
+                const ex = data.scraped_exhibition || {};
+                Object.entries(ex).forEach(([bn, info]) => {
+                    ['in-course-', 'in-ex-', 'in-st-', 'm-course-', 'm-ex-', 'm-st-'].forEach((pref, i) => {
+                        const n = document.getElementById(`${pref}${bn}`);
+                        if (n) n.value = [info.entry_course, info.exhibition_time, info.start_timing,
+                        info.entry_course, info.exhibition_time, info.start_timing][i];
+                    });
+                });
+                currentPlayersData = data.players;
+                renderRace(data.race, data.players, data.predictions);
+                originalPlayersSnapshot = JSON.parse(JSON.stringify(data.players));
+            } catch (e) { alert('展示情報の取得中にエラー'); }
+            finally { btn.disabled = false; btn.textContent = '🔄 展示情報更新'; }
+        });
+
+        document.getElementById('reset-btn').addEventListener('click', async () => {
+            if (!currentRaceId || !originalPlayersSnapshot.length) return;
+            originalPlayersSnapshot.forEach(p => {
+                const cn = document.getElementById(`in-course-${p.boat_number}`); if (cn) cn.value = p.calc_course || p.boat_number;
+                const en = document.getElementById(`in-ex-${p.boat_number}`); if (en) en.value = p.calc_ex || 0;
+                const sn = document.getElementById(`in-st-${p.boat_number}`); if (sn) sn.value = p.calc_st || 0;
+            });
+            try {
+                const updates = originalPlayersSnapshot.map(p => ({
+                    boat_number: p.boat_number,
+                    entry_course: p.calc_course || p.boat_number,
+                    exhibition_time: p.calc_ex || 6.80,
+                    start_timing: p.calc_st || 0.15
+                }));
+                await fetch(`${API_BASE}/races/${currentRaceId}/exhibition`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates)
+                });
+                requestPrediction();
+            } catch (e) { console.error(e); }
+        });
+
+        document.getElementById('manual-apply-btn').addEventListener('click', async () => {
+            if (!currentRaceId || !currentPlayersData.length) return;
+            const btn = document.getElementById('manual-apply-btn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true; btn.textContent = '反映中...';
+            try {
+                // Read from mobile or desktop inputs
+                const updates = currentPlayersData.map(p => {
+                    const cn = document.getElementById(`in-course-${p.boat_number}`) || document.getElementById(`m-course-${p.boat_number}`);
+                    const en = document.getElementById(`in-ex-${p.boat_number}`) || document.getElementById(`m-ex-${p.boat_number}`);
+                    const sn = document.getElementById(`in-st-${p.boat_number}`) || document.getElementById(`m-st-${p.boat_number}`);
+                    return {
+                        boat_number: p.boat_number,
+                        entry_course: cn ? parseInt(cn.value) : p.boat_number,
+                        exhibition_time: en ? parseFloat(en.value) : 6.80,
+                        start_timing: sn ? parseFloat(sn.value) : 0.15
+                    };
+                });
+                const res = await fetch(`${API_BASE}/races/${currentRaceId}/exhibition`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates)
+                });
+                if (!res.ok) throw new Error('Update failed');
+                await requestPrediction();
+            } catch (e) {
+                alert('手動反映中にエラーが発生しました: ' + e);
+            } finally {
+                btn.disabled = false; btn.innerHTML = originalText;
+            }
+        });
+
+        // ─── Force Scrape Button ───────────────────────────────────────────────
+        document.getElementById('force-scrape-btn').addEventListener('click', async () => {
+            const btn = document.getElementById('force-scrape-btn');
+            const origHTML = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<svg class="animate-spin w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg> 開始中...';
+            try {
+                const res = await fetch(`${API_BASE}/scrape/today`, { method: 'POST' });
+                if (!res.ok) {
+                    const err = await res.json();
+                    alert(err.detail || 'エラーが発生しました');
+                    btn.innerHTML = origHTML;
+                    btn.disabled = false;
+                } else {
+                    btn.innerHTML = '⏳ 取得中...';
+                    // スクレイプ終了まで disabled のまま checkStatus に任せる
+                    setTimeout(checkStatus, 500);
+                }
+            } catch (e) {
+                console.error(e);
+                alert('通信エラーが発生しました');
+                btn.innerHTML = origHTML;
+                btn.disabled = false;
+            }
+        });
+
+        // ─── Player Modal ──────────────────────────────────────────────────────
+        async function openPlayerModal(toban, name) {
+            const modal = document.getElementById('player-modal');
+            document.getElementById('modal-player-name').textContent = name || '選手詳細';
+            document.getElementById('modal-content').innerHTML = `<div class="text-center py-8 text-slate-400 animate-pulse">取得中...</div>`;
+            modal.classList.remove('hidden');
+            try {
+                const res = await fetch(`${API_BASE}/racers/${toban}`);
+                const data = await res.json();
+                if (data.error) { document.getElementById('modal-content').innerHTML = `<p class="text-red-400 text-center py-6">${data.error}</p>`; return; }
+                const stats = data.course_stats || [];
+                let html = `<div class="mb-4"><p class="text-xs text-slate-500">登録番号: ${toban}</p><h3 class="text-2xl font-black text-white">${data.name || name}</h3></div>
+                <h4 class="font-bold text-slate-300 mb-2 border-b border-slate-700 pb-2 text-sm">📊 コース別成績</h4>
+                <div class="overflow-x-auto"><table class="w-full text-sm text-center">
+                <thead class="bg-slate-700 text-xs text-slate-400"><tr>
+                    <th class="px-3 py-2">コース</th><th class="px-3 py-2">1着率</th><th class="px-3 py-2">3連率</th><th class="px-3 py-2">平均ST</th><th class="px-3 py-2">出走数</th>
+                </tr></thead><tbody class="divide-y divide-slate-700">`;
+                stats.forEach(s => {
+                    const rowCls = s.course === 1 ? 'bg-amber-900/30 font-semibold' : '';
+                    html += `<tr class="${rowCls}"><td class="px-3 py-2 font-bold">${s.course}コース</td>
+                    <td class="px-3 py-2 text-blue-400 font-bold">${s.win_rate}</td>
+                    <td class="px-3 py-2">${s.trio_rate}</td>
+                    <td class="px-3 py-2 font-mono">${s.avg_st}</td>
+                    <td class="px-3 py-2 text-slate-500">${s.starts}</td></tr>`;
+                });
+                html += `</tbody></table></div><p class="text-[10px] text-slate-600 mt-3 text-center">データ: BOAT RACE オフィシャル</p>`;
+                document.getElementById('modal-content').innerHTML = html;
+            } catch (e) { document.getElementById('modal-content').innerHTML = `<p class="text-red-400 text-center py-6">データ取得失敗</p>`; }
+        }
+
+        function closeModal() { document.getElementById('player-modal').classList.add('hidden'); }
+
+        // ─── Status polling & auto-refresh ────────────────────────────────────
+        let isScraping = false;
+        async function checkStatus() {
+            let nextDelay = 10000;
+            try {
+                const res = await fetch(`${API_BASE}/status`);
+                const data = await res.json();
+                const ind = document.getElementById('scraping-indicator');
+                const btn = document.getElementById('force-scrape-btn');
+                if (data.is_scraping) {
+                    ind.classList.remove('hidden');
+                    if (btn) { btn.disabled = true; btn.textContent = '⏳ 取得中...'; }
+                    if (!isScraping) { isScraping = true; }
+                    loadPlaces();
+                    nextDelay = 4000;
+                } else {
+                    ind.classList.add('hidden');
+                    if (btn) { btn.disabled = false; btn.innerHTML = '📥 データ一括取得'; }
+                    if (isScraping) {
+                        isScraping = false;
+                        // スクレイプ完了: 全場リストを更新し、開いていたコンテナも再ロード
+                        await loadPlaces();
+                        document.querySelectorAll('[id^="races-container-"]').forEach(el => {
+                            if (!el.classList.contains('hidden')) {
+                                const placeName = el.id.replace('races-container-', '');
+                                loadRaces(placeName);
+                            }
+                        });
+                    } else {
+                        loadPlaces();
+                    }
+                    nextDelay = 10000;
+                }
+            } catch (e) { /* network error, try again */ }
+            setTimeout(checkStatus, nextDelay);
+        }
+
+        // Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js').catch(() => { }));
+        }
+
+        // Start
+        checkStatus();
+        // Refresh places every 5 min
+        setInterval(loadPlaces, 5 * 60 * 1000);
+    </script>
+</body>
+
+</html>
