@@ -15,19 +15,3 @@ services:
       name: kyotei-data
       mountPath: /data
       sizeGB: 1
-
-  - type: cron
-    name: kyotei-advisor-scraper
-    runtime: python
-    buildCommand: pip install -r requirements.txt
-    schedule: "0 * * * *"
-    startCommand: python scraper.py
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.0
-      - key: DATABASE_PATH
-        value: /data/kyotei.db
-    disk:
-      name: kyotei-data
-      mountPath: /data
-      sizeGB: 1
