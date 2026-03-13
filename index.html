@@ -1,0 +1,1546 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Kyotei Advisor</title>
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#0f172a">
+<link rel="apple-touch-icon" href="./icons/icon-192x192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+body { font-family: 'Inter', 'Hiragino Sans', 'Yu Gothic', sans-serif; }
+
+/* Drawer */
+#drawer { transition: transform 0.3s ease-in-out; }
+.drawer-open { transform: translateX(0) !important; }
+@media (max-width: 767px) { #drawer { transform: translateX(-100%); } }
+
+/* Scrollbar */
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 2px; }
+
+/* Grade badges */
+.grade-sg   { background: #f59e0b; color: #fff; }
+.grade-g1   { background: #ef4444; color: #fff; }
+.grade-g2   { background: #3b82f6; color: #fff; }
+.grade-g3   { background: #22c55e; color: #fff; }
+.grade-lady { background: #ec4899; color: #fff; }
+.grade-gen  { background: #475569; color: #e2e8f0; }
+
+/* Pulse */
+@keyframes pulse-fast { 0%,100%{opacity:1} 50%{opacity:.4} }
+.animate-pulse-fast { animation: pulse-fast 1s ease-in-out infinite; }
+
+/* Odds table - 公式風 */
+.odds-table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.odds-table th { background: #1e3a5f; color: #93c5fd; padding: 4px 6px; text-align: center; border: 1px solid #1e40af; }
+.odds-table td { padding: 3px 5px; text-align: right; border: 1px solid #1e293b; font-variant-numeric: tabular-nums; }
+.odds-table tr:nth-child(even) td { background: #0f172a; }
+.odds-table tr:nth-child(odd) td { background: #1e293b; }
+.odds-table td.boat-cell { text-align: center; font-weight: bold; }
+.odds-val { color: #f0f9ff; }
+.odds-val.low  { color: #fde68a; font-weight: 700; }
+.odds-val.fav  { color: #f87171; font-weight: 700; }
+.odds-val.none { color: #475569; }
+
+/* Weather badge */
+.weather-bar { display:flex; align-items:center; gap:10px; padding:6px 12px; background:#0f2744; border-radius:8px; font-size:11px; }
+.weather-item { display:flex; align-items:center; gap:4px; }
+.wind-strong { color:#fbbf24; font-weight:700; }
+.wave-high   { color:#60a5fa; font-weight:700; }
+
+/* Accordion */
+.accordion-header { cursor: pointer; user-select: none; }
+.accordion-header .acc-icon { transition: transform 0.2s; }
+.accordion-header.collapsed .acc-icon { transform: rotate(-90deg); }
+.accordion-body { transition: max-height 0.3s ease, opacity 0.3s ease; overflow: hidden; }
+.accordion-body.closed { max-height: 0 !important; opacity: 0; }
+
+/* Draggable sections */
+.draggable-section { touch-action: none; }
+.draggable-section.dragging { opacity: 0.5; z-index: 100; }
+.draggable-section.drag-over { border-top: 2px solid #3b82f6; }
+
+/* ST input */
+.st-input-wrap { display:flex; align-items:center; gap:2px; }
+.st-sign-btn { width:20px; height:20px; background:#334155; border-radius:3px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:13px; line-height:1; border:1px solid #475569; }
+.st-sign-btn:hover { background:#475569; }
+
+/* Course select */
+.course-select { background:#1e293b; border:1px solid #475569; border-radius:4px; color:#f1f5f9; text-align:center; padding:2px 4px; font-family:monospace; }
+
+/* Scenario cards */
+.scenario-card { border-left: 3px solid #ef4444; background: rgba(127,29,29,0.25); }
+.scenario-card.alert { border-left-color: #f97316; background: rgba(124,45,18,0.35); }
+.scenario-card.normal { border-left-color: #3b82f6; background: rgba(30,58,138,0.25); }
+
+/* Responsive layout order (mobile) */
+@media (max-width: 767px) {
+  #section-entry   { order: 1; }
+  #section-predict { order: 2; }
+  #section-setting { order: 3; }
+  #section-odds    { order: 4; }
+  #sections-wrapper { display: flex; flex-direction: column; }
+}
+
+/* Tilt color */
+.tilt-plus  { color: #fb923c; }
+.tilt-minus { color: #34d399; }
+.tilt-zero  { color: #94a3b8; }
+</style>
+</head>
+<body class="bg-slate-900 h-screen flex overflow-hidden text-slate-200">
+
+<!-- Mobile Header -->
+<div class="md:hidden fixed top-0 w-full bg-slate-900 text-white px-4 py-3 flex justify-between items-center z-30 shadow-lg border-b border-slate-700">
+  <h1 class="text-lg font-black tracking-tight flex items-center gap-2">⛵ <span>Kyotei Advisor</span></h1>
+  <button id="menu-btn" class="focus:outline-none p-1 rounded hover:bg-slate-700 transition-colors">
+    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+    </svg>
+  </button>
+</div>
+
+<!-- Left Sidebar -->
+<div id="drawer" class="fixed md:relative z-20 w-72 h-full bg-slate-900 shadow-2xl flex flex-col pt-14 md:pt-0 border-r border-slate-700/80">
+  <div class="hidden md:block px-5 py-4 bg-slate-950 border-b border-slate-700">
+    <h1 class="text-xl font-black tracking-tight flex items-center gap-2">⛵ Kyotei Advisor</h1>
+    <p class="text-xs text-slate-500 mt-0.5">Data Analysis &amp; AI Prediction</p>
+  </div>
+  <div class="mx-3 mt-3 mb-1">
+    <button id="force-scrape-btn" class="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors shadow">
+      📥 データ一括取得
+    </button>
+  </div>
+  <div id="scraping-indicator" class="hidden mx-3 mt-2 mb-1 px-3 py-2 bg-blue-900/40 border border-blue-700 rounded-lg text-xs text-blue-300 flex items-center gap-2">
+    <svg class="animate-spin h-3.5 w-3.5 text-blue-400 flex-shrink-0" fill="none" viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+    </svg>
+    <span>データ取得中...</span>
+  </div>
+  <div class="overflow-y-auto flex-1 px-2 py-2 custom-scrollbar">
+    <p class="text-[10px] font-semibold text-slate-600 px-2 mb-1 uppercase tracking-widest">本日の開催場</p>
+    <ul id="place-list">
+      <li class="px-3 py-3 text-sm text-slate-500 text-center animate-pulse-fast">読み込み中...</li>
+    </ul>
+  </div>
+</div>
+
+<!-- Overlay (mobile) -->
+<div id="drawer-overlay" class="fixed inset-0 bg-black/70 z-10 hidden md:hidden"></div>
+
+<!-- Main Content -->
+<div class="flex-1 flex flex-col h-full bg-slate-900 pt-14 md:pt-0 overflow-y-auto" id="main-scroll">
+
+  <!-- Race Header (sticky) -->
+  <div id="race-header" class="hidden sticky top-0 z-10 bg-slate-900/95 backdrop-blur px-4 py-2.5 border-b border-slate-700 flex flex-col gap-1 shadow">
+    <div class="flex justify-between items-start">
+      <div class="flex items-center gap-2 flex-wrap">
+        <h2 id="race-title" class="text-lg font-black text-white">-- 場 --R</h2>
+        <span id="race-grade-badge" class="text-xs px-2 py-0.5 rounded font-bold hidden"></span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span id="weather-last-update" class="text-[10px] text-slate-600"></span>
+        <button id="weather-refresh-btn" onclick="refreshWeather()" class="text-[10px] bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded text-slate-300 transition-colors flex items-center gap-1">
+          🌡 気象更新
+        </button>
+      </div>
+    </div>
+    <!-- Weather bar -->
+    <div id="weather-bar" class="weather-bar hidden">
+      <div class="weather-item">🌤 <span id="w-weather">--</span></div>
+      <div class="weather-item">💨 風: <span id="w-wind-dir">--</span> <span id="w-wind-speed" class="font-mono">--</span>m</div>
+      <div class="weather-item">🌊 波: <span id="w-wave" class="font-mono">--</span>cm</div>
+      <div class="weather-item text-slate-500 text-[10px]" id="w-updated"></div>
+    </div>
+  </div>
+
+  <!-- Main Panel -->
+  <div id="main-content" class="hidden p-3 lg:p-5 max-w-6xl mx-auto w-full pb-20">
+    <div id="sections-wrapper">
+
+      <!-- ★ 1. 詳細出走表 -->
+      <div id="section-entry" class="draggable-section mb-4">
+        <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+          <div class="px-4 py-3 bg-slate-800 border-b border-slate-700 flex flex-wrap justify-between items-center gap-2">
+            <div class="accordion-header flex items-center gap-2" data-target="entry-body">
+              <svg class="acc-icon w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              </svg>
+              <h3 class="font-bold text-slate-200 text-sm flex items-center gap-2">📋 詳細出走表</h3>
+            </div>
+            <div class="flex gap-1.5 flex-wrap">
+              <button id="reset-btn" class="text-xs bg-slate-600 hover:bg-slate-500 text-white py-1.5 px-2.5 rounded transition-colors">↺ リセット</button>
+              <button id="manual-apply-btn" class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white py-1.5 px-2.5 rounded transition-colors">✍ 手動反映</button>
+              <button id="recalc-btn" class="text-xs bg-blue-600 hover:bg-blue-700 text-white py-1.5 px-2.5 rounded transition-colors flex items-center gap-1">🔄 展示情報更新</button>
+            </div>
+          </div>
+          <div id="entry-body" class="accordion-body">
+            <div class="overflow-x-auto">
+              <!-- Desktop table -->
+              <table class="w-full text-xs hidden lg:table whitespace-nowrap">
+                <thead class="bg-slate-700/60 text-slate-400">
+                  <tr>
+                    <th class="px-2 py-2 text-center w-8">枠</th>
+                    <th class="px-2 py-2 text-left">選手名/級</th>
+                    <th class="px-2 py-2 text-center cursor-pointer hover:text-white" onclick="sortTable('global_win_rate')">全国勝率↕</th>
+                    <th class="px-2 py-2 text-center cursor-pointer hover:text-white" onclick="sortTable('local_win_rate')">当地↕</th>
+                    <th class="px-2 py-2 text-center border-l border-slate-600 cursor-pointer hover:text-white" onclick="sortTable('motor_2_quinella')">ﾓｰﾀｰ2連↕</th>
+                    <th class="px-2 py-2 text-center">ﾓｰﾀｰNo</th>
+                    <th class="px-2 py-2 text-center border-l border-slate-600 bg-amber-900/20">進入</th>
+                    <th class="px-2 py-2 text-center bg-amber-900/20">展示T</th>
+                    <th class="px-2 py-2 text-center bg-amber-900/20">ST</th>
+                    <th class="px-2 py-2 text-center bg-amber-900/20">チルト</th>
+                    <th class="px-2 py-2 text-center border-l border-slate-600">AI/ｶｽﾀﾑ</th>
+                  </tr>
+                </thead>
+                <tbody id="player-table-body" class="divide-y divide-slate-700/50 text-slate-200"></tbody>
+              </table>
+              <!-- Mobile cards -->
+              <div id="player-cards-mobile" class="lg:hidden divide-y divide-slate-700/40"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ★ 2. 展開シナリオ -->
+      <div id="section-scenario" class="draggable-section mb-4">
+        <div id="scenario-all-box" class="hidden space-y-2"></div>
+      </div>
+
+      <!-- ★ 3. カスタム予想 + AI予想 -->
+      <div id="section-predict" class="draggable-section mb-4">
+        <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+          <div class="px-4 py-3 border-b border-slate-700 accordion-header flex items-center gap-2" data-target="predict-body">
+            <svg class="acc-icon w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+            <h3 class="font-bold text-slate-200 text-sm">🎯 予想結果</h3>
+          </div>
+          <div id="predict-body" class="accordion-body p-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <!-- Custom -->
+              <div class="bg-gradient-to-br from-slate-800 to-blue-900/30 p-4 rounded-xl border border-blue-800/40">
+                <h4 class="font-bold text-blue-300 mb-2 pb-1.5 border-b border-blue-800/40 text-sm">🧑‍💻 カスタム予想</h4>
+                <div id="rule-focus" class="space-y-1 my-2"></div>
+                <p class="text-[10px] text-blue-500/70 text-center mt-1">設定に応じてリアルタイム変動</p>
+              </div>
+              <!-- AI -->
+              <div class="bg-gradient-to-br from-slate-800 to-slate-900 p-4 rounded-xl border border-slate-600/60">
+                <h4 class="font-bold text-slate-300 mb-2 pb-1.5 border-b border-slate-600/40 text-sm">🤖 AI解析予想</h4>
+                <div id="ai-focus" class="space-y-1 my-2"></div>
+                <p class="text-[10px] text-slate-600 text-center mt-1">非線形特徴量からの学習推論</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ★ 4. 予想カスタマイズ -->
+      <div id="section-setting" class="draggable-section mb-4">
+        <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+          <div class="px-4 py-3 border-b border-slate-700 accordion-header flex items-center gap-2" data-target="setting-body">
+            <svg class="acc-icon w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+            <h3 class="font-bold text-slate-200 text-sm flex items-center gap-2">
+              <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+              </svg>
+              予想カスタマイズ
+            </h3>
+          </div>
+          <div id="setting-body" class="accordion-body p-4">
+            <div class="flex gap-3 mb-4 text-xs">
+              <div class="flex-1">
+                <label class="block text-slate-400 mb-1">券種</label>
+                <select id="setting-bet-type" class="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-slate-200 outline-none focus:border-blue-500">
+                  <option value="単勝">単勝</option>
+                  <option value="2連単">2連単</option>
+                  <option value="2連複">2連複</option>
+                  <option value="3連単" selected>3連単</option>
+                  <option value="3連複">3連複</option>
+                </select>
+              </div>
+              <div class="flex-1">
+                <label class="block text-slate-400 mb-1">表示点数</label>
+                <select id="setting-max-items" class="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-slate-200 outline-none focus:border-blue-500">
+                  <option value="3">3点</option>
+                  <option value="5">5点</option>
+                  <option value="8" selected>8点</option>
+                  <option value="12">12点</option>
+                </select>
+              </div>
+            </div>
+            <div class="space-y-3 text-xs" id="weight-sliders">
+              <div>
+                <div class="flex justify-between mb-1 text-slate-400"><span>勝率重視</span><span id="val-win" class="text-blue-400 font-mono">1.0</span></div>
+                <input type="range" id="w-win" min="0" max="3" step="0.1" value="1.0" class="w-full h-1.5 rounded accent-blue-500">
+              </div>
+              <div>
+                <div class="flex justify-between mb-1 text-slate-400"><span>モーター重視</span><span id="val-moto" class="text-blue-400 font-mono">1.0</span></div>
+                <input type="range" id="w-moto" min="0" max="3" step="0.1" value="1.0" class="w-full h-1.5 rounded accent-blue-500">
+              </div>
+              <div>
+                <div class="flex justify-between mb-1 text-slate-400"><span>展示タイム重視</span><span id="val-ex" class="text-blue-400 font-mono">1.0</span></div>
+                <input type="range" id="w-ex" min="0" max="3" step="0.1" value="1.0" class="w-full h-1.5 rounded accent-blue-500">
+              </div>
+              <div>
+                <div class="flex justify-between mb-1 text-slate-400"><span>ST重視</span><span id="val-st" class="text-blue-400 font-mono">1.0</span></div>
+                <input type="range" id="w-st" min="0" max="3" step="0.1" value="1.0" class="w-full h-1.5 rounded accent-blue-500">
+              </div>
+              <div>
+                <div class="flex justify-between mb-1 text-slate-400"><span>インコース有利度</span><span id="val-course" class="text-blue-400 font-mono">1.0</span></div>
+                <input type="range" id="w-course" min="0" max="2" step="0.1" value="1.0" class="w-full h-1.5 rounded accent-blue-500">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ★ 5. オッズ -->
+      <div id="section-odds" class="draggable-section mb-4">
+        <div id="odds-result-section" class="hidden space-y-3">
+          <!-- Result Banner -->
+          <div id="result-banner" class="hidden bg-gradient-to-r from-emerald-800 to-teal-800 text-white rounded-xl p-5 shadow-lg border border-emerald-700">
+            <h3 class="font-bold text-lg mb-3">🏆 レース結果</h3>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <p class="text-xs opacity-70 mb-1">着順</p>
+                <p id="result-ranking" class="text-4xl font-black tracking-widest">--</p>
+              </div>
+              <div id="result-payouts" class="space-y-1 text-sm"></div>
+            </div>
+          </div>
+          <!-- Live Odds -->
+          <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-700 accordion-header flex items-center justify-between" data-target="odds-body">
+              <div class="flex items-center gap-2">
+                <svg class="acc-icon w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+                <h3 class="font-bold text-slate-200 text-sm">📊 リアルタイムオッズ</h3>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span id="odds-next-refresh-label" class="text-[10px] text-slate-600"></span>
+                <button onclick="loadOdds()" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded transition-colors">🔄 更新</button>
+              </div>
+            </div>
+            <!-- Bet type tabs -->
+            <div class="flex border-b border-slate-700 bg-slate-850 overflow-x-auto" id="odds-bet-tabs">
+              <button class="odds-tab-btn active" data-btype="3t">3連単</button>
+              <button class="odds-tab-btn" data-btype="3f">3連複</button>
+              <button class="odds-tab-btn" data-btype="2t">2連単</button>
+              <button class="odds-tab-btn" data-btype="2f">2連複</button>
+              <button class="odds-tab-btn" data-btype="1t">単勝</button>
+            </div>
+            <div id="odds-body" class="accordion-body">
+              <div id="odds-content" class="p-3">
+                <p class="text-sm text-slate-500 text-center py-4">レースを選択してください</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /sections-wrapper -->
+  </div>
+
+  <!-- Welcome Screen -->
+  <div id="welcome-screen" class="flex-1 flex flex-col items-center justify-center p-8 text-center">
+    <div class="text-6xl mb-4">⛵</div>
+    <h2 class="text-2xl font-black text-slate-300 mb-2">Kyotei Advisor</h2>
+    <p class="text-sm text-slate-500 max-w-xs">左メニューから本日開催場を選択し、レース番号をクリックしてください</p>
+  </div>
+</div>
+
+<!-- Player Modal -->
+<div id="player-modal" class="fixed inset-0 bg-black/75 z-50 hidden flex items-center justify-center p-4" onclick="if(event.target===this)closeModal()">
+  <div class="bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto border border-slate-600">
+    <div class="flex items-center justify-between p-5 border-b border-slate-700 sticky top-0 bg-slate-800 z-10">
+      <h2 id="modal-player-name" class="text-xl font-black text-white">選手詳細</h2>
+      <button onclick="closeModal()" class="p-2 hover:bg-slate-700 rounded-full transition-colors text-slate-400">✕</button>
+    </div>
+    <div id="modal-content" class="p-5"></div>
+  </div>
+</div>
+
+<style>
+.odds-tab-btn {
+  flex: 1; min-width: 60px; padding: 7px 4px; font-size: 11px; font-weight: 600;
+  color: #94a3b8; border-bottom: 2px solid transparent; background: transparent;
+  cursor: pointer; transition: all 0.15s; white-space: nowrap; text-align: center;
+}
+.odds-tab-btn:hover { color: #e2e8f0; background: rgba(255,255,255,0.04); }
+.odds-tab-btn.active { color: #60a5fa; border-bottom-color: #3b82f6; background: rgba(59,130,246,0.08); }
+</style>
+
+<script>
+const API_BASE = '/api';
+let currentRaceId = null;
+let currentPlayersData = [];
+let originalPlayersSnapshot = [];
+let isFirstLoad = true;
+let isMenuOpen = false;  // ★ メニュー操作中フラグ
+let currentOddsBetType = '3t';
+let oddsAutoRefreshTimer = null;
+let weatherRefreshTimer = null;
+let _renderRaceReset = false;  // ★ レース切り替え時にtrueにしてフィールドをリセット
+
+// ── ボートカラー ──────────────────────────────────────────────────────────
+const boatColors = [
+  'bg-white text-slate-900 border-slate-300',
+  'bg-slate-900 text-white border-slate-600',
+  'bg-red-500 text-white border-red-600',
+  'bg-blue-500 text-white border-blue-600',
+  'bg-yellow-400 text-slate-900 border-yellow-500',
+  'bg-green-600 text-white border-green-700'
+];
+const boatBgLight = ['#f0f0f0','#222','#ef4444','#3b82f6','#facc15','#16a34a'];
+
+// ── グレード判定 ──────────────────────────────────────────────────────────
+function getGradeInfo(race_title) {
+  if (!race_title) return { label: '一般', cls: 'grade-gen' };
+  const t = race_title.toUpperCase();
+  if (t.includes('SG')) return { label: 'SG', cls: 'grade-sg' };
+  if (t.includes('G1') || t.includes('GⅠ')) return { label: 'G1', cls: 'grade-g1' };
+  if (t.includes('G2') || t.includes('GⅡ')) return { label: 'G2', cls: 'grade-g2' };
+  if (t.includes('G3') || t.includes('GⅢ')) return { label: 'G3', cls: 'grade-g3' };
+  if (race_title.includes('ヴィーナス') || race_title.includes('レディース') || race_title.includes('女子'))
+    return { label: '女子', cls: 'grade-lady' };
+  return { label: '一般', cls: 'grade-gen' };
+}
+
+function gradeBadge(label, cls, small = false) {
+  const sz = small ? 'text-[0.55rem] px-1 py-px' : 'text-xs px-1.5 py-px';
+  return `<span class="inline-block rounded font-bold ${sz} ${cls}">${label}</span>`;
+}
+
+// ── Drawer (★ メニュー操作中フラグ管理) ─────────────────────────────────
+const drawer = document.getElementById('drawer');
+const overlay = document.getElementById('drawer-overlay');
+
+document.getElementById('menu-btn').addEventListener('click', () => {
+  isMenuOpen = true;
+  drawer.classList.add('drawer-open');
+  overlay.classList.remove('hidden');
+});
+
+overlay.addEventListener('click', () => {
+  isMenuOpen = false;
+  drawer.classList.remove('drawer-open');
+  overlay.classList.add('hidden');
+});
+
+// ── アコーディオン ────────────────────────────────────────────────────────
+function initAccordions() {
+  document.querySelectorAll('.accordion-header').forEach(header => {
+    if (header._accInited) return;
+    header._accInited = true;
+    const targetId = header.dataset.target;
+    if (!targetId) return;
+    const body = document.getElementById(targetId);
+    if (!body) return;
+    // 初期max-heightをセット（まだ開いている状態）
+    if (!body.classList.contains('closed')) {
+      // 次のフレームで確定サイズを取得
+      requestAnimationFrame(() => {
+        if (!body.classList.contains('closed')) {
+          body.style.maxHeight = body.scrollHeight + 'px';
+        }
+      });
+    }
+    header.addEventListener('click', (e) => {
+      // ボタン等の子要素クリックは無視
+      if (e.target.closest('button') && e.target !== header && !e.target.classList.contains('acc-icon')) return;
+      const isClosed = body.classList.contains('closed');
+      if (isClosed) {
+        body.classList.remove('closed');
+        // 一旦 auto にしてスクロール高さを測り、アニメーション後 none に戻す
+        body.style.maxHeight = body.scrollHeight + 'px';
+        body.addEventListener('transitionend', () => {
+          if (!body.classList.contains('closed')) body.style.maxHeight = 'none';
+        }, { once: true });
+      } else {
+        // 閉じる前に現在の高さを明示セット
+        body.style.maxHeight = body.scrollHeight + 'px';
+        requestAnimationFrame(() => {
+          body.style.maxHeight = '0px';
+          body.classList.add('closed');
+        });
+      }
+      header.classList.toggle('collapsed', !isClosed);
+    });
+  });
+}
+
+// ── ドラッグ並び替え（モバイル長押し） ────────────────────────────────────
+function initDraggable() {
+  const wrapper = document.getElementById('sections-wrapper');
+  if (!wrapper) return;
+  const sections = wrapper.querySelectorAll('.draggable-section');
+  let dragSrc = null, longPressTimer = null;
+
+  sections.forEach(sec => {
+    if (sec._dragInited) return;
+    sec._dragInited = true;
+    // Desktop drag
+    sec.setAttribute('draggable', 'true');
+    sec.addEventListener('dragstart', e => { dragSrc = sec; sec.classList.add('dragging'); });
+    sec.addEventListener('dragend', e => { sec.classList.remove('dragging'); dragSrc = null; wrapper.querySelectorAll('.draggable-section').forEach(s => s.classList.remove('drag-over')); });
+    sec.addEventListener('dragover', e => { e.preventDefault(); if (sec !== dragSrc) sec.classList.add('drag-over'); });
+    sec.addEventListener('dragleave', e => sec.classList.remove('drag-over'));
+    sec.addEventListener('drop', e => {
+      e.preventDefault();
+      if (dragSrc && dragSrc !== sec) {
+        const allSecs = [...wrapper.querySelectorAll('.draggable-section')];
+        const srcIdx = allSecs.indexOf(dragSrc);
+        const tgtIdx = allSecs.indexOf(sec);
+        if (srcIdx < tgtIdx) wrapper.insertBefore(dragSrc, sec.nextSibling);
+        else wrapper.insertBefore(dragSrc, sec);
+      }
+      wrapper.querySelectorAll('.draggable-section').forEach(s => s.classList.remove('drag-over'));
+    });
+
+    // Mobile long-press (500ms)
+    sec.addEventListener('touchstart', e => {
+      longPressTimer = setTimeout(() => {
+        sec.style.boxShadow = '0 0 0 3px #3b82f6';
+        dragSrc = sec;
+      }, 500);
+    }, { passive: true });
+    sec.addEventListener('touchend', e => {
+      clearTimeout(longPressTimer);
+      if (dragSrc) {
+        sec.style.boxShadow = '';
+        dragSrc = null;
+      }
+    }, { passive: true });
+    sec.addEventListener('touchmove', e => {
+      clearTimeout(longPressTimer);
+      if (!dragSrc) return;
+      const touch = e.touches[0];
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+      const targetSec = el && el.closest('.draggable-section');
+      if (targetSec && targetSec !== dragSrc) {
+        const rect = targetSec.getBoundingClientRect();
+        const mid = rect.top + rect.height / 2;
+        if (touch.clientY < mid) wrapper.insertBefore(dragSrc, targetSec);
+        else wrapper.insertBefore(dragSrc, targetSec.nextSibling);
+      }
+    }, { passive: true });
+  });
+}
+
+// ── Place一覧 ──────────────────────────────────────────────────────────────
+let lastPlacesJson = '';
+async function loadPlaces() {
+  try {
+    const res = await fetch(`${API_BASE}/places`);
+    const text = await res.text();
+    if (text === lastPlacesJson) return;
+    lastPlacesJson = text;
+    renderPlaces(JSON.parse(text));
+  } catch (e) { console.error('loadPlaces', e); }
+}
+
+function renderPlaces(places) {
+  const list = document.getElementById('place-list');
+  // ★ メニュー操作中は再描画しない（強制レース遷移防止）
+  if (isMenuOpen) return;
+
+  const openPlaces = [];
+  document.querySelectorAll('[id^="races-container-"]').forEach(el => {
+    if (!el.classList.contains('hidden')) openPlaces.push(el.id.replace('races-container-', ''));
+  });
+
+  list.innerHTML = '';
+  let firstActive = null;
+  places.forEach(p => {
+    if (p.is_active && !firstActive) firstActive = p.place;
+    const li = document.createElement('li');
+    if (p.is_active) {
+      const g = p.grade ? getGradeInfo(p.grade) : { label: '', cls: '' };
+      const badge = g.label ? gradeBadge(g.label, g.cls, true) : '';
+      const rb = p.max_race ? `<span class="text-[9px] text-slate-500 ml-0.5">${p.max_race}R</span>` : '';
+      li.innerHTML = `<div>
+        <button onclick="loadRaces('${p.place}')"
+          class="w-full text-left px-3 py-2.5 rounded-lg text-slate-200 font-semibold transition-all hover:bg-slate-700 border-l-4 border-blue-500 flex items-center justify-between bg-slate-800/60">
+          <span class="flex items-center gap-1.5 text-sm">${p.place}${rb} ${badge}</span>
+          <svg class="w-3 h-3 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+          </svg>
+        </button>
+        <div id="races-container-${p.place}" class="hidden grid grid-cols-4 gap-1.5 p-2 bg-slate-950/70 mx-1 rounded-b-lg border-x border-b border-slate-700/60"></div>
+      </div>`;
+    } else {
+      li.innerHTML = `<div>
+        <button class="w-full text-left px-3 py-2 rounded-lg text-slate-700 text-sm cursor-default flex items-center justify-between">
+          <span>${p.place}</span><span class="text-[10px] text-slate-800">非開催</span>
+        </button>
+      </div>`;
+    }
+    list.appendChild(li);
+  });
+
+  if (isFirstLoad && firstActive) {
+    isFirstLoad = false;
+    setTimeout(() => loadRaces(firstActive, true), 200);
+  } else {
+    openPlaces.forEach(pl => {
+      const cont = document.getElementById(`races-container-${pl}`);
+      if (cont) loadRaces(pl);
+    });
+  }
+}
+
+// ── Race一覧 ───────────────────────────────────────────────────────────────
+async function loadRaces(placeName, autoLoadFirst = false, retryCount = 0) {
+  // ★ メニュー操作中は自動遷移しない
+  if (isMenuOpen && autoLoadFirst) return;
+
+  document.querySelectorAll('[id^="races-container-"]').forEach(el => {
+    if (el.id !== `races-container-${placeName}`) { el.classList.add('hidden'); el.innerHTML = ''; }
+  });
+  const container = document.getElementById(`races-container-${placeName}`);
+  if (!container) return;
+  container.classList.remove('hidden');
+  container.innerHTML = '<div class="col-span-4 text-center text-xs py-2 text-slate-500 animate-pulse-fast">取得中...</div>';
+
+  try {
+    const res = await fetch(`${API_BASE}/places/${encodeURIComponent(placeName)}/races`);
+    const races = res.ok ? await res.json() : [];
+    if (!races || races.length === 0) {
+      const MAX_RETRIES = 25;
+      let stillScraping = false;
+      try { stillScraping = (await (await fetch(`${API_BASE}/status`)).json()).is_scraping; } catch (_) {}
+      if (retryCount < MAX_RETRIES && (stillScraping || retryCount < 2)) {
+        container.innerHTML = `<div class="col-span-4 text-center text-xs py-3 text-blue-400 animate-pulse-fast">
+          ${stillScraping ? `取得中... (${retryCount+1})` : '確認中...'}</div>`;
+        setTimeout(() => loadRaces(placeName, autoLoadFirst, retryCount + 1), stillScraping ? 6000 : 3000);
+      } else {
+        container.innerHTML = '<div class="col-span-4 text-center text-xs py-3 text-slate-600">本日のレースなし</div>';
+      }
+      return;
+    }
+
+    container.innerHTML = '';
+    races.forEach((r, idx) => {
+      const g = getGradeInfo(r.race_title || '');
+      const btn = document.createElement('button');
+      btn.id = `race-btn-${r.id}`;
+      btn.className = 'py-1.5 rounded text-xs font-bold transition-all hover:bg-blue-600 bg-slate-700 border border-slate-600/80 flex flex-col items-center gap-0.5 leading-tight';
+      btn.innerHTML = `<span class="text-slate-100">${r.race_number}R</span>${r.race_title ? gradeBadge(g.label, g.cls, true) : ''}`;
+      btn.onclick = () => {
+        // ★ メニュー操作中はメイン画面遷移しない
+        if (isMenuOpen) return;
+        document.querySelectorAll('[id^="race-btn-"]').forEach(b => b.classList.remove('ring-2', 'ring-blue-400'));
+        btn.classList.add('ring-2', 'ring-blue-400');
+        loadRaceDetail(r.id);
+        if (window.innerWidth < 768) {
+          isMenuOpen = false;
+          drawer.classList.remove('drawer-open');
+          overlay.classList.add('hidden');
+        }
+      };
+      container.appendChild(btn);
+      // ★ autoLoadFirst もメニュー操作中はスキップ
+      if (autoLoadFirst && idx === 0 && !isMenuOpen) setTimeout(() => btn.click(), 150);
+    });
+  } catch (e) {
+    container.innerHTML = '<div class="col-span-4 text-center text-xs py-2 text-red-400">エラー</div>';
+  }
+}
+
+// ── Race Detail ────────────────────────────────────────────────────────────
+async function loadRaceDetail(raceId) {
+  _renderRaceReset = true;  // ★ レース切り替えなのでフィールドリセット許可
+  currentRaceId = raceId;
+  stopOddsAutoRefresh();
+  stopWeatherRefresh();
+  document.getElementById('welcome-screen').classList.add('hidden');
+  document.getElementById('main-content').classList.remove('hidden');
+  document.getElementById('odds-result-section').classList.remove('hidden');
+  document.getElementById('result-banner').classList.add('hidden');
+  document.getElementById('odds-content').innerHTML = '<p class="text-sm text-slate-500 text-center py-4 animate-pulse">オッズ確認中...</p>';
+
+  const mc = document.getElementById('main-content');
+  mc.style.opacity = '0.5';
+  await requestPrediction();
+  mc.style.opacity = '1';
+  await loadRaceOdds();
+  startOddsAutoRefresh();
+  startWeatherRefresh();
+  initAccordions();
+  initDraggable();
+}
+
+function getWeights() {
+  return {
+    win_rate: parseFloat(document.getElementById('w-win').value),
+    motor:    parseFloat(document.getElementById('w-moto').value),
+    exhibition: parseFloat(document.getElementById('w-ex').value),
+    st:       parseFloat(document.getElementById('w-st').value),
+    course:   parseFloat(document.getElementById('w-course').value),
+  };
+}
+function getSettings() {
+  return {
+    max_items: parseInt(document.getElementById('setting-max-items').value),
+    bet_type:  document.getElementById('setting-bet-type').value,
+  };
+}
+
+// Sliders
+['w-win','w-moto','w-ex','w-st','w-course'].forEach(id => {
+  const el = document.getElementById(id);
+  const val = document.getElementById(id.replace('w-','val-'));
+  el.addEventListener('input', () => val.textContent = parseFloat(el.value).toFixed(1));
+  el.addEventListener('change', () => { if (currentRaceId) requestPrediction(); });
+});
+['setting-bet-type','setting-max-items'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => { if (currentRaceId) requestPrediction(); });
+});
+
+async function requestPrediction() {
+  try {
+    const res = await fetch(`${API_BASE}/races/${currentRaceId}/predict`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ weights: getWeights(), settings: getSettings() })
+    });
+    if (!res.ok) throw new Error(`API ${res.status}`);
+    const data = await res.json();
+    currentPlayersData = data.players;
+    renderRace(data.race, data.players, data.predictions);
+  } catch (e) { console.error('requestPrediction', e); }
+}
+
+// ── Sort ───────────────────────────────────────────────────────────────────
+let currentSort = { col: 'boat_number', asc: true };
+function sortTable(col) {
+  currentSort.asc = currentSort.col === col ? !currentSort.asc : true;
+  currentSort.col = col;
+  currentPlayersData.sort((a, b) => {
+    const va = a[col] || 0, vb = b[col] || 0;
+    return currentSort.asc ? (va < vb ? -1 : va > vb ? 1 : 0) : (va > vb ? -1 : va < vb ? 1 : 0);
+  });
+  const tb = document.getElementById('player-table-body');
+  tb.innerHTML = '';
+  appendTableRows(tb, currentPlayersData);
+}
+
+// ── 気象バー更新 ────────────────────────────────────────────────────────────
+function updateWeatherBar(weather) {
+  if (!weather) return;
+  const bar = document.getElementById('weather-bar');
+  bar.classList.remove('hidden');
+  document.getElementById('w-weather').textContent = weather.weather || '--';
+  const windSpeed = weather.wind_speed || 0;
+  const waveHeight = weather.wave_height || 0;
+  const windEl = document.getElementById('w-wind-speed');
+  windEl.textContent = windSpeed;
+  windEl.className = windSpeed >= 5 ? 'font-mono wind-strong' : 'font-mono';
+  document.getElementById('w-wind-dir').textContent = weather.wind_direction || '--';
+  const waveEl = document.getElementById('w-wave');
+  waveEl.textContent = waveHeight;
+  waveEl.className = waveHeight >= 15 ? 'font-mono wave-high' : 'font-mono';
+  const now = new Date().toLocaleTimeString('ja-JP', {hour:'2-digit',minute:'2-digit'});
+  document.getElementById('w-updated').textContent = now + '更新';
+  document.getElementById('weather-last-update').textContent = now;
+}
+
+async function refreshWeather() {
+  if (!currentRaceId) return;
+  const btn = document.getElementById('weather-refresh-btn');
+  btn.textContent = '取得中...'; btn.disabled = true;
+  try {
+    const res = await fetch(`${API_BASE}/races/${currentRaceId}/weather`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.weather_info) updateWeatherBar(data.weather_info);
+    }
+  } catch(e) { console.error(e); }
+  finally { btn.textContent = '🌡 気象更新'; btn.disabled = false; }
+}
+
+function startWeatherRefresh() {
+  stopWeatherRefresh();
+  weatherRefreshTimer = setInterval(() => {
+    if (currentRaceId) refreshWeather();
+  }, 60000); // 60秒ごと
+}
+function stopWeatherRefresh() {
+  if (weatherRefreshTimer) { clearInterval(weatherRefreshTimer); weatherRefreshTimer = null; }
+}
+
+// ── renderRace ─────────────────────────────────────────────────────────────
+function renderRace(race, players, predictions) {
+  document.getElementById('race-header').classList.remove('hidden');
+  const gradeInfo = getGradeInfo(race.race_title || '');
+  document.getElementById('race-title').textContent = `${race.place_name}  ${race.race_number}R`;
+  const badge = document.getElementById('race-grade-badge');
+  badge.className = `text-xs px-2 py-0.5 rounded font-bold mt-0.5 inline-block ${gradeInfo.cls}`;
+  badge.textContent = gradeInfo.label;
+  badge.classList.remove('hidden');
+
+  // 気象情報
+  updateWeatherBar({
+    weather: race.weather,
+    wind_direction: race.wind_direction,
+    wind_speed: race.wind_speed,
+    wave_height: race.wave_height,
+  });
+
+  // ── 予想結果 ──
+  const renderList = (targetId, items) => {
+    const el = document.getElementById(targetId);
+    el.innerHTML = '';
+    if (!items || !items.length) {
+      el.innerHTML = '<span class="text-xs text-slate-500 block text-center py-2">データなし</span>';
+      return;
+    }
+    items.forEach((item, i) => {
+      const row = document.createElement('div');
+      const hl = i === 0 ? 'text-amber-400' : i < 3 ? 'text-blue-300' : 'text-slate-300';
+      row.className = 'flex justify-between items-center px-2 py-1.5 rounded text-sm bg-white/5 hover:bg-white/10 transition-colors';
+      row.innerHTML = `<span class="w-5 text-xs text-slate-500 flex-shrink-0">${i+1}</span>
+        <span class="font-black font-mono tracking-widest flex-1 ${hl}">${item.pattern}</span>
+        <span class="text-xs text-slate-400 font-mono">${item.prob.toFixed(1)}%</span>`;
+      el.appendChild(row);
+    });
+  };
+  renderList('rule-focus', predictions.rule_focus);
+  renderList('ai-focus',   predictions.ai_focus);
+
+  // ── 展開シナリオ（全艇） ──
+  const scenBox = document.getElementById('scenario-all-box');
+  const scenarios = predictions.scenarios || [];
+  if (scenarios.length > 0) {
+    scenBox.classList.remove('hidden');
+    scenBox.innerHTML = scenarios.map(s => {
+      const cls = s.alert ? 'scenario-card alert' : 'scenario-card normal';
+      const prob = s.best_prob;
+      const probBar = Math.min(100, prob);
+      return `<div class="${cls} rounded-xl p-3 border">
+        <div class="flex items-center justify-between mb-1.5">
+          <div class="flex items-center gap-2">
+            <div class="w-6 h-6 rounded flex items-center justify-center font-bold text-xs border flex-shrink-0 ${boatColors[s.boat_number-1]}">${s.boat_number}</div>
+            <span class="font-bold text-sm">${s.racer_name}</span>
+            <span class="text-xs text-slate-400">${s.course}コース</span>
+          </div>
+          <span class="text-xs font-bold px-2 py-0.5 rounded ${s.alert ? 'bg-orange-600 text-white' : 'bg-blue-700 text-blue-100'}">${s.scenario_label}</span>
+        </div>
+        <div class="flex items-center gap-3 text-xs mt-1.5">
+          <div class="flex-1">
+            <div class="flex justify-between mb-0.5 text-slate-400">
+              <span>捲り</span><span class="font-mono">${s.makuri_prob}%</span>
+            </div>
+            <div class="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+              <div class="h-full bg-red-500 rounded-full" style="width:${Math.min(100,s.makuri_prob)}%"></div>
+            </div>
+          </div>
+          <div class="flex-1">
+            <div class="flex justify-between mb-0.5 text-slate-400">
+              <span>差し</span><span class="font-mono">${s.sashi_prob}%</span>
+            </div>
+            <div class="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+              <div class="h-full bg-blue-500 rounded-full" style="width:${Math.min(100,s.sashi_prob)}%"></div>
+            </div>
+          </div>
+        </div>
+        <div class="mt-1.5 text-xs">
+          <span class="text-slate-500">注目:</span>
+          <span class="font-mono font-bold text-amber-300 ml-1">${s.focus}</span>
+        </div>
+      </div>`;
+    }).join('');
+  } else {
+    scenBox.classList.add('hidden');
+    scenBox.innerHTML = '';
+  }
+
+  // ── 出走表 ──
+  const tb = document.getElementById('player-table-body');
+  const mc = document.getElementById('player-cards-mobile');
+
+  // ★ 現在のレースと同じ場合は入力値を保持するため、手動入力済みの値を退避
+  const savedInputs = {};
+  if (currentPlayersData.length > 0) {
+    currentPlayersData.forEach(p => {
+      const bn = p.boat_number;
+      const dcSel = document.getElementById(`in-course-${bn}`);
+      const deEl  = document.getElementById(`in-ex-${bn}`);
+      const dsBtn = document.getElementById(`in-st-sign-${bn}`);
+      const dsAbs = document.getElementById(`in-st-abs-${bn}`);
+      const dtSel = document.getElementById(`in-tilt-${bn}`);
+      if (dcSel || deEl || dsBtn) {
+        savedInputs[bn] = {
+          course: dcSel ? parseInt(dcSel.value) : null,
+          ex:     deEl  ? parseFloat(deEl.value) : null,
+          stSign: dsBtn ? dsBtn.textContent : null,
+          stAbs:  dsAbs ? parseFloat(dsAbs.value) : null,
+          tilt:   dtSel ? parseFloat(dtSel.value) : null,
+        };
+      }
+    });
+  }
+
+  tb.innerHTML = ''; mc.innerHTML = '';
+  originalPlayersSnapshot = JSON.parse(JSON.stringify(players));
+  appendTableRows(tb, players);
+  appendMobileCards(mc, players);
+
+  // ★ 退避した入力値を復元（同レース内の再計算時のみ）
+  if (!_renderRaceReset && Object.keys(savedInputs).length > 0) {
+    Object.entries(savedInputs).forEach(([bn, vals]) => {
+      if (vals.course !== null) {
+        const d = document.getElementById(`in-course-${bn}`); if (d) d.value = vals.course;
+        const m = document.getElementById(`m-course-${bn}`);  if (m) m.value = vals.course;
+      }
+      if (vals.ex !== null) {
+        const d = document.getElementById(`in-ex-${bn}`); if (d) d.value = vals.ex;
+        const m = document.getElementById(`m-ex-${bn}`);  if (m) m.value = vals.ex;
+      }
+      if (vals.stSign !== null) {
+        const dBtn = document.getElementById(`in-st-sign-${bn}`); if (dBtn) dBtn.textContent = vals.stSign;
+        const mBtn = document.getElementById(`m-st-sign-${bn}`);  if (mBtn) mBtn.textContent = vals.stSign;
+      }
+      if (vals.stAbs !== null) {
+        const d = document.getElementById(`in-st-abs-${bn}`); if (d) d.value = vals.stAbs;
+        const m = document.getElementById(`m-st-abs-${bn}`);  if (m) m.value = vals.stAbs;
+      }
+      if (vals.tilt !== null) {
+        const d = document.getElementById(`in-tilt-${bn}`); if (d) d.value = vals.tilt;
+        const m = document.getElementById(`m-tilt-${bn}`);  if (m) m.value = vals.tilt;
+      }
+    });
+  }
+  _renderRaceReset = false;
+
+  initAccordions();
+  initDraggable();
+}
+
+// ── チルト表示用ヘルパー ────────────────────────────────────────────────────
+function tiltDisplay(tilt) {
+  const v = tilt != null ? tilt : 0;
+  const cls = v > 0 ? 'tilt-plus' : v < 0 ? 'tilt-minus' : 'tilt-zero';
+  const sign = v > 0 ? '+' : '';
+  return `<span class="${cls} font-mono font-bold">${sign}${v}</span>`;
+}
+
+// ── デスクトップ テーブル行 ────────────────────────────────────────────────
+function appendTableRows(tb, players) {
+  players.forEach(p => {
+    const cc = boatColors[p.boat_number - 1];
+    const tr = document.createElement('tr');
+    tr.className = 'hover:bg-slate-700/30 transition-colors text-xs';
+    // 進入 select オプション
+    const courseOptions = [1,2,3,4,5,6].map(n =>
+      `<option value="${n}" ${n === ((p.calc_course != null ? p.calc_course : p.boat_number)) ? 'selected' : ''}>${n}</option>`
+    ).join('');
+    // ST 表示
+    const stVal = p.calc_st != null ? p.calc_st : '';
+    const stSign = stVal !== '' ? (stVal < 0 ? '-' : '+') : '+';
+    const stAbs = stVal !== '' ? Math.abs(stVal).toFixed(2) : '0.15';
+    tr.innerHTML = `
+      <td class="px-2 py-2 text-center"><div class="w-6 h-6 rounded flex items-center justify-center font-bold text-xs border mx-auto ${cc}">${p.boat_number}</div></td>
+      <td class="px-2 py-2 cursor-pointer" onclick="openPlayerModal('${p.racer_id||''}','${(p.racer_name||'').replace(/'/g,"\\'")}')">
+        <div class="font-bold text-slate-200">${p.racer_name||'--'}</div>
+        <div class="text-[10px] text-slate-500">${p.racer_class||'-'} <span class="text-blue-400">▶</span></div>
+      </td>
+      <td class="px-2 py-2 text-center font-mono text-slate-300">${p.global_win_rate||0}</td>
+      <td class="px-2 py-2 text-center font-mono text-slate-300">${p.local_win_rate||0}</td>
+      <td class="px-2 py-2 text-center border-l border-slate-700">
+        <span class="font-mono text-slate-200">${p.motor_2_quinella||0}</span><span class="text-slate-500">%</span>
+      </td>
+      <td class="px-2 py-2 text-center font-mono text-slate-500">${p.motor_number||'-'}</td>
+      <td class="px-2 py-2 border-l border-slate-700 bg-amber-900/10" onclick="event.stopPropagation()">
+        <select id="in-course-${p.boat_number}" onchange="onCourseChange(${p.boat_number},this.value)"
+          class="course-select w-12 text-xs">${courseOptions}</select>
+      </td>
+      <td class="px-2 py-2 bg-amber-900/10" onclick="event.stopPropagation()">
+        <input type="number" step="0.01" id="in-ex-${p.boat_number}" value="${p.calc_ex != null ? p.calc_ex : 6.80}"
+          class="w-14 bg-slate-700 border border-amber-700/40 rounded px-1 py-0.5 text-center font-mono text-xs text-slate-100 outline-none focus:border-amber-500">
+      </td>
+      <td class="px-2 py-2 bg-amber-900/10" onclick="event.stopPropagation()">
+        <div class="st-input-wrap">
+          <button class="st-sign-btn" id="in-st-sign-${p.boat_number}" onclick="toggleStSign(${p.boat_number},'in')">${stSign}</button>
+          <input type="number" step="0.01" min="0" id="in-st-abs-${p.boat_number}" value="${stAbs}"
+            class="w-14 bg-slate-700 border border-amber-700/40 rounded px-1 py-0.5 text-center font-mono text-xs text-slate-100 outline-none focus:border-amber-500">
+        </div>
+      </td>
+      <td class="px-2 py-2 bg-amber-900/10" onclick="event.stopPropagation()">
+        <select id="in-tilt-${p.boat_number}" class="course-select w-14 text-xs" onchange="updateTiltDisplay(${p.boat_number},'in')">
+          ${tiltOptions(p.tilt||0)}
+        </select>
+      </td>
+      <td class="px-2 py-2 text-center border-l border-slate-700">
+        <div class="flex justify-evenly text-sm font-bold">
+          <span class="text-slate-300">${p.ai_mark}</span>
+          <span class="text-slate-600">|</span>
+          <span class="text-blue-400">${p.rule_mark}</span>
+        </div>
+      </td>`;
+    tb.appendChild(tr);
+  });
+}
+
+function tiltOptions(current) {
+  const vals = [-0.5, 0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0];
+  return vals.map(v => {
+    const sign = v > 0 ? '+' : '';
+    const sel = Math.abs(v - (current||0)) < 0.01 ? 'selected' : '';
+    return `<option value="${v}" ${sel}>${sign}${v}</option>`;
+  }).join('');
+}
+
+function toggleStSign(boatNum, prefix) {
+  const btn = document.getElementById(`${prefix}-st-sign-${boatNum}`);
+  if (!btn) return;
+  btn.textContent = btn.textContent === '+' ? '-' : '+';
+}
+
+function getStValue(boatNum, prefix) {
+  const sign = document.getElementById(`${prefix}-st-sign-${boatNum}`)?.textContent || '+';
+  const abs  = parseFloat(document.getElementById(`${prefix}-st-abs-${boatNum}`)?.value || '0.15');
+  return sign === '-' ? -abs : abs;
+}
+
+// ── コース被り防止（スワップ） ─────────────────────────────────────────────
+function onCourseChange(changedBoatNum, newVal) {
+  const newCourse = parseInt(newVal);
+  // 他の艇と被っているか確認
+  ['in-course-','m-course-'].forEach(prefix => {
+    for (let bn = 1; bn <= 6; bn++) {
+      if (bn === changedBoatNum) continue;
+      const sel = document.getElementById(`${prefix}${bn}`);
+      if (!sel) continue;
+      if (parseInt(sel.value) === newCourse) {
+        // 被った艇に元の値をセット（スワップ）
+        const mySel = document.getElementById(`${prefix}${changedBoatNum}`);
+        const oldVal = mySel ? mySel.dataset.prevVal || changedBoatNum : changedBoatNum;
+        sel.value = oldVal;
+      }
+    }
+    const mySel = document.getElementById(`${prefix}${changedBoatNum}`);
+    if (mySel) mySel.dataset.prevVal = newCourse;
+  });
+  // モバイル側も同期
+  syncCourseSelects(changedBoatNum, newCourse, 'in-course-', 'm-course-');
+}
+
+function syncCourseSelects(changedBn, newVal, srcPre, dstPre) {
+  const dstSel = document.getElementById(`${dstPre}${changedBn}`);
+  if (dstSel && parseInt(dstSel.value) !== newVal) dstSel.value = newVal;
+}
+
+// ── モバイル カード ────────────────────────────────────────────────────────
+function appendMobileCards(mc, players) {
+  players.slice().sort((a,b) => a.boat_number - b.boat_number).forEach(p => {
+    const cc = boatColors[p.boat_number - 1];
+    const card = document.createElement('div');
+    card.className = 'p-3.5 bg-slate-800 border-b border-slate-700/50 space-y-2.5';
+    const courseOptions = [1,2,3,4,5,6].map(n =>
+      `<option value="${n}" ${n===((p.calc_course != null ? p.calc_course : p.boat_number))?'selected':''}>${n}</option>`
+    ).join('');
+    const stVal = p.calc_st != null ? p.calc_st : 0.15;
+    const stSign = stVal < 0 ? '-' : '+';
+    const stAbs = Math.abs(stVal).toFixed(2);
+    card.innerHTML = `
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded flex items-center justify-center font-bold text-sm border ${cc}">${p.boat_number}</div>
+          <div>
+            <div class="font-bold text-sm cursor-pointer" onclick="openPlayerModal('${p.racer_id||''}','${(p.racer_name||'').replace(/'/g,"\\'")}')">
+              ${p.racer_name||'--'} <span class="text-blue-400 text-xs">▶</span>
+            </div>
+            <div class="text-[10px] text-slate-500">${p.racer_class||'-'}</div>
+          </div>
+        </div>
+        <div class="text-sm font-bold flex gap-1 items-center">
+          <span class="text-slate-300">${p.ai_mark}</span><span class="text-slate-600">|</span><span class="text-blue-400">${p.rule_mark}</span>
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-2 text-xs text-slate-400 bg-slate-700/30 rounded-lg p-2">
+        <div>全勝率 <span class="text-slate-200 font-mono font-bold block">${p.global_win_rate||0}</span></div>
+        <div>当地勝率 <span class="text-slate-200 font-mono font-bold block">${p.local_win_rate||0}</span></div>
+        <div>ﾓｰﾀｰ2連 <span class="text-slate-200 font-mono font-bold block">${p.motor_2_quinella||0}%</span></div>
+      </div>
+      <div class="grid grid-cols-4 gap-2 text-xs">
+        <div>
+          <label class="block text-slate-500 mb-0.5">進入</label>
+          <select id="m-course-${p.boat_number}" onchange="onCourseChange(${p.boat_number},this.value)"
+            class="course-select w-full text-xs">${courseOptions}</select>
+        </div>
+        <div>
+          <label class="block text-slate-500 mb-0.5">展示T</label>
+          <input type="number" step="0.01" id="m-ex-${p.boat_number}" value="${p.calc_ex != null ? p.calc_ex : 6.80}"
+            class="w-full bg-slate-700 border border-amber-700/40 rounded px-1 py-1 text-center font-mono text-xs text-slate-100 outline-none focus:border-amber-500">
+        </div>
+        <div>
+          <label class="block text-slate-500 mb-0.5">ST</label>
+          <div class="st-input-wrap">
+            <button class="st-sign-btn" id="m-st-sign-${p.boat_number}" onclick="toggleStSign(${p.boat_number},'m')">${stSign}</button>
+            <input type="number" step="0.01" min="0" id="m-st-abs-${p.boat_number}" value="${stAbs}"
+              class="flex-1 min-w-0 bg-slate-700 border border-amber-700/40 rounded px-1 py-1 text-center font-mono text-xs text-slate-100 outline-none focus:border-amber-500">
+          </div>
+        </div>
+        <div>
+          <label class="block text-slate-500 mb-0.5">チルト</label>
+          <select id="m-tilt-${p.boat_number}" class="course-select w-full text-xs">
+            ${tiltOptions(p.tilt||0)}
+          </select>
+        </div>
+      </div>`;
+    mc.appendChild(card);
+  });
+}
+
+// ── オッズ ─────────────────────────────────────────────────────────────────
+// タブ切り替え
+document.querySelectorAll('.odds-tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.odds-tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentOddsBetType = btn.dataset.btype;
+    if (currentRaceId) loadRaceOdds();
+  });
+});
+
+function startOddsAutoRefresh() {
+  stopOddsAutoRefresh();
+  oddsAutoRefreshTimer = setInterval(() => {
+    if (currentRaceId) loadRaceOdds(true);
+  }, 30000);
+}
+function stopOddsAutoRefresh() {
+  if (oddsAutoRefreshTimer) { clearInterval(oddsAutoRefreshTimer); oddsAutoRefreshTimer = null; }
+}
+
+async function loadRaceOdds(silent = false) {
+  if (!currentRaceId) return;
+  if (!silent) document.getElementById('odds-content').innerHTML = '<p class="text-sm text-slate-500 text-center py-4 animate-pulse">オッズ確認中...</p>';
+  try {
+    // まず結果確認
+    const optRes = await fetch(`${API_BASE}/races/${currentRaceId}/options`);
+    if (!optRes.ok) throw new Error('options failed');
+    const optData = await optRes.json();
+    if (optData.result && optData.result.finished) {
+      stopOddsAutoRefresh();
+      document.getElementById('result-banner').classList.remove('hidden');
+      document.getElementById('result-ranking').textContent = optData.result.ranking_str || '--';
+      const pe = document.getElementById('result-payouts'); pe.innerHTML = '';
+      (optData.result.payouts || []).slice(0, 6).forEach(p => {
+        pe.innerHTML += `<div class="flex justify-between gap-4 text-sm"><span class="opacity-80">${p.type}</span><span class="font-bold">${p.payout}</span></div>`;
+      });
+    }
+
+    // 指定賭式のオッズ取得
+    const oddsRes = await fetch(`${API_BASE}/races/${currentRaceId}/odds?bet_type=${currentOddsBetType}`);
+    if (!oddsRes.ok) throw new Error('odds failed');
+    const oddsData = await oddsRes.json();
+
+    if (oddsData.error) {
+      document.getElementById('odds-content').innerHTML = `<p class="text-sm text-slate-500 text-center py-4">${oddsData.error}</p>`;
+      return;
+    }
+
+    renderOdds(oddsData);
+    // 次回更新時刻
+    const nextTime = new Date(Date.now() + 30000).toLocaleTimeString('ja-JP', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    document.getElementById('odds-next-refresh-label').textContent = `次回: ${nextTime}`;
+  } catch(e) {
+    if (!silent) document.getElementById('odds-content').innerHTML = '<p class="text-sm text-red-400 text-center py-4">取得エラー</p>';
+  }
+}
+
+async function loadOdds() {
+  document.getElementById('odds-content').innerHTML = '<p class="text-sm text-slate-500 text-center py-4 animate-pulse">更新中...</p>';
+  await loadRaceOdds();
+}
+
+// ── オッズ描画（公式風テーブル） ─────────────────────────────────────────────
+function renderOdds(oddsData) {
+  const el = document.getElementById('odds-content');
+  const betType = oddsData.bet_type || '3t';
+  const allOdds = oddsData.all_odds || [];
+  if (!allOdds.length) {
+    el.innerHTML = '<p class="text-sm text-slate-500 text-center py-4">オッズ情報なし</p>';
+    return;
+  }
+
+  if (betType === '3t') {
+    renderOdds3t(el, allOdds);
+  } else if (betType === '3f') {
+    renderOddsGrid(el, allOdds, '3連複', 4);
+  } else if (betType === '2t') {
+    renderOdds2t(el, allOdds);
+  } else if (betType === '2f') {
+    renderOddsGrid(el, allOdds, '2連複', 3);
+  } else if (betType === '1t') {
+    renderOdds1t(el, allOdds);
+  }
+}
+
+function oddsColor(odds) {
+  const v = parseFloat(odds);
+  if (isNaN(v)) return 'odds-val none';
+  if (v < 5)  return 'odds-val fav';
+  if (v < 15) return 'odds-val low';
+  return 'odds-val';
+}
+
+// 3連単: 公式風レイアウト - 1着固定で2着×3着のサブテーブル
+function renderOdds3t(el, odds) {
+  const map = {};
+  odds.forEach(o => { map[o.pattern] = o.odds; });
+
+  let html = '<div class="overflow-x-auto">';
+
+  // 1着ごとにミニテーブルを横並び（公式サイト準拠）
+  html += '<div style="display:flex;flex-wrap:wrap;gap:4px;padding:8px;">';
+
+  for (let f = 1; f <= 6; f++) {
+    const bg = boatBgLight[f-1];
+    const fg = f <= 2 ? '#fff' : '#111';
+    html += `<div style="flex:1;min-width:140px;">
+      <div style="background:${bg};color:${fg};font-weight:bold;text-align:center;padding:3px 0;font-size:11px;border-radius:4px 4px 0 0;">
+        1着 ${f}号艇
+      </div>
+      <table class="odds-table" style="width:100%;"><thead><tr>
+        <th style="width:22px;">2着</th>`;
+    const others3 = [1,2,3,4,5,6].filter(x => x !== f);
+    others3.forEach(t => {
+      html += `<th style="background:${boatBgLight[t-1]};color:${t<=2?'#fff':'#111'};width:22px;">${t}</th>`;
+    });
+    html += '</tr></thead><tbody>';
+
+    const others2 = [1,2,3,4,5,6].filter(x => x !== f);
+    others2.forEach(s => {
+      const sb = boatBgLight[s-1];
+      const sf = s <= 2 ? '#fff' : '#111';
+      html += `<tr><td style="background:${sb};color:${sf};font-weight:bold;text-align:center;">${s}</td>`;
+      others3.forEach(t => {
+        if (t === s) {
+          html += '<td style="background:#070d1a;text-align:center;color:#334155;">-</td>';
+        } else {
+          const key = `${f}-${s}-${t}`;
+          const v = map[key] || '--';
+          html += `<td class="${oddsColor(v)}">${v}</td>`;
+        }
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+
+  html += '</div></div>';
+  el.innerHTML = html;
+}
+
+// 2連単: 6×6テーブル
+function renderOdds2t(el, odds) {
+  const map = {};
+  odds.forEach(o => { map[o.pattern] = o.odds; });
+
+  let html = '<div class="overflow-x-auto"><table class="odds-table"><thead><tr><th>1着\\2着</th>';
+  for (let s = 1; s <= 6; s++) {
+    html += `<th style="background:${boatBgLight[s-1]};color:${s<=2?'#fff':'#111'}">${s}</th>`;
+  }
+  html += '</tr></thead><tbody>';
+  for (let f = 1; f <= 6; f++) {
+    html += `<tr><td class="boat-cell" style="background:${boatBgLight[f-1]};color:${f<=2?'#fff':'#111'};font-weight:bold;">${f}</td>`;
+    for (let s = 1; s <= 6; s++) {
+      if (s === f) { html += '<td style="background:#070d1a;text-align:center;color:#1e40af;">—</td>'; continue; }
+      const v = map[`${f}-${s}`] || '--';
+      html += `<td class="${oddsColor(v)}">${v}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table></div>';
+  el.innerHTML = html;
+}
+
+// 単勝: シンプルバー
+function renderOdds1t(el, odds) {
+  let html = '<div class="space-y-2 py-2">';
+  const sorted = [...odds].sort((a,b) => parseFloat(a.odds||999) - parseFloat(b.odds||999));
+  const minOdds = parseFloat(sorted[0]?.odds || 1);
+  sorted.forEach(o => {
+    const v = parseFloat(o.odds || 0);
+    const w = v > 0 ? Math.min(100, (minOdds / v) * 100) : 5;
+    const bn = parseInt(o.pattern);
+    const bgs = ['#e0e0e0','#333','#ef4444','#3b82f6','#facc15','#16a34a'];
+    const bg = bgs[bn-1] || '#555';
+    html += `<div class="flex items-center gap-3 px-3">
+      <div class="w-7 h-7 rounded flex items-center justify-center font-bold text-xs border flex-shrink-0 ${boatColors[bn-1]}">${bn}</div>
+      <div class="flex-1 h-5 bg-slate-700 rounded overflow-hidden">
+        <div class="h-full rounded transition-all" style="width:${w}%;background:${bg};opacity:0.8;"></div>
+      </div>
+      <span class="font-mono font-bold text-amber-300 text-sm w-16 text-right">${o.odds}倍</span>
+    </div>`;
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+// 3連複・2連複: グリッド表示
+function renderOddsGrid(el, odds, label, cols) {
+  const sorted = [...odds].sort((a,b) => parseFloat(a.odds||999) - parseFloat(b.odds||999));
+  let html = `<div class="grid grid-cols-${cols} gap-1 p-2">`;
+  sorted.forEach((item, i) => {
+    const cls = i === 0 ? 'bg-amber-900/30 border-amber-600/50 text-amber-300'
+              : i < 3   ? 'bg-blue-900/30 border-blue-700/50 text-blue-300'
+                        : 'bg-slate-700/30 border-slate-600/40 text-slate-300';
+    html += `<div class="flex justify-between items-center px-2 py-1.5 rounded border text-xs font-mono ${cls}">
+      <span class="font-bold">${item.pattern}</span>
+      <span>${item.odds}倍</span>
+    </div>`;
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+// ── 展示情報更新ボタン ─────────────────────────────────────────────────────
+document.getElementById('recalc-btn').addEventListener('click', async () => {
+  if (!currentRaceId) return;
+  const btn = document.getElementById('recalc-btn');
+  btn.disabled = true; btn.textContent = '取得中...';
+  try {
+    const res = await fetch(`${API_BASE}/races/${currentRaceId}/exhibition/scrape`);
+    if (!res.ok) { const err = await res.json(); alert(`展示情報取得失敗: ${err.detail||'不明'}`); return; }
+    const data = await res.json();
+    const ex = data.scraped_exhibition || {};
+
+    // ★ 入力フィールドに反映（展示情報更新時は数値を上書き、ただし手動変更は保護しない→公式が正）
+    Object.entries(ex).forEach(([bn, info]) => {
+      // デスクトップ進入
+      const dcSel = document.getElementById(`in-course-${bn}`);
+      if (dcSel) { dcSel.value = info.entry_course; dcSel.dataset.prevVal = info.entry_course; }
+      // デスクトップ 展示T
+      const deEl = document.getElementById(`in-ex-${bn}`);
+      if (deEl) deEl.value = info.exhibition_time;
+      // デスクトップ ST
+      const st = info.start_timing != null ? info.start_timing : 0;
+      const stSign = st < 0 ? '-' : '+';
+      const stAbs  = Math.abs(st).toFixed(2);
+      const dsBtn = document.getElementById(`in-st-sign-${bn}`); if (dsBtn) dsBtn.textContent = stSign;
+      const dsAbs = document.getElementById(`in-st-abs-${bn}`);  if (dsAbs) dsAbs.value = stAbs;
+      // モバイル
+      const mcSel = document.getElementById(`m-course-${bn}`);
+      if (mcSel) { mcSel.value = info.entry_course; mcSel.dataset.prevVal = info.entry_course; }
+      const meEl = document.getElementById(`m-ex-${bn}`); if (meEl) meEl.value = info.exhibition_time;
+      const msBtn = document.getElementById(`m-st-sign-${bn}`); if (msBtn) msBtn.textContent = stSign;
+      const msAbs = document.getElementById(`m-st-abs-${bn}`);  if (msAbs) msAbs.value = stAbs;
+    });
+
+    // ★ 気象・チルトも更新
+    if (data.scraped_weather) updateWeatherBar(data.scraped_weather);
+
+    currentPlayersData = data.players;
+    renderRace(data.race, data.players, data.predictions);
+    originalPlayersSnapshot = JSON.parse(JSON.stringify(data.players));
+  } catch (e) { alert('展示情報の取得中にエラー: ' + e); }
+  finally { btn.disabled = false; btn.textContent = '🔄 展示情報更新'; }
+});
+
+// ── リセットボタン ─────────────────────────────────────────────────────────
+document.getElementById('reset-btn').addEventListener('click', async () => {
+  if (!currentRaceId || !originalPlayersSnapshot.length) return;
+  originalPlayersSnapshot.forEach(p => {
+    // デスクトップ
+    const dcSel = document.getElementById(`in-course-${p.boat_number}`);
+    if (dcSel) { dcSel.value = (p.calc_course != null ? p.calc_course : p.boat_number); dcSel.dataset.prevVal = (p.calc_course != null ? p.calc_course : p.boat_number); }
+    const deEl = document.getElementById(`in-ex-${p.boat_number}`); if (deEl) deEl.value = p.calc_ex != null ? p.calc_ex : 6.80;
+    const stVal = p.calc_st != null ? p.calc_st : 0.15;
+    const stSign = stVal < 0 ? '-' : '+';
+    const stAbs  = Math.abs(stVal).toFixed(2);
+    const dsBtn = document.getElementById(`in-st-sign-${p.boat_number}`); if (dsBtn) dsBtn.textContent = stSign;
+    const dsAbs = document.getElementById(`in-st-abs-${p.boat_number}`);  if (dsAbs) dsAbs.value = stAbs;
+    const dtSel = document.getElementById(`in-tilt-${p.boat_number}`); if (dtSel) dtSel.value = p.tilt||0;
+    // モバイル
+    const mcSel = document.getElementById(`m-course-${p.boat_number}`);
+    if (mcSel) { mcSel.value = (p.calc_course != null ? p.calc_course : p.boat_number); mcSel.dataset.prevVal = (p.calc_course != null ? p.calc_course : p.boat_number); }
+    const meEl = document.getElementById(`m-ex-${p.boat_number}`); if (meEl) meEl.value = p.calc_ex != null ? p.calc_ex : 6.80;
+    const msBtn = document.getElementById(`m-st-sign-${p.boat_number}`); if (msBtn) msBtn.textContent = stSign;
+    const msAbs = document.getElementById(`m-st-abs-${p.boat_number}`);  if (msAbs) msAbs.value = stAbs;
+    const mtSel = document.getElementById(`m-tilt-${p.boat_number}`); if (mtSel) mtSel.value = p.tilt||0;
+  });
+  try {
+    const updates = originalPlayersSnapshot.map(p => ({
+      boat_number: p.boat_number,
+      entry_course: (p.calc_course != null ? p.calc_course : p.boat_number),
+      exhibition_time: p.calc_ex != null ? p.calc_ex : 6.80,
+      start_timing: p.calc_st != null ? p.calc_st : 0.15,
+      tilt: p.tilt||0,
+    }));
+    await fetch(`${API_BASE}/races/${currentRaceId}/exhibition`, {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(updates)
+    });
+    requestPrediction();
+  } catch(e) { console.error(e); }
+});
+
+// ── 手動反映ボタン ─────────────────────────────────────────────────────────
+document.getElementById('manual-apply-btn').addEventListener('click', async () => {
+  if (!currentRaceId || !currentPlayersData.length) return;
+  const btn = document.getElementById('manual-apply-btn');
+  const origHTML = btn.innerHTML;
+  btn.disabled = true; btn.textContent = '反映中...';
+  try {
+    const updates = currentPlayersData.map(p => {
+      // デスクトップ優先、なければモバイル
+      const cnD = document.getElementById(`in-course-${p.boat_number}`);
+      const cnM = document.getElementById(`m-course-${p.boat_number}`);
+      const enD = document.getElementById(`in-ex-${p.boat_number}`);
+      const enM = document.getElementById(`m-ex-${p.boat_number}`);
+      const cn = cnD || cnM;
+      const en = enD || enM;
+      // ST (符号+絶対値)
+      const stValD = getStValue(p.boat_number, 'in');
+      const stValM = getStValue(p.boat_number, 'm');
+      // デスクトップのst-sign要素があればそちらを使う
+      const stVal = document.getElementById(`in-st-sign-${p.boat_number}`) ? stValD : stValM;
+      // チルト
+      const tnD = document.getElementById(`in-tilt-${p.boat_number}`);
+      const tnM = document.getElementById(`m-tilt-${p.boat_number}`);
+      const tn = tnD || tnM;
+      return {
+        boat_number: p.boat_number,
+        entry_course:    cn ? parseInt(cn.value) : ((p.calc_course != null ? p.calc_course : p.boat_number)),
+        exhibition_time: en ? parseFloat(en.value) : 6.80,
+        start_timing:    stVal,
+        tilt:            tn ? parseFloat(tn.value) : 0.0,
+      };
+    });
+    const res = await fetch(`${API_BASE}/races/${currentRaceId}/exhibition`, {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(updates)
+    });
+    if (!res.ok) throw new Error('Update failed');
+    const data = await res.json();
+    currentPlayersData = data.players;
+    renderRace(data.race, data.players, data.predictions);
+  } catch(e) { alert('手動反映中にエラー: ' + e); }
+  finally { btn.disabled = false; btn.innerHTML = origHTML; }
+});
+
+// ── データ一括取得ボタン ──────────────────────────────────────────────────
+document.getElementById('force-scrape-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('force-scrape-btn');
+  const origHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<svg class="animate-spin w-3.5 h-3.5 inline mr-1" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg> 開始中...';
+  try {
+    const res = await fetch(`${API_BASE}/scrape/today`, { method: 'POST' });
+    if (!res.ok) {
+      const err = await res.json();
+      alert(err.detail || 'エラーが発生しました');
+      btn.innerHTML = origHTML; btn.disabled = false;
+    } else {
+      btn.innerHTML = '⏳ 取得中...';
+      setTimeout(checkStatus, 500);
+    }
+  } catch(e) {
+    alert('通信エラー: ' + e);
+    btn.innerHTML = origHTML; btn.disabled = false;
+  }
+});
+
+// ── 選手モーダル ──────────────────────────────────────────────────────────
+async function openPlayerModal(toban, name) {
+  if (!toban) return;
+  const modal = document.getElementById('player-modal');
+  document.getElementById('modal-player-name').textContent = name || '選手詳細';
+  document.getElementById('modal-content').innerHTML = '<div class="text-center py-8 text-slate-400 animate-pulse">取得中...</div>';
+  modal.classList.remove('hidden');
+  try {
+    const res = await fetch(`${API_BASE}/racers/${toban}`);
+    const data = await res.json();
+    if (data.error) {
+      document.getElementById('modal-content').innerHTML = `<p class="text-red-400 text-center py-6">${data.error}</p>`;
+      return;
+    }
+    const stats = data.course_stats || [];
+    let html = `<div class="mb-4">
+      <p class="text-xs text-slate-500">登録番号: ${toban}</p>
+      <h3 class="text-2xl font-black text-white">${data.name||name}</h3>
+    </div>
+    <h4 class="font-bold text-slate-300 mb-2 border-b border-slate-700 pb-2 text-sm">📊 コース別成績</h4>
+    <div class="overflow-x-auto"><table class="w-full text-sm text-center">
+      <thead class="bg-slate-700 text-xs text-slate-400">
+        <tr><th class="px-3 py-2">コース</th><th class="px-3 py-2">1着率</th><th class="px-3 py-2">3連率</th><th class="px-3 py-2">平均ST</th><th class="px-3 py-2">出走数</th></tr>
+      </thead><tbody class="divide-y divide-slate-700">`;
+    stats.forEach(s => {
+      const rc = s.course === 1 ? 'bg-amber-900/30 font-semibold' : '';
+      html += `<tr class="${rc}"><td class="px-3 py-2 font-bold">${s.course}コース</td>
+        <td class="px-3 py-2 text-blue-400 font-bold">${s.win_rate}</td>
+        <td class="px-3 py-2">${s.trio_rate}</td>
+        <td class="px-3 py-2 font-mono">${s.avg_st}</td>
+        <td class="px-3 py-2 text-slate-500">${s.starts}</td></tr>`;
+    });
+    html += `</tbody></table></div>
+    <p class="text-[10px] text-slate-600 mt-3 text-center">データ: BOAT RACE オフィシャル</p>`;
+    document.getElementById('modal-content').innerHTML = html;
+  } catch(e) {
+    document.getElementById('modal-content').innerHTML = '<p class="text-red-400 text-center py-6">データ取得失敗</p>';
+  }
+}
+function closeModal() { document.getElementById('player-modal').classList.add('hidden'); }
+
+// ── ステータスポーリング ──────────────────────────────────────────────────
+let isScraping = false;
+async function checkStatus() {
+  let nextDelay = 10000;
+  try {
+    const res = await fetch(`${API_BASE}/status`);
+    const data = await res.json();
+    const ind = document.getElementById('scraping-indicator');
+    const btn = document.getElementById('force-scrape-btn');
+    if (data.is_scraping) {
+      ind.classList.remove('hidden');
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ 取得中...'; }
+      if (!isScraping) isScraping = true;
+      loadPlaces();
+      nextDelay = 4000;
+    } else {
+      ind.classList.add('hidden');
+      if (btn) { btn.disabled = false; btn.innerHTML = '📥 データ一括取得'; }
+      if (isScraping) {
+        isScraping = false;
+        await loadPlaces();
+        // ★ メニュー操作中でなければ開いているコンテナのみ更新
+        if (!isMenuOpen) {
+          document.querySelectorAll('[id^="races-container-"]').forEach(el => {
+            if (!el.classList.contains('hidden')) {
+              const placeName = el.id.replace('races-container-', '');
+              loadRaces(placeName);
+            }
+          });
+        }
+      } else {
+        loadPlaces();
+      }
+      nextDelay = 10000;
+    }
+  } catch(e) {}
+  setTimeout(checkStatus, nextDelay);
+}
+
+// ── Service Worker ────────────────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js').catch(() => {}));
+}
+
+// ── Start ─────────────────────────────────────────────────────────────────
+initAccordions();
+checkStatus();
+setInterval(loadPlaces, 5 * 60 * 1000);
+</script>
+</body>
+</html>
