@@ -229,7 +229,7 @@
         <div id="main-content" class="hidden p-4 lg:p-6 max-w-5xl mx-auto w-full flex flex-col lg:grid lg:grid-cols-3 gap-5 pb-28 md:pb-20">
 
             <!-- [2] 各予想 (2カラム) — mobile:order-2 / desktop:col-2〜4 row-1 -->
-            <div id="predict-section" class="order-2 lg:col-start-2 lg:col-end-4 lg:row-start-1 grid grid-cols-2 gap-4">
+            <div id="predict-section" class="order-2 lg:col-start-2 lg:col-end-4 lg:row-start-1 grid grid-cols-2 gap-4 scroll-mt-20">
                 <!-- Custom -->
                 <div class="bg-gradient-to-br from-slate-800 to-blue-900/40 p-4 rounded-xl border border-blue-800/50">
                     <h3 class="font-bold text-blue-300 mb-2 pb-2 border-b border-blue-800/50 text-sm">🧑‍💻 カスタム予想</h3>
@@ -245,7 +245,7 @@
             </div>
 
             <!-- [3] アラート — mobile:order-3 / desktop:col-span-3 row-3 -->
-            <div id="scenario-box" class="order-3 lg:col-span-3 lg:row-start-3 hidden bg-red-950/60 p-4 rounded-xl border-l-4 border-red-500">
+            <div id="scenario-box" class="order-3 lg:col-span-3 lg:row-start-3 hidden bg-red-950/60 p-4 rounded-xl border-l-4 border-red-500 scroll-mt-20">
                 <h3 class="font-bold text-red-400 mb-1 flex items-center gap-1 text-sm">
                     ⚡ 展開特注アラート
                     <span class="bg-red-600 text-white text-xs px-2 py-0.5 rounded ml-1">確率 <span
@@ -257,7 +257,7 @@
             </div>
 
             <!-- [1] 出走表 — mobile:order-1 / desktop:col-span-3 row-2 -->
-            <div id="race-section" class="order-1 lg:col-span-3 lg:row-start-2 bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+            <div id="race-section" class="order-1 lg:col-span-3 lg:row-start-2 bg-slate-800 rounded-xl border border-slate-700 overflow-hidden scroll-mt-20">
                 <div class="px-4 py-3 bg-slate-750 border-b border-slate-700 flex justify-between items-center">
                     <h3 class="font-bold text-slate-300 text-sm flex items-center gap-2">
                         📋 詳細出走表
@@ -307,7 +307,7 @@
             </div>
 
             <!-- [4] 予想カスタマイズ — mobile:order-4 / desktop:col-1 row-1 -->
-            <div id="setting-section" class="order-4 lg:col-start-1 lg:col-end-2 lg:row-start-1 bg-slate-800 p-4 rounded-xl border border-slate-700">
+            <div id="setting-section" class="order-4 lg:col-start-1 lg:col-end-2 lg:row-start-1 bg-slate-800 p-4 rounded-xl border border-slate-700 scroll-mt-20">
                 <h3 class="font-bold text-slate-300 mb-3 pb-2 border-b border-slate-700 text-sm flex items-center gap-2">
                     <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -367,7 +367,7 @@
             </div>
 
             <!-- [5] オッズ — mobile:order-5 / desktop:col-span-3 row-4 -->
-            <div id="odds-result-section" class="order-5 lg:col-span-3 lg:row-start-4 hidden space-y-4">
+            <div id="odds-result-section" class="order-5 lg:col-span-3 lg:row-start-4 hidden space-y-4 scroll-mt-20">
                 <!-- Result Banner -->
                 <div id="result-banner"
                     class="hidden bg-gradient-to-r from-emerald-700 to-teal-700 text-white rounded-xl p-5 shadow-lg">
@@ -442,7 +442,7 @@
     </div>
 
     <script>
-        const APP_VERSION = '1.0.2';
+        const APP_VERSION = '1.0.3';
         const API_BASE = '/api';
 
         // ─── Force Update Logic ───────────────────────────────────────────────
