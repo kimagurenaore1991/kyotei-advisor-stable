@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Database
+*.db
+*.sqlite3
+
+# Filesystem
+.DS_Store
+Thumbs.db
+
+# Project specific
+kyotei.db
+LOCK_FILE
+test_beforeinfo.html
