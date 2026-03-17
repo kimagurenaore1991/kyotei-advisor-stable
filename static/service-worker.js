@@ -5,6 +5,7 @@ const urlsToCache = [
 ];
 
 self.addEventListener('install', event => {
+  self.skipWaiting(); // 新しいバージョンを即座にアクティブにする
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
