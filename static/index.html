@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Kyotei Advisor</title>
+    <!-- Version: 1.0.1 (Responsive Fix) -->
     <link rel="manifest" href="./manifest.json">
     <meta name="theme-color" content="#1e293b">
     <link rel="apple-touch-icon" href="./icons/icon-192x192.png">
@@ -404,11 +405,11 @@
 
     <!-- Mobile Bottom Tab Bar -->
     <div id="mobile-tab-bar" class="md:hidden fixed bottom-0 left-0 right-0 flex z-30">
-        <div class="tab-item tab-active" id="tab-predict" onclick="switchTab('predict')">
+        <div class="tab-item" id="tab-predict" onclick="switchTab('predict')">
             <span class="tab-icon">🔮</span>
             <span>予想&amp;アラート</span>
         </div>
-        <div class="tab-item" id="tab-race" onclick="switchTab('race')">
+        <div class="tab-item tab-active" id="tab-race" onclick="switchTab('race')">
             <span class="tab-icon">📋</span>
             <span>出走表</span>
         </div>
@@ -1247,7 +1248,7 @@
         }
 
         // ─── Mobile Tab Switching ──────────────────────────────────────────
-        let currentTab = 'predict';
+        let currentTab = 'race'; // Default to race table for mobile as it's order-1
 
         // 各タブのスクロールターゲットID
         const TAB_TARGETS = {
