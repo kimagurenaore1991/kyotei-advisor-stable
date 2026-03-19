@@ -804,7 +804,7 @@
                 div.className = 'bg-slate-700/60 rounded px-2 py-1.5 flex justify-between items-center text-xs';
                 const isHitFlag = currentRaceResult ? isHit(item.pattern, currentRaceResult) : false;
                 const hitBadge = isHitFlag ? '<span class="ml-1 text-[9px] bg-yellow-400 text-black px-1 py-px rounded font-bold animate-pulse">的中</span>' : '';
-                const rankMedal = idx===0?'🥇':idx===1?'🥈':idx===2?'🥉':'';
+                const rankMedal = '';
                 // pattern に '-' または '=' が含まれない場合は、単勝として番号に背景色をつけるかシンプルにする
                 let patternHtml = item.pattern;
                 if (item.pattern.includes('-') || item.pattern.includes('=')) {
@@ -1398,7 +1398,28 @@
             if (btn) applyFinishBadge(btn, anyHit);
 
             // 着順表示
-            document.getElementById('result-ranking').textContent = result.ranking_str || '--';
+            const compactEl = document.getElementById('result-ranking-compact');
+            if (compactEl) compactEl.textContent = result.ranking_str || '--';
+
+            const tbody = document.getElementById('result-ranking-table');
+            if (tbody) {
+                tbody.innerHTML = '';
+                (result.ranking || []).forEach(r => {
+                    const rName = (result.racer_names && result.racer_names[r.boat]) ? result.racer_names[r.boat] : '--';
+                    const rTime = (result.race_times && result.race_times[r.boat]) ? result.race_times[r.boat] : '--';
+                    const cc = boatColors[r.boat - 1];
+                    // "bg-white text-slate-900 border-slate-300" などのクラスをパースして表示用に調整
+                    const boatClasses = cc.replace('border-', 'border border-').replace('text-slate-900', 'text-black');
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-slate-700/50 transition-colors">
+                            <td class="px-2 py-1.5 text-center font-bold text-sm">${r.rank}</td>
+                            <td class="px-2 py-1.5 justify-center flex"><span class="w-5 h-5 flex items-center justify-center rounded text-xs font-bold ${boatClasses}">${r.boat}</span></td>
+                            <td class="px-2 py-1.5 text-left font-bold text-slate-200">${rName}</td>
+                            <td class="px-2 py-1.5 text-right font-mono text-slate-400 text-xs">${rTime}</td>
+                        </tr>
+                    `;
+                });
+            }
 
             // 全賭式の払戻金表示
             const pe = document.getElementById('result-payouts');
@@ -1415,9 +1436,11 @@
             // ヘッダーに終了表示
             const wEmoji = { '晴れ': '☀️', '曇り': '☁️', '雨': '🌧️', '雪': '❄️', '霧': '🌫️', '不明': '🌀' };
             const wt = result.weather || '';
-            document.getElementById('weather-info').innerHTML =
-                `<span class="font-semibold text-slate-200">${wEmoji[wt] || ''} ${wt}</span> <span class="bg-red-900/60 text-red-300 px-1.5 py-0.5 rounded ml-1 font-bold text-xs">🚩 終了</span><br><span class="font-mono font-bold text-white">${result.ranking_str || '--'}</span>`;
-
+            const weatherEl = document.getElementById('weather-info');
+            if (weatherEl) {
+                weatherEl.innerHTML =
+                    `<span class="font-semibold text-slate-200">${wEmoji[wt] || ''} ${wt}</span> <span class="bg-red-900/60 text-red-300 px-1.5 py-0.5 rounded ml-1 font-bold text-xs">🚩 終了</span><br><span class="font-mono font-bold text-white">${result.ranking_str || '--'}</span>`;
+            }
             // バナー表示
             document.getElementById('result-banner').classList.remove('hidden');
 

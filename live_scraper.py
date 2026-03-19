@@ -357,14 +357,16 @@ def fetch_match_result(place_code: str, race_number: int, date_str: str):
                 cells = row.find_all("td")
                 if cells and len(cells) >= 3:
                     rank = cells[0].text.strip()
-                    boat = cells[2].text.strip() if len(cells) > 2 else ""
+                    boat = cells[1].text.strip() if len(cells) > 1 else ""
                     if rank.isdigit() and boat.isdigit():
                         entry = {"rank": int(rank), "boat": int(boat)}
-                        # 選手名を取得（boat番号の後のセルから）
-                        if len(cells) >= 4: # cells[3] is the 4th element
-                            name_raw = cells[3].text.strip()
-                            # 複数スペースで結合された「姓 名」形式
-                            entry["name"] = " ".join(name_raw.split())
+                        # 選手名を取得（boat番号の次のセルから）
+                        if len(cells) >= 3:
+                            import re
+                            name_raw = cells[2].text.strip()
+                            # "4320 \n 峰 竜太" のように登録番号が含まれる場合があるので除去
+                            name_clean = re.sub(r'^\d+\s+', '', name_raw)
+                            entry["name"] = " ".join(name_clean.split())
                         # レースタイムを取得
                         for c in cells:
                             ct = c.text.strip()
