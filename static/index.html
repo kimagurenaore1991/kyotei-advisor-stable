@@ -768,6 +768,62 @@
             return `<span class="inline-block rounded font-bold ${sz} ${cls}">${label}</span>`;
         }
 
+        // ─── Utility Functions (Global) ───────────────────────────────────────
+        function isHit(pattern, resultText) {
+            if (!resultText || resultText === '--') return false;
+            const r = resultText.split('-');
+            if (r.length < 3) return false;
+            const p = pattern;
+            if (p.includes('-') && p.split('-').length === 3) {
+                // 3連単
+                return r[0]===p.split('-')[0] && r[1]===p.split('-')[1] && r[2]===p.split('-')[2];
+            } else if (p.includes('=')) {
+                // 3連複 / 2連複
+                const pts = p.split('=');
+                if (pts.length === 3) {
+                    return pts.includes(r[0]) && pts.includes(r[1]) && pts.includes(r[2]);
+                } else if (pts.length === 2) {
+                    return pts.includes(r[0]) && pts.includes(r[1]);
+                }
+            } else if (p.includes('-') && p.split('-').length === 2) {
+                // 2連単
+                return r[0]===p.split('-')[0] && r[1]===p.split('-')[1];
+            } else {
+                // 単勝
+                return r[0] === p;
+            }
+            return false;
+        }
+
+        function renderList(elemId, list, isAi) {
+            const el = document.getElementById(elemId);
+            if (!el) return;
+            el.innerHTML = '';
+            list.slice(0, 5).forEach((item, idx) => {
+                const div = document.createElement('div');
+                div.className = 'bg-slate-700/60 rounded px-2 py-1.5 flex justify-between items-center text-xs';
+                const isHitFlag = currentRaceResult ? isHit(item.pattern, currentRaceResult) : false;
+                const hitBadge = isHitFlag ? '<span class="ml-1 text-[9px] bg-yellow-400 text-black px-1 py-px rounded font-bold animate-pulse">的中</span>' : '';
+                const rankMedal = idx===0?'🥇':idx===1?'🥈':idx===2?'🥉':'';
+                // pattern に '-' または '=' が含まれない場合は、単勝として番号に背景色をつけるかシンプルにする
+                let patternHtml = item.pattern;
+                if (item.pattern.includes('-') || item.pattern.includes('=')) {
+                    // split and colorize combinations
+                    const sep = item.pattern.includes('-') ? '-' : '=';
+                    const parts = item.pattern.split(sep);
+                    patternHtml = parts.map(num => `<span class="inline-block w-4 h-4 text-center rounded text-[10px] text-white border ${boatColors[num-1]}">${num}</span>`).join(sep === '=' ? '<span class="text-slate-500 mx-0.5">=</span>' : '<span class="text-slate-500 mx-0.5">-</span>');
+                } else {
+                    const num = parseInt(item.pattern);
+                    if (!isNaN(num) && num >= 1 && num <= 6) {
+                        patternHtml = `<span class="inline-block w-4 h-4 text-center rounded text-[10px] text-white border mx-1 ${boatColors[num-1]}">${num}</span>`;
+                    }
+                }
+                div.innerHTML = `<span class="font-bold flex items-center">${rankMedal} <div class="flex items-center ml-1">${patternHtml}</div> ${hitBadge}</span><span class="text-slate-400">${item.prob}%</span>`;
+                if (isHitFlag) div.classList.add('border', 'border-yellow-400', 'bg-yellow-900/30');
+                el.appendChild(div);
+            });
+        }
+
         // ─── Drawer ────────────────────────────────────────────────────────────
         const drawer = document.getElementById('drawer');
         const overlay = document.getElementById('drawer-overlay');
@@ -1000,13 +1056,10 @@
         async function checkRaceFinished(races) {
             for (const r of races) {
                 // 既に決定済みキャッシュ（終了済み）があればスキップ
-                if (raceResultCache[r.id] && raceResultCache[r.id].result && raceResultCache[r.id].result.finished) continue;
-                    // キャッシュ済み→バッジがなければ即座に付ける
-                    if (raceResultCache[r.id]) {
-                        const btn = document.getElementById(`race-btn-${r.id}`);
-                        if (btn && !btn.querySelector('.finish-badge')) {
-                            applyFinishBadge(btn, raceHitCache[r.id] || false);
-                        }
+                if (raceResultCache[r.id] && raceResultCache[r.id].result && raceResultCache[r.id].result.finished) {
+                    const btn = document.getElementById(`race-btn-${r.id}`);
+                    if (btn && !btn.querySelector('.finish-badge')) {
+                        applyFinishBadge(btn, raceHitCache[r.id] || false);
                     }
                     continue;
                 }
