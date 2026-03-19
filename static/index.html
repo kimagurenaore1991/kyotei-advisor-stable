@@ -516,18 +516,56 @@
 
         <!-- [5] オッズ — mobile:order-5 / desktop:col-span-3 row-4 -->
         <div id="odds-result-section" class="order-5 lg:col-span-3 lg:row-start-4 hidden space-y-4 scroll-mt-20">
-            <!-- Result Banner -->
+            <!-- Result Banner (公式風レイアウト) -->
             <div id="result-banner"
-                class="hidden bg-gradient-to-r from-emerald-700 to-teal-700 text-white rounded-xl p-5 shadow-lg">
-                <h3 class="font-bold text-lg mb-3">🏆 レース結果</h3>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <p class="text-xs opacity-70 mb-1">着順</p>
-                        <p id="result-ranking" class="text-4xl font-black tracking-widest">--</p>
+                class="hidden rounded-xl overflow-hidden border border-slate-600 shadow-xl">
+                <!-- 結果ヘッダー -->
+                <div id="result-status-heavy" class="hidden text-center py-3 font-black text-xl bg-slate-700 text-white">
+                    <!-- 的中/的中無し バナー -->
+                </div>
+                <div class="bg-slate-800 px-4 py-2 border-b border-slate-700 flex items-center gap-3">
+                    <span class="text-lg">🏆</span>
+                    <h3 class="font-bold text-slate-200 text-sm">レース結果</h3>
+                    <span id="result-ranking-compact" class="ml-auto font-mono font-black text-blue-300 text-sm tracking-widest"></span>
+                </div>
+                <!-- 本体: 着順 + 払戻金 を横並び -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-0 divide-y md:divide-y-0 md:divide-x divide-slate-700">
+                    <!-- 左: 着順テーブル -->
+                    <div class="bg-slate-900/60">
+                        <h4 class="text-xs font-bold text-slate-400 px-3 py-1.5 bg-slate-800/80 border-b border-slate-700">🎌 着順</h4>
+                        <table class="w-full text-xs">
+                            <thead>
+                                <tr class="bg-blue-900/40 text-slate-300">
+                                    <th class="px-2 py-1.5 text-center w-8">着</th>
+                                    <th class="px-2 py-1.5 text-center w-8">枠</th>
+                                    <th class="px-2 py-1.5 text-left">ボートレーサー</th>
+                                    <th class="px-2 py-1.5 text-right">タイム</th>
+                                </tr>
+                            </thead>
+                            <tbody id="result-ranking-table" class="divide-y divide-slate-800">
+                                <!-- JS で生成 -->
+                            </tbody>
+                        </table>
                     </div>
-                    <div id="result-payouts" class="space-y-1 text-sm"></div>
+                    <!-- 右: 払戻金テーブル -->
+                    <div class="bg-slate-900/40">
+                        <h4 class="text-xs font-bold text-slate-400 px-3 py-1.5 bg-slate-800/80 border-b border-slate-700">💴 払戻金</h4>
+                        <table class="w-full text-xs">
+                            <thead>
+                                <tr class="bg-blue-900/40 text-slate-300">
+                                    <th class="px-2 py-1.5 text-center w-12">勝式</th>
+                                    <th class="px-2 py-1.5 text-center">組番</th>
+                                    <th class="px-2 py-1.5 text-right">払戻金</th>
+                                </tr>
+                            </thead>
+                            <tbody id="result-payouts" class="divide-y divide-slate-800">
+                                <!-- JS で生成 -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
+
             <!-- Live Odds -->
             <div id="odds-box" class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
                 <div class="px-4 py-3 bg-slate-750 border-b border-slate-700 flex justify-between items-center">
@@ -590,23 +628,31 @@
     </div>
 
     <script>
-        const APP_VERSION = '1.0.4';
+        const APP_VERSION = '1.0.5';
         const API_BASE = '/api';
 
-        // ─── Force Update Logic ───────────────────────────────────────────────
-        (async function checkVersion() {
-            const lastVersion = localStorage.getItem('kyotei_app_version');
-            if (lastVersion && lastVersion !== APP_VERSION) {
-                console.log(`Update detected: ${lastVersion} -> ${APP_VERSION}. Clearing cache...`);
-                if ('caches' in window) {
+        // ─── 毎回キャッシュ強制削除 ────────────────────────────────────────────
+        (async function clearCacheOnLoad() {
+            // Service Worker キャッシュを毎回削除
+            if ('caches' in window) {
+                try {
                     const keys = await caches.keys();
                     await Promise.all(keys.map(key => caches.delete(key)));
-                }
-                localStorage.setItem('kyotei_app_version', APP_VERSION);
-                // ページを強制リロード
+                    console.log('[Cache] SW caches cleared.');
+                } catch (e) { console.warn('[Cache] clear error:', e); }
+            }
+            // 古いService Workerをアンレジスター
+            if ('serviceWorker' in navigator) {
+                try {
+                    const regs = await navigator.serviceWorker.getRegistrations();
+                    for (const reg of regs) await reg.unregister();
+                } catch (e) { }
+            }
+            // バージョン変更時はリロード
+            const lastVersion = localStorage.getItem('kyotei_app_version');
+            localStorage.setItem('kyotei_app_version', APP_VERSION);
+            if (lastVersion && lastVersion !== APP_VERSION) {
                 window.location.reload(true);
-            } else {
-                localStorage.setItem('kyotei_app_version', APP_VERSION);
             }
         })();
 
@@ -614,8 +660,7 @@
         let currentPlayersData = [];
         let originalPlayersSnapshot = [];
         let isFirstLoad = true;
-        let activeFixedHead = 0; // 0 = none
-
+        let activeFixedHead = 0;
         const boatColors = [
             'bg-white text-slate-900 border-slate-300',
             'bg-slate-900 text-white border-slate-600',
@@ -624,6 +669,46 @@
             'bg-yellow-400 text-slate-900 border-yellow-500',
             'bg-green-500 text-white border-green-600'
         ];
+        let currentRaceResult = null;
+        let lastPredictions = null;
+
+        // ─── isHit: グローバルスコープ ───────────────────────────────────────────
+        function isHit(pattern, resultStr) {
+            if (!resultStr || resultStr === '--') return false;
+            const resBoats = resultStr.split('-').map(String);
+            if (pattern.includes('=')) {
+                const patBoats = pattern.split('=').map(String);
+                return patBoats.slice().sort().join(',') === resBoats.slice(0, patBoats.length).slice().sort().join(',');
+            } else {
+                const patBoats = pattern.split('-').map(String);
+                return patBoats.join('-') === resBoats.slice(0, patBoats.length).join('-');
+            }
+        }
+
+        // ─── renderList: グローバルスコープ ──────────────────────────────────────
+        function renderList(targetId, items, isDark) {
+            const el = document.getElementById(targetId);
+            if (!el) return;
+            el.innerHTML = '';
+            if (!items || !items.length) {
+                el.innerHTML = '<span class="text-xs text-slate-500 block text-center py-2">データなし</span>';
+                return;
+            }
+            items.forEach((item, i) => {
+                const row = document.createElement('div');
+                const hit = isHit(item.pattern, currentRaceResult);
+                const highlight = i === 0
+                    ? (isDark ? 'text-amber-400' : 'text-orange-400')
+                    : (hit ? 'text-emerald-400' : 'text-slate-200');
+                row.className = `flex justify-between items-center px-2 py-1 rounded text-sm transition-colors ${hit ? 'bg-emerald-900/30 border border-emerald-500/50' : 'bg-white/5 hover:bg-white/10'}`;
+                row.innerHTML = `<span class="w-4 text-xs text-slate-500">${i + 1}</span>
+                <span class="font-black font-mono tracking-widest flex-1 ${highlight}">${hit ? '★' : ''}${item.pattern}${hit ? ' <span class="bg-red-600 text-white text-[9px] px-1 rounded ml-1 font-bold animate-pulse">的中</span>' : ''}</span>
+                <span class="text-xs text-slate-400 font-mono">${item.prob.toFixed(1)}%</span>`;
+                el.appendChild(row);
+            });
+        }
+
+
 
         // Dropdown options generators
         function generateOptions(min, max, step, selectedValue, fixedDigits = 2) {
@@ -701,12 +786,15 @@
             try {
                 const res = await fetch(`${API_BASE}/places`);
                 const text = await res.text();
-                if (text === lastPlacesJson) return;
-                lastPlacesJson = text;
                 const places = JSON.parse(text);
-                renderPlaces(places);
-            } catch (e) { console.error('loadPlaces', e); }
+                if (text !== lastPlacesJson) {
+                    lastPlacesJson = text;
+                    renderPlaces(places);
+                }
+                return places;
+            } catch (e) { console.error('loadPlaces', e); return []; }
         }
+
 
         function renderPlaces(places) {
             const list = document.getElementById('place-list');
@@ -749,12 +837,70 @@
                 isFirstLoad = false;
                 setTimeout(() => loadRaces(firstActive, true), 200);
             } else {
-                // 再描画後、以前開いていた場のコンテナを再ロード
                 openPlaces.forEach(pl => {
                     const cont = document.getElementById(`races-container-${pl}`);
                     if (cont) loadRaces(pl);
                 });
             }
+            // 全会場のレース一覧をバックグラウンドでプリフェッチ
+            setTimeout(() => prefetchAllVenuesFinished(places), 800);
+        }
+
+        // ─── 全会場・全レースの終了チェック ────────────────────────────────────────
+        let globalFinishCheckRunning = false;
+        async function prefetchAllVenuesFinished(places) {
+            if (globalFinishCheckRunning) return;
+            globalFinishCheckRunning = true;
+            const activePlaces = places.filter(p => p.is_active);
+            for (const place of activePlaces) {
+                try {
+                    const res = await fetch(`${API_BASE}/places/${encodeURIComponent(place.place)}/races`);
+                    if (!res.ok) continue;
+                    const races = await res.json();
+                    if (!races || !races.length) continue;
+                    // 各レースのボタンが存在するかどうかは問わず、結果キャッシュを先読み
+                    for (const r of races) {
+                        // 既に決定済みキャッシュ（終了済み）があればスキップ
+                        if (raceResultCache[r.id] && raceResultCache[r.id].result && raceResultCache[r.id].result.finished) {
+                            const btn = document.getElementById(`race-btn-${r.id}`);
+                            if (btn && !btn.querySelector('.finish-badge')) {
+                                const hitFlag = raceHitCache[r.id] || false;
+                                applyFinishBadge(btn, hitFlag);
+                            }
+                            continue;
+                        }
+                        try {
+                            const optRes = await fetch(`${API_BASE}/races/${r.id}/options`);
+                            if (!optRes.ok) { raceResultCache[r.id] = null; continue; }
+                            const data = await optRes.json();
+                            if (data.result && data.result.finished) {
+                                raceResultCache[r.id] = data;
+                                let hitFlag = false;
+                                try {
+                                    const pRes = await fetch(`${API_BASE}/races/${r.id}/predict`, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ weights: getWeights(), settings: getSettings() })
+                                    });
+                                    if (pRes.ok) {
+                                        const pData = await pRes.json();
+                                        hitFlag = [...pData.predictions.rule_focus, ...pData.predictions.ai_focus]
+                                            .some(item => isHit(item.pattern, data.result.ranking_str));
+                                    }
+                                } catch (_) { }
+                                raceHitCache[r.id] = hitFlag;
+                                const btn = document.getElementById(`race-btn-${r.id}`);
+                                if (btn) applyFinishBadge(btn, hitFlag);
+                            } else {
+                                raceResultCache[r.id] = null;
+                            }
+                        } catch (_) { }
+                        await new Promise(res => setTimeout(res, 150));
+                    }
+                    await new Promise(res => setTimeout(res, 200));
+                } catch (_) { }
+            }
+            globalFinishCheckRunning = false;
         }
 
         // ─── Load Races for a Place ────────────────────────────────────────────
@@ -814,10 +960,12 @@
                             overlay.classList.add('hidden');
                         }
                     };
+                    // DB is_finished フラグが立っていれば即座に終了バッジ表示
+                    if (r.is_finished) applyFinishBadge(btn, false);
                     container.appendChild(btn);
                     if (autoLoadFirst && idx === 0) setTimeout(() => btn.click(), 150);
                 });
-                // 洛進的に各レースの結果確認
+                // バックグラウンドで各レースの結果確認
                 setTimeout(() => checkRaceFinished(races), 500);
             } catch (e) {
                 console.error('loadRaces', e);
@@ -825,46 +973,83 @@
             }
         }
 
-        // レース結果をバックグラウンドで確認し☆マークを付ける
-        const raceResultCache = {}; // raceId -> result or null
+        // ─── レース終了バッジ共通処理 ─────────────────────────────────────────────
+        function applyFinishBadge(btn, isHitFlag) {
+            btn.querySelector('.finish-badge')?.remove();
+            btn.classList.remove('bg-slate-700');
+            const badge = document.createElement('span');
+            badge.className = 'finish-badge absolute top-0 right-0 text-[8px] font-black px-1 leading-none';
+            badge.style.cssText = 'height:12px;border-radius:0 3px 0 3px;display:flex;align-items:center;';
+            if (isHitFlag) {
+                btn.classList.add('bg-emerald-900/40', 'border-emerald-600');
+                badge.style.background = '#facc15';
+                badge.style.color = '#0f172a';
+                badge.textContent = '★的中';
+            } else {
+                btn.classList.add('bg-slate-800/80', 'border-slate-500');
+                badge.style.background = '#475569';
+                badge.style.color = '#e2e8f0';
+                badge.textContent = '✓終了';
+            }
+            btn.appendChild(badge);
+        }
+
+        // レース結果をバックグラウンドで確認しバッジを付ける
+        const raceResultCache = {};
+        const raceHitCache = {};
         async function checkRaceFinished(races) {
             for (const r of races) {
-                if (raceResultCache[r.id] !== undefined) {
-                    if (raceResultCache[r.id]) markRaceFinished(r.id);
+                // 既に決定済みキャッシュ（終了済み）があればスキップ
+                if (raceResultCache[r.id] && raceResultCache[r.id].result && raceResultCache[r.id].result.finished) continue;
+                    // キャッシュ済み→バッジがなければ即座に付ける
+                    if (raceResultCache[r.id]) {
+                        const btn = document.getElementById(`race-btn-${r.id}`);
+                        if (btn && !btn.querySelector('.finish-badge')) {
+                            applyFinishBadge(btn, raceHitCache[r.id] || false);
+                        }
+                    }
                     continue;
                 }
+
                 try {
                     const res = await fetch(`${API_BASE}/races/${r.id}/options`);
-                    if (!res.ok) continue;
+                    if (!res.ok) { raceResultCache[r.id] = null; continue; }
                     const data = await res.json();
                     if (data.result && data.result.finished) {
                         raceResultCache[r.id] = data;
-                        markRaceFinished(r.id);
+                        // 予想を引っ張って的中判定
+                        let hitFlag = false;
+                        try {
+                            const pRes = await fetch(`${API_BASE}/races/${r.id}/predict`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ weights: getWeights(), settings: getSettings() })
+                            });
+                            if (pRes.ok) {
+                                const pData = await pRes.json();
+                                hitFlag = [...pData.predictions.rule_focus, ...pData.predictions.ai_focus]
+                                    .some(item => isHit(item.pattern, data.result.ranking_str));
+                            }
+                        } catch (_) { }
+                        raceHitCache[r.id] = hitFlag;
+                        const btn = document.getElementById(`race-btn-${r.id}`);
+                        if (btn) applyFinishBadge(btn, hitFlag);
+
                     } else {
                         raceResultCache[r.id] = null;
                     }
                 } catch (_) { }
-                await new Promise(res => setTimeout(res, 120)); // 負荷分散
+                await new Promise(res => setTimeout(res, 300));
             }
         }
 
-        function markRaceFinished(raceId) {
-            const btn = document.getElementById(`race-btn-${raceId}`);
-            if (!btn) return;
-            btn.classList.add('bg-emerald-900/40', 'border-emerald-700/60');
-            if (!btn.querySelector('.star-mark')) {
-                const star = document.createElement('span');
-                star.className = 'star-mark text-yellow-400 text-[9px] leading-none';
-                star.textContent = '★結果';
-                btn.insertBefore(star, btn.firstChild);
-            }
-        }
-
-        // ─── Race Detail ───────────────────────────────────────────────────────
+        // ─── Race Detail ──────────────────────────────────────────────────────
         async function loadRaceDetail(raceId) {
             currentRaceId = raceId;
-            originalPlayersSnapshot = []; // 場・レース変更時に初期化
+            originalPlayersSnapshot = [];
             currentPlayersData = [];
+            currentRaceResult = null;
+            lastPredictions = null;
             stopOddsAutoRefresh();
             document.getElementById('welcome-screen').classList.add('hidden');
             document.getElementById('main-content').classList.remove('hidden');
@@ -872,12 +1057,24 @@
             document.getElementById('result-banner').classList.add('hidden');
             document.getElementById('odds-content').innerHTML = '<p class="text-sm text-slate-500 text-center py-4 animate-pulse">オッズ確認中...</p>';
 
+            // キャッシュ済み結果があれば事前に currentRaceResult をセット（予想に的中表示を即反映）
+            const cached = raceResultCache[raceId];
+            if (cached && cached.result && cached.result.finished) {
+                currentRaceResult = cached.result.ranking_str || null;
+            }
+
             const mc = document.getElementById('main-content');
             mc.style.opacity = '0.4';
             await requestPrediction();
             mc.style.opacity = '1';
-            await loadRaceOptions();
-            startOddsAutoRefresh(); // レース選択後に30秒自動更新開始
+
+            if (cached && cached.result && cached.result.finished) {
+                // キャッシュ済みなら即座に結果バナー表示（API再取得不要）
+                showResultBanner(cached);
+            } else {
+                await loadRaceOptions();
+                startOddsAutoRefresh();
+            }
         }
 
         function getWeights() {
@@ -970,23 +1167,11 @@
             const wEmoji = weatherEmoji[w] || '';
             document.getElementById('weather-info').innerHTML = `<span class="font-semibold text-slate-200">${wEmoji} ${w}</span> ${wv}<br>${wd} ${ws}`;
 
-            // Predictions
-            const renderList = (targetId, items, isDark) => {
-                const el = document.getElementById(targetId);
-                el.innerHTML = '';
-                if (!items || !items.length) { el.innerHTML = '<span class="text-xs text-slate-500 block text-center py-2">データなし</span>'; return; }
-                items.forEach((item, i) => {
-                    const row = document.createElement('div');
-                    const highlight = i === 0 ? (isDark ? 'text-amber-400' : 'text-orange-400') : 'text-slate-200';
-                    row.className = 'flex justify-between items-center px-2 py-1 rounded text-sm bg-white/5 hover:bg-white/10 transition-colors';
-                    row.innerHTML = `<span class="w-4 text-xs text-slate-500">${i + 1}</span>
-                    <span class="font-black font-mono tracking-widest flex-1 ${highlight}">${item.pattern}</span>
-                    <span class="text-xs text-slate-400 font-mono">${item.prob.toFixed(1)}%</span>`;
-                    el.appendChild(row);
-                });
-            };
+
+            // Predictions（グローバルの renderList / isHit を使用）
             renderList('rule-focus', predictions.rule_focus, false);
             renderList('ai-focus', predictions.ai_focus, true);
+
 
             // Render AI Win Probs
             const aiWinProbsEl = document.getElementById('ai-win-probs');
@@ -1125,6 +1310,77 @@
             if (oddsAutoRefreshTimer) { clearInterval(oddsAutoRefreshTimer); oddsAutoRefreshTimer = null; }
         }
 
+        // ─── 結果バナー表示（共通関数）─────────────────────────────────────────────
+        function showResultBanner(data) {
+            if (!data || !data.result) return;
+            const result = data.result;
+            stopOddsAutoRefresh();
+            currentRaceResult = result.ranking_str || null;
+
+            // 予想リストを的中表示付きで再レンダリング
+            if (lastPredictions) {
+                renderList('rule-focus', lastPredictions.rule_focus, false);
+                renderList('ai-focus', lastPredictions.ai_focus, true);
+            }
+
+            // 的中判定
+            const anyHit = lastPredictions && [...lastPredictions.rule_focus, ...lastPredictions.ai_focus]
+                .some(item => isHit(item.pattern, result.ranking_str));
+
+            // 結果ステータスバナー
+            const statusEl = document.getElementById('result-status-heavy');
+            if (statusEl) {
+                statusEl.classList.remove('hidden');
+                if (anyHit) {
+                    statusEl.innerHTML = '★ 的中！';
+                    statusEl.className = 'mb-3 text-center py-3 rounded-xl bg-gradient-to-r from-orange-500 to-yellow-400 text-white font-black text-2xl shadow-lg animate-bounce';
+                } else {
+                    statusEl.innerHTML = '的中無し';
+                    statusEl.className = 'mb-3 text-center py-2 rounded-lg bg-slate-700/60 text-slate-300 font-bold text-lg';
+                }
+            }
+
+            // サイドバーバッジ更新
+            const btn = document.getElementById(`race-btn-${currentRaceId}`);
+            if (btn) applyFinishBadge(btn, anyHit);
+
+            // 着順表示
+            document.getElementById('result-ranking').textContent = result.ranking_str || '--';
+
+            // 全賭式の払戻金表示
+            const pe = document.getElementById('result-payouts');
+            pe.innerHTML = '';
+            const payouts = result.payouts || [];
+            if (payouts.length === 0) {
+                pe.innerHTML = '<span class="text-xs text-slate-500">配当情報なし</span>';
+            } else {
+                payouts.forEach(p => {
+                    pe.innerHTML += `<div class="flex justify-between gap-2 py-0.5 border-b border-slate-700/40 last:border-0"><span class="text-slate-400 text-xs">${p.type}</span><span class="font-bold text-sm text-amber-300">${p.payout}</span></div>`;
+                });
+            }
+
+            // ヘッダーに終了表示
+            const wEmoji = { '晴れ': '☀️', '曇り': '☁️', '雨': '🌧️', '雪': '❄️', '霧': '🌫️', '不明': '🌀' };
+            const wt = result.weather || '';
+            document.getElementById('weather-info').innerHTML =
+                `<span class="font-semibold text-slate-200">${wEmoji[wt] || ''} ${wt}</span> <span class="bg-red-900/60 text-red-300 px-1.5 py-0.5 rounded ml-1 font-bold text-xs">🚩 終了</span><br><span class="font-mono font-bold text-white">${result.ranking_str || '--'}</span>`;
+
+            // バナー表示
+            document.getElementById('result-banner').classList.remove('hidden');
+
+            // オッズ
+            if (data.odds && data.odds.all_odds) {
+                renderOdds(data.odds.all_odds);
+            } else {
+                document.getElementById('odds-content').innerHTML = '<p class="text-sm text-slate-500 text-center py-4">最終オッズなし</p>';
+            }
+
+            // モバイルで結果が出たら一番上へスクロール
+            if (window.innerWidth < 768) {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+
         async function loadRaceOptions(silent = false) {
             if (!currentRaceId) return;
             if (!silent) {
@@ -1135,23 +1391,10 @@
                 if (!res.ok) { document.getElementById('odds-content').innerHTML = '<p class="text-sm text-red-400 text-center py-4">オッズAPIエラー</p>'; return; }
                 const data = await res.json();
                 if (data.result && data.result.finished) {
-                    stopOddsAutoRefresh();
-                    // 結果バナーを表示
-                    document.getElementById('result-banner').classList.remove('hidden');
-                    document.getElementById('result-ranking').textContent = data.result.ranking_str || '--';
-                    const pe = document.getElementById('result-payouts'); pe.innerHTML = '';
-                    // 全配当表を表示（絞りなし）
-                    (data.result.payouts || []).forEach(p => {
-                        pe.innerHTML += `<div class="flex justify-between gap-4"><span class="opacity-80">${p.type}</span><span class="font-bold">${p.payout}</span></div>`;
-                    });
-                    // レースボタンに☆マーク
-                    markRaceFinished(currentRaceId);
                     raceResultCache[currentRaceId] = data;
-                    if (data.odds && data.odds.all_odds) renderOdds(data.odds.all_odds);
-                    else document.getElementById('odds-content').innerHTML = '<p class="text-sm text-slate-500 text-center py-4">最終オッズなし</p>';
+                    showResultBanner(data);
                 } else if (data.odds && data.odds.all_odds) {
                     renderOdds(data.odds.all_odds);
-                    // 次回更新時刻を表示（既存要素を置換）
                     const nextTime = new Date(Date.now() + 30000).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                     document.getElementById('odds-next-refresh')?.remove();
                     document.getElementById('odds-content').insertAdjacentHTML('afterend', `<p id="odds-next-refresh" class="text-[10px] text-slate-600 text-right pr-2 mt-0.5">🔄 次回自動更新: ${nextTime}</p>`);
@@ -1162,6 +1405,7 @@
                 if (!silent) document.getElementById('odds-content').innerHTML = '<p class="text-sm text-red-400 text-center py-4">取得エラー</p>';
             }
         }
+
 
         async function loadOdds() {
             document.getElementById('odds-content').innerHTML = '<p class="text-sm text-slate-500 text-center py-4 animate-pulse">更新中...</p>';
@@ -1467,6 +1711,7 @@
 
         // ─── Status polling & auto-refresh ────────────────────────────────────
         let isScraping = false;
+        let isFirstStatusCheck = true;
         async function checkStatus() {
             let nextDelay = 10000;
             try {
@@ -1485,7 +1730,6 @@
                     if (btn) { btn.disabled = false; btn.innerHTML = '📥 データ一括取得'; }
                     if (isScraping) {
                         isScraping = false;
-                        // スクレイプ完了: 全場リストを更新し、開いていたコンテナも再ロード
                         await loadPlaces();
                         document.querySelectorAll('[id^="races-container-"]').forEach(el => {
                             if (!el.classList.contains('hidden')) {
@@ -1494,13 +1738,28 @@
                             }
                         });
                     } else {
-                        loadPlaces();
+                        const places = await loadPlaces();
+                        // 初回チェック時にデータが0件なら自動スクレイピング開始
+                        if (isFirstStatusCheck && (!places || places.length === 0)) {
+                            console.log('[Auto] No data found. Starting auto-scrape...');
+                            try {
+                                const scrapeRes = await fetch(`${API_BASE}/scrape/today`, { method: 'POST' });
+                                if (scrapeRes.ok) {
+                                    isScraping = true;
+                                    ind.classList.remove('hidden');
+                                    if (btn) { btn.disabled = true; btn.textContent = '⏳ 取得中...'; }
+                                    nextDelay = 4000;
+                                }
+                            } catch (_) { }
+                        }
                     }
                     nextDelay = 10000;
                 }
             } catch (e) { /* network error, try again */ }
+            isFirstStatusCheck = false;
             setTimeout(checkStatus, nextDelay);
         }
+
 
         // ─── Mobile Tab Switching ──────────────────────────────────────────
         let currentTab = 'race'; // Default to race table for mobile as it's order-1

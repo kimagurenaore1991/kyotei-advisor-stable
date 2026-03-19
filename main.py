@@ -204,7 +204,7 @@ def get_races(place_name: str):
     today_str = get_today_str()
     conn = get_db_connection()
     races = conn.execute(
-        'SELECT id, race_date, place_code, place_name, race_number, race_title '
+        'SELECT id, race_date, place_code, place_name, race_number, race_title, is_finished '
         'FROM races WHERE place_name = ? AND race_date = ? GROUP BY race_number ORDER BY race_number',
         (place_name, today_str)
     ).fetchall()
@@ -321,6 +321,10 @@ def calculate_predictions(race_data, players_data, weights: CustomWeights, setti
     if settings is None:
         settings = PredictSettings()
 
+    # シード値を固定 (race_id) して結果のジッターを防ぐ
+    race_id = race_data.get("id", 0)
+    rng = random.Random(race_id)
+
     scored_players = []
 
     for row in players_data:
@@ -356,7 +360,7 @@ def calculate_predictions(race_data, players_data, weights: CustomWeights, setti
 
         p["rule_score"] = round(rule_score, 2)
         p["ai_base"] = ai_base + max(0, (7.0 - ex_time) * 30)  # For Monte Carlo base
-        p["ai_score"] = round(p["ai_base"] + random.uniform(-2, 2), 2) # keep original static single score for UI
+        p["ai_score"] = round(p["ai_base"] + rng.uniform(-2, 2), 2) # keep original static single score for UI
         p["calc_st"] = st_time
         p["calc_course"] = course
         p["calc_ex"] = ex_time
@@ -409,7 +413,7 @@ def calculate_predictions(race_data, players_data, weights: CustomWeights, setti
 
     for _ in range(NUM_SIMS):
         # ガウス分布でばらつきを持たせる (標準偏差を25.0に変更し、大穴の可能性を0%にしない)
-        sim_scores = [(p["boat_number"], p["ai_base"] + random.gauss(0, 25.0)) for p in scored_players]
+        sim_scores = [(p["boat_number"], p["ai_base"] + rng.gauss(0, 25.0)) for p in scored_players]
         sim_scores.sort(key=lambda x: x[1], reverse=True)
         top1 = sim_scores[0][0]
         top2 = sim_scores[1][0]
@@ -559,6 +563,15 @@ def api_get_race_live_data(race_id: int):
         raise HTTPException(status_code=404, detail="Race not found")
     date_str = race["race_date"].replace("-", "")
     result = fetch_match_result(race["place_code"], race["race_number"], date_str)
+    
+    if result and result.get("finished"):
+        conn = get_db_connection()
+        try:
+            conn.execute('UPDATE races SET is_finished = 1 WHERE id = ?', (race_id,))
+            conn.commit()
+        finally:
+            conn.close()
+
     odds = None
     if not result or "error" in result:
         odds = fetch_live_odds(race["place_code"], race_number=race["race_number"], date_str=date_str)

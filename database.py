@@ -5,6 +5,7 @@ MIGRATIONS = [
     "ALTER TABLE races ADD COLUMN race_title TEXT DEFAULT ''",
     "ALTER TABLE entries ADD COLUMN racer_id TEXT DEFAULT ''",
     "ALTER TABLE entries ADD COLUMN tilt REAL DEFAULT 0.0",
+    "ALTER TABLE races ADD COLUMN is_finished BOOLEAN DEFAULT 0",
 ]
 
 INDEXES = [

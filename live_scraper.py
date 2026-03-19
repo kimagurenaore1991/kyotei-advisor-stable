@@ -346,30 +346,87 @@ def fetch_match_result(place_code: str, race_number: int, date_str: str):
         soup = BeautifulSoup(res.content, "html.parser")
         if "データはありません" in res.text:
             return None
-        result = {"finished": True, "ranking": [], "payouts": [], "url": url}
+
+        result = {"finished": True, "ranking": [], "payouts": [], "url": url,
+                  "racer_names": {}, "race_times": {}}
+
+        # ── 着順パース（着/枠/選手/タイム）──────────────────────────────────
         tables = soup.find_all("table")
         for t in tables:
             for row in t.find_all("tr"):
                 cells = row.find_all("td")
                 if cells and len(cells) >= 3:
                     rank = cells[0].text.strip()
-                    boat = cells[2].text.strip()
+                    boat = cells[2].text.strip() if len(cells) > 2 else ""
                     if rank.isdigit() and boat.isdigit():
-                        result["ranking"].append({"rank": int(rank), "boat": int(boat)})
+                        entry = {"rank": int(rank), "boat": int(boat)}
+                        # 選手名を取得（boat番号の後のセルから）
+                        if len(cells) >= 4: # cells[3] is the 4th element
+                            name_raw = cells[3].text.strip()
+                            # 複数スペースで結合された「姓 名」形式
+                            entry["name"] = " ".join(name_raw.split())
+                        # レースタイムを取得
+                        for c in cells:
+                            ct = c.text.strip()
+                            # タイム形式: 1'53"1 or 1:53.1
+                            if "'" in ct and '"' in ct:
+                                entry["time"] = ct
+                                break
+                        result["ranking"].append(entry)
+                        if entry.get("name"):
+                            result["racer_names"][int(boat)] = entry.get("name", "")
+                        if entry.get("time"):
+                            result["race_times"][int(boat)] = entry.get("time", "")
+
         ranking_boats = [str(r["boat"]) for r in sorted(result["ranking"], key=lambda x: x["rank"])]
         result["ranking_str"] = "-".join(ranking_boats[:3]) if ranking_boats else "--"
+
+        # ── 全賭式の払戻金パース ──────────────────────────
+        # 対象となる賭式名
+        BET_TYPES = {"3連単", "3連複", "2連単", "2連複", "単勝", "複勝"}
+        seen_types = set()
+
         for t in tables:
             text = t.get_text()
-            if "払戻金" in text or "3連単" in text:
-                for row in t.find_all("tr"):
-                    cells = row.find_all("td")
-                    if len(cells) >= 2:
-                        bet_type = cells[0].text.strip()
-                        for c in cells[1:]:
-                            val = c.text.strip()
-                            if "¥" in val or "円" in val or val.replace(",", "").isdigit():
-                                result["payouts"].append({"type": bet_type, "payout": val})
+            if not any(bt in text for bt in BET_TYPES):
+                continue
+            for row in t.find_all("tr"):
+                cells = row.find_all("td")
+                if len(cells) >= 2:
+                    bet_type_raw = cells[0].text.strip()
+                    if bet_type_raw in BET_TYPES and bet_type_raw not in seen_types:
+                        # 組番: 2番目セル（数字を含む）
+                        combo_raw = cells[1].text.strip() if len(cells) > 1 else ""
+                        # 払戻金は最後の方のセル
+                        for c in reversed(cells):
+                            val = c.text.strip().replace(",", "").replace("¥", "").replace("円", "")
+                            if val.isdigit() and int(val) > 0:
+                                fmt_val = f"{int(val):,}円"
+                                result["payouts"].append({
+                                    "type": bet_type_raw,
+                                    "payout": fmt_val,
+                                    "combination": combo_raw
+                                })
+                                seen_types.add(bet_type_raw)
                                 break
+
+
+        # 払戻金が取れなかった場合、別のパース方法を試みる (旧ロジック)
+        if not result["payouts"]:
+            for t in tables:
+                text = t.get_text()
+                if "払戻金" in text or "3連単" in text:
+                    for row in t.find_all("tr"):
+                        cells = row.find_all("td")
+                        if len(cells) >= 2:
+                            bet_type = cells[0].text.strip()
+                            for c in cells[1:]:
+                                val = c.text.strip()
+                                if "¥" in val or "円" in val or val.replace(",", "").isdigit():
+                                    result["payouts"].append({"type": bet_type, "payout": val})
+                                    break
+
         return result if result["ranking"] else None
     except Exception as e:
+        print(f"fetch_match_result error: {e}")
         return None
