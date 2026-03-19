@@ -1152,6 +1152,7 @@
                 const cachedPred = lastPredictionsCache[raceId];
                 if (cachedPred) {
                     currentPlayersData = cachedPred.players || [];
+                    lastPredictions = cachedPred.predictions || null;  // ← 的中判定のために必ずセット
                     renderRace(cachedPred.race, cachedPred.players, cachedPred.predictions);
                 } else {
                     await requestPrediction();
@@ -1425,13 +1426,15 @@
             currentRaceResult = result.ranking_str || null;
 
             // 予想リストを的中表示付きで再レンダリング
-            if (lastPredictions) {
-                renderList('rule-focus', lastPredictions.rule_focus, false);
-                renderList('ai-focus', lastPredictions.ai_focus, true);
+            const predsToRender = lastPredictions || (currentRaceId && lastPredictionsCache[currentRaceId] ? lastPredictionsCache[currentRaceId].predictions : null);
+            if (predsToRender) {
+                renderList('rule-focus', predsToRender.rule_focus, false);
+                renderList('ai-focus', predsToRender.ai_focus, true);
             }
 
-            // 的中判定
-            const anyHit = lastPredictions && [...lastPredictions.rule_focus, ...lastPredictions.ai_focus]
+            // 的中判定 (lastPredictions が null の場合はキャッシュから取得)
+            const activePreds = lastPredictions || (currentRaceId ? lastPredictionsCache[currentRaceId] : null);
+            const anyHit = activePreds && [...(activePreds.predictions || activePreds).rule_focus, ...(activePreds.predictions || activePreds).ai_focus]
                 .some(item => isHit(item.pattern, result.ranking_str));
 
             // 結果ステータスバナー
