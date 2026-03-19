@@ -399,9 +399,17 @@ def fetch_match_result(place_code: str, race_number: int, date_str: str):
                     if bet_type_raw in BET_TYPES and bet_type_raw not in seen_types:
                         # 組番: 2番目セル（数字を含む）
                         combo_raw = cells[1].text.strip() if len(cells) > 1 else ""
-                        # 払戻金は最後の方のセル
-                        for c in reversed(cells):
-                            val = c.text.strip().replace(",", "").replace("¥", "").replace("円", "")
+                        
+                        # 払戻金は¥マークを含むセルを探す
+                        payout_str = ""
+                        for c in cells[1:]:
+                            txt = c.text.strip()
+                            if "¥" in txt or "円" in txt:
+                                payout_str = txt
+                                break
+                        
+                        if payout_str:
+                            val = payout_str.replace(",", "").replace("¥", "").replace("円", "")
                             if val.isdigit() and int(val) > 0:
                                 fmt_val = f"{int(val):,}円"
                                 result["payouts"].append({
@@ -410,7 +418,6 @@ def fetch_match_result(place_code: str, race_number: int, date_str: str):
                                     "combination": combo_raw
                                 })
                                 seen_types.add(bet_type_raw)
-                                break
 
 
         # 払戻金が取れなかった場合、別のパース方法を試みる (旧ロジック)
