@@ -49,19 +49,69 @@ def scrape_index():
 
 def _get_grade_from_soup(soup):
     """ページHTMLからレースグレード/タイトルを返す"""
-    # 優先度1: heading2_title クラス
-    el = soup.select_one('.heading2_title')
-    if el:
-        return el.get_text(separator=' ', strip=True)
+    # 1. ページ内の全要素からグレードを示すクラスを探す
+    found_grade = ""
+    for el in soup.find_all(True):
+        cls_list = el.get('class', [])
+        cls_str = " ".join(cls_list) if isinstance(cls_list, list) else str(cls_list)
+        if 'is-G1b' in cls_str or 'is-grade1' in cls_str:
+            found_grade = "G1"; break
+        elif 'is-G2b' in cls_str or 'is-grade2' in cls_str:
+            found_grade = "G2"; break
+        elif 'is-G3b' in cls_str or 'is-grade3' in cls_str:
+            found_grade = "G3"; break
+        elif 'is-SGb' in cls_str or 'is-sg' in cls_str:
+            found_grade = "SG"; break
+        elif 'is-lady' in cls_str or 'is-Lady' in cls_str:
+            found_grade = "女子"
+
+    # 2. タイトルテキストの特定
+    main_content = soup.select_one('.contents, main, #main, #contents') or soup
+    title_el = main_content.select_one('.heading2_titleName, .heading2_title, .title_race__titleName, h2, h3')
+    found_title = title_el.get_text(separator=' ', strip=True) if title_el else ""
+
+    # 3. 強制文字列判定 (クラスが取れない場合の最終手段)
+    t_up = found_title.upper()
+    if not found_grade:
+        if '尼崎' in t_up and 'センプル' in t_up: found_grade = "G1"
+        elif 'SG' in t_up or 'ＳＧ' in t_up: found_grade = "SG"
+        elif 'G1' in t_up or 'Ｇ１' in t_up: found_grade = "G1"
+        elif 'G2' in t_up or 'Ｇ２' in t_up: found_grade = "G2"
+        elif 'G3' in t_up or 'Ｇ３' in t_up: found_grade = "G3"
+
+    if found_title:
+        if found_grade and found_grade not in found_title:
+            res = f"{found_grade} {found_title}"
+            print(f"DEBUG: Found Grade '{found_grade}', Prepending to '{found_title}' -> '{res}'")
+            return res
+        return found_title
+    
+    return ""
+
     # 優先度2: title_race クラス
     el = soup.select_one('.title_race__titleName')
     if el:
-        return el.get_text(separator=' ', strip=True)
-    # 優先度3: h3タグからレース名を探す
-    for h in soup.find_all(['h2', 'h3']):
+        text = el.get_text(separator=' ', strip=True)
+        img = el.find('img')
+        if img and img.get('alt'):
+            text = f"{img.get('alt')} {text}".strip()
+        if text:
+            return text
+            
+    # 優先度3: h2, h3タグからキーワード検索 (メインコンテンツ内に限定)
+    for h in soup.select('.contents h2, .contents h3, main h2, main h3'):
+        # グレードに関係しそうなキーワードが含まれているかチェック
         txt = h.get_text(strip=True)
-        for kw in ['SG', 'G1', 'GⅠ', 'G2', 'GⅡ', 'G3', 'GⅢ', 'グランプリ', 'ダービー', 'メモリアル', 'レディース', 'ヴィーナス']:
-            if kw in txt:
+        # サブテーブルの「一般」を拾わないようにする工夫が必要
+        if 'TABLE1_TITLE' in [c.upper() for c in h.get('class', [])]:
+            continue
+            
+        img = h.find('img')
+        if img and img.get('alt'):
+            txt = f"{img.get('alt')} {txt}".strip()
+            
+        for kw in ['SG', 'G1', 'GⅠ', 'G１', 'G2', 'GⅡ', 'G２', 'G3', 'GⅢ', 'G３', 'グランプリ', 'ダービー', 'メモリアル', 'レディース', 'ヴィーナス', '女子']:
+            if kw in txt.upper() or kw in txt:
                 return txt
     return ""
 
@@ -231,9 +281,9 @@ def scrape_today():
             print("開催中の場なし。")
             return
 
-        # 並列スクレイピング (max_workers=8 で高速化)
+        # 並列スクレイピング (max_workers=3 に減らして安定化)
         tasks = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
             for jcd in active_jcds:
                 for race_no in range(1, 13):
                     tasks.append(executor.submit(scrape_race_syusso, jcd, race_no))

@@ -99,8 +99,9 @@
             background: #0f172a;
             border-top: 1px solid #334155;
             padding-bottom: env(safe-area-inset-bottom, 4px);
-            box-shadow: 0 -2px 12px rgba(0,0,0,0.5);
+            box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.5);
         }
+
         .tab-item {
             display: flex;
             flex-direction: column;
@@ -118,38 +119,129 @@
             user-select: none;
             -webkit-tap-highlight-color: transparent;
         }
+
         .tab-item.tab-active {
             color: #60a5fa;
             border-top-color: #3b82f6;
         }
-        .tab-item:active { background: rgba(255,255,255,0.06); }
-        .tab-icon { font-size: 18px; line-height: 1; }
+
+        .tab-item:active {
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .tab-icon {
+            font-size: 18px;
+            line-height: 1;
+        }
 
         /* ── Odds Official Table ── */
-        .odds-table-wrap { overflow-x: auto; }
-        .odds-tbl { width: 100%; border-collapse: collapse; font-size: 11px; min-width: 200px; }
-        .odds-tbl th, .odds-tbl td { border: 1px solid #334155; text-align: center; padding: 3px 4px; }
-        .odds-tbl th.corner { background: #1e293b; color: #475569; }
-        .odds-boat-hdr-1 { background:#fff; color:#0f172a; font-weight:700; }
-        .odds-boat-hdr-2 { background:#1e293b; color:#fff; font-weight:700; border-color:#475569; }
-        .odds-boat-hdr-3 { background:#dc2626; color:#fff; font-weight:700; }
-        .odds-boat-hdr-4 { background:#2563eb; color:#fff; font-weight:700; }
-        .odds-boat-hdr-5 { background:#ca8a04; color:#0f172a; font-weight:700; }
-        .odds-boat-hdr-6 { background:#16a34a; color:#fff; font-weight:700; }
-        .odds-cell-dash  { background:#0f172a; color:#1e293b; }
-        .odds-cell-low   { background:rgba(245,158,11,0.3); color:#fbbf24; font-weight:700; }
-        .odds-cell-mid   { background:rgba(59,130,246,0.18); color:#93c5fd; }
-        .odds-cell-norm  { background:#1e293b; color:#94a3b8; }
+        .odds-table-wrap {
+            overflow-x: auto;
+        }
+
+        .odds-tbl {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            min-width: 200px;
+        }
+
+        .odds-tbl th,
+        .odds-tbl td {
+            border: 1px solid #334155;
+            text-align: center;
+            padding: 3px 4px;
+        }
+
+        .odds-tbl th.corner {
+            background: #1e293b;
+            color: #475569;
+        }
+
+        .odds-boat-hdr-1 {
+            background: #fff;
+            color: #0f172a;
+            font-weight: 700;
+        }
+
+        .odds-boat-hdr-2 {
+            background: #1e293b;
+            color: #fff;
+            font-weight: 700;
+            border-color: #475569;
+        }
+
+        .odds-boat-hdr-3 {
+            background: #dc2626;
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .odds-boat-hdr-4 {
+            background: #2563eb;
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .odds-boat-hdr-5 {
+            background: #ca8a04;
+            color: #0f172a;
+            font-weight: 700;
+        }
+
+        .odds-boat-hdr-6 {
+            background: #16a34a;
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .odds-cell-dash {
+            background: #0f172a;
+            color: #1e293b;
+        }
+
+        .odds-cell-low {
+            background: rgba(245, 158, 11, 0.3);
+            color: #fbbf24;
+            font-weight: 700;
+        }
+
+        .odds-cell-mid {
+            background: rgba(59, 130, 246, 0.18);
+            color: #93c5fd;
+        }
+
+        .odds-cell-norm {
+            background: #1e293b;
+            color: #94a3b8;
+        }
+
         .odds-group-summary {
-            display: flex; align-items: center; gap: 8px;
-            padding: 6px 10px; cursor: pointer; list-style: none;
-            background: rgba(30,41,59,0.8); border-radius: 6px;
-            font-size: 12px; font-weight: 700; color: #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            cursor: pointer;
+            list-style: none;
+            background: rgba(30, 41, 59, 0.8);
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #e2e8f0;
             user-select: none;
         }
-        .odds-group-summary::-webkit-details-marker { display: none; }
-        details.odds-group[open] > summary > .odds-chevron { transform: rotate(180deg); }
-        .odds-chevron { transition: transform 0.2s; }
+
+        .odds-group-summary::-webkit-details-marker {
+            display: none;
+        }
+
+        details.odds-group[open]>summary>.odds-chevron {
+            transform: rotate(180deg);
+        }
+
+        .odds-chevron {
+            transition: transform 0.2s;
+        }
     </style>
 </head>
 
@@ -181,7 +273,7 @@
                 class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors shadow">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
                 📥 データ一括取得
             </button>
@@ -226,10 +318,12 @@
 
         <!-- Main Panel (hidden until race selected) -->
         <!-- モバイル順: 出走表→各予想→アラート→カスタマイズ→オッズ / デスクトップ: グリッド配置 -->
-        <div id="main-content" class="hidden p-4 lg:p-6 max-w-5xl mx-auto w-full flex flex-col lg:grid lg:grid-cols-3 gap-5 pb-28 md:pb-20">
+        <div id="main-content"
+            class="hidden p-4 lg:p-6 max-w-5xl mx-auto w-full flex flex-col lg:grid lg:grid-cols-3 gap-5 pb-28 md:pb-20">
 
             <!-- [1] 出走表 — mobile:order-1 / desktop:col-span-3 row-2 -->
-            <div id="race-section" class="order-1 lg:col-span-3 lg:row-start-2 bg-slate-800 rounded-xl border border-slate-700 overflow-hidden scroll-mt-20">
+            <div id="race-section"
+                class="order-1 lg:col-span-3 lg:row-start-2 bg-slate-800 rounded-xl border border-slate-700 overflow-hidden scroll-mt-20">
                 <div class="px-4 py-3 bg-slate-750 border-b border-slate-700 flex justify-between items-center">
                     <h3 class="font-bold text-slate-300 text-sm flex items-center gap-2">
                         📋 詳細出走表
@@ -245,7 +339,7 @@
                         </button>
                         <button id="recalc-btn"
                             class="text-xs bg-blue-600 hover:bg-blue-700 text-white py-1.5 px-3 rounded transition-colors flex items-center gap-1">
-                            🔄 展示情報更新
+                            🔄 展示反映
                         </button>
                     </div>
                 </div>
@@ -279,7 +373,8 @@
             </div>
 
             <!-- [2] 各予想 (2カラム) — mobile:order-2 / desktop:col-2〜4 row-1 -->
-            <div id="predict-section" class="order-2 lg:col-start-2 lg:col-end-4 lg:row-start-1 grid grid-cols-2 gap-4 scroll-mt-20">
+            <div id="predict-section"
+                class="order-2 lg:col-start-2 lg:col-end-4 lg:row-start-1 grid grid-cols-2 gap-4 scroll-mt-20">
                 <!-- Custom -->
                 <div class="bg-gradient-to-br from-slate-800 to-blue-900/40 p-4 rounded-xl border border-blue-800/50">
                     <h3 class="font-bold text-blue-300 mb-2 pb-2 border-b border-blue-800/50 text-sm">🧑‍💻 カスタム予想</h3>
@@ -289,13 +384,16 @@
                 <!-- AI -->
                 <div class="bg-gradient-to-br from-slate-800 to-slate-900 p-4 rounded-xl border border-slate-600">
                     <h3 class="font-bold text-slate-300 mb-2 pb-2 border-b border-slate-600 text-sm">🤖 AI解析予想</h3>
+                    <div class="text-[10px] text-slate-400 mb-1">シミュレーション1着率</div>
+                    <div id="ai-win-probs" class="flex gap-1 mb-3"></div>
                     <div id="ai-focus" class="space-y-1 my-2"></div>
                     <p class="text-[10px] text-slate-500 text-center mt-1">非線形特徴量からの学習推論</p>
                 </div>
             </div>
 
             <!-- [3] アラート — mobile:order-3 / desktop:col-span-3 row-3 -->
-            <div id="scenario-box" class="order-3 lg:col-span-3 lg:row-start-3 hidden bg-red-950/60 p-4 rounded-xl border-l-4 border-red-500 scroll-mt-20">
+            <div id="scenario-box"
+                class="order-3 lg:col-span-3 lg:row-start-3 hidden bg-red-950/60 p-4 rounded-xl border-l-4 border-red-500 scroll-mt-20">
                 <h3 class="font-bold text-red-400 mb-1 flex items-center gap-1 text-sm">
                     ⚡ 展開特注アラート
                     <span class="bg-red-600 text-white text-xs px-2 py-0.5 rounded ml-1">確率 <span
@@ -307,8 +405,10 @@
             </div>
 
             <!-- [4] 予想カスタマイズ — mobile:order-4 / desktop:col-1 row-1 -->
-            <div id="setting-section" class="order-4 lg:col-start-1 lg:col-end-2 lg:row-start-1 bg-slate-800 p-4 rounded-xl border border-slate-700 scroll-mt-20">
-                <h3 class="font-bold text-slate-300 mb-3 pb-2 border-b border-slate-700 text-sm flex items-center gap-2">
+            <div id="setting-section"
+                class="order-4 lg:col-start-1 lg:col-end-2 lg:row-start-1 bg-slate-800 p-4 rounded-xl border border-slate-700 scroll-mt-20">
+                <h3
+                    class="font-bold text-slate-300 mb-3 pb-2 border-b border-slate-700 text-sm flex items-center gap-2">
                     <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
@@ -337,70 +437,118 @@
                         </select>
                     </div>
                 </div>
+
+                <!-- 2段目: スライダー群 (ステッパーに変更) -->
                 <div class="space-y-3 text-xs" id="weight-sliders">
-                    <div>
-                        <div class="flex justify-between mb-1 text-slate-400"><span>勝率重視</span><span id="val-win"
-                                class="text-blue-400 font-mono">1.0</span></div><input type="range" id="w-win"
-                            min="0" max="3" step="0.1" value="1.0" class="w-full h-1.5 rounded">
-                    </div>
-                    <div>
-                        <div class="flex justify-between mb-1 text-slate-400"><span>モーター重視</span><span id="val-moto"
-                                class="text-blue-400 font-mono">1.0</span></div><input type="range" id="w-moto"
-                            min="0" max="3" step="0.1" value="1.0" class="w-full h-1.5 rounded">
-                    </div>
-                    <div>
-                        <div class="flex justify-between mb-1 text-slate-400"><span>展示タイム重視</span><span id="val-ex"
-                                class="text-blue-400 font-mono">1.0</span></div><input type="range" id="w-ex"
-                            min="0" max="3" step="0.1" value="1.0" class="w-full h-1.5 rounded">
-                    </div>
-                    <div>
-                        <div class="flex justify-between mb-1 text-slate-400"><span>ST重視</span><span id="val-st"
-                                class="text-blue-400 font-mono">1.0</span></div><input type="range" id="w-st"
-                            min="0" max="3" step="0.1" value="1.0" class="w-full h-1.5 rounded">
-                    </div>
-                    <div>
-                        <div class="flex justify-between mb-1 text-slate-400"><span>インコース有利度</span><span
-                                id="val-course" class="text-blue-400 font-mono">1.0</span></div><input type="range"
-                            id="w-course" min="0" max="2" step="0.1" value="1.0" class="w-full h-1.5 rounded">
-                    </div>
-                </div>
-            </div>
-
-            <!-- [5] オッズ — mobile:order-5 / desktop:col-span-3 row-4 -->
-            <div id="odds-result-section" class="order-5 lg:col-span-3 lg:row-start-4 hidden space-y-4 scroll-mt-20">
-                <!-- Result Banner -->
-                <div id="result-banner"
-                    class="hidden bg-gradient-to-r from-emerald-700 to-teal-700 text-white rounded-xl p-5 shadow-lg">
-                    <h3 class="font-bold text-lg mb-3">🏆 レース結果</h3>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <p class="text-xs opacity-70 mb-1">着順</p>
-                            <p id="result-ranking" class="text-4xl font-black tracking-widest">--</p>
+                    <div
+                        class="flex items-center justify-between bg-slate-700/50 rounded p-1.5 border border-slate-600">
+                        <span class="text-slate-400 w-24">勝率重視</span>
+                        <div class="flex items-center gap-3">
+                            <button onclick="changeWeight('w-win', -0.1)"
+                                class="w-7 h-7 bg-slate-600 hover:bg-slate-500 rounded text-lg font-bold flex items-center justify-center">−</button>
+                            <span id="val-win"
+                                class="text-blue-400 font-mono w-6 text-center text-sm font-bold">1.0</span>
+                            <button onclick="changeWeight('w-win', 0.1)"
+                                class="w-7 h-7 bg-slate-600 hover:bg-slate-500 rounded text-lg font-bold flex items-center justify-center">＋</button>
                         </div>
-                        <div id="result-payouts" class="space-y-1 text-sm"></div>
+                        <input type="hidden" id="w-win" value="1.0">
+                    </div>
+
+                    <div
+                        class="flex items-center justify-between bg-slate-700/50 rounded p-1.5 border border-slate-600">
+                        <span class="text-slate-400 w-24">モーター重視</span>
+                        <div class="flex items-center gap-3">
+                            <button onclick="changeWeight('w-moto', -0.1)"
+                                class="w-7 h-7 bg-slate-600 hover:bg-slate-500 rounded text-lg font-bold flex items-center justify-center">−</button>
+                            <span id="val-moto"
+                                class="text-blue-400 font-mono w-6 text-center text-sm font-bold">1.0</span>
+                            <button onclick="changeWeight('w-moto', 0.1)"
+                                class="w-7 h-7 bg-slate-600 hover:bg-slate-500 rounded text-lg font-bold flex items-center justify-center">＋</button>
+                        </div>
+                        <input type="hidden" id="w-moto" value="1.0">
+                    </div>
+
+                    <div
+                        class="flex items-center justify-between bg-slate-700/50 rounded p-1.5 border border-slate-600">
+                        <span class="text-slate-400 w-24">展示タイム重視</span>
+                        <div class="flex items-center gap-3">
+                            <button onclick="changeWeight('w-ex', -0.1)"
+                                class="w-7 h-7 bg-slate-600 hover:bg-slate-500 rounded text-lg font-bold flex items-center justify-center">−</button>
+                            <span id="val-ex"
+                                class="text-blue-400 font-mono w-6 text-center text-sm font-bold">1.0</span>
+                            <button onclick="changeWeight('w-ex', 0.1)"
+                                class="w-7 h-7 bg-slate-600 hover:bg-slate-500 rounded text-lg font-bold flex items-center justify-center">＋</button>
+                        </div>
+                        <input type="hidden" id="w-ex" value="1.0">
+                    </div>
+
+                    <div
+                        class="flex items-center justify-between bg-slate-700/50 rounded p-1.5 border border-slate-600">
+                        <span class="text-slate-400 w-24">ST重視</span>
+                        <div class="flex items-center gap-3">
+                            <button onclick="changeWeight('w-st', -0.1)"
+                                class="w-7 h-7 bg-slate-600 hover:bg-slate-500 rounded text-lg font-bold flex items-center justify-center">−</button>
+                            <span id="val-st"
+                                class="text-blue-400 font-mono w-6 text-center text-sm font-bold">1.0</span>
+                            <button onclick="changeWeight('w-st', 0.1)"
+                                class="w-7 h-7 bg-slate-600 hover:bg-slate-500 rounded text-lg font-bold flex items-center justify-center">＋</button>
+                        </div>
+                        <input type="hidden" id="w-st" value="1.0">
+                    </div>
+
+                    <div
+                        class="flex items-center justify-between bg-slate-700/50 rounded p-1.5 border border-slate-600">
+                        <span class="text-slate-400 w-24">インコース有利</span>
+                        <div class="flex items-center gap-3">
+                            <button onclick="changeWeight('w-course', -0.1)"
+                                class="w-7 h-7 bg-slate-600 hover:bg-slate-500 rounded text-lg font-bold flex items-center justify-center">−</button>
+                            <span id="val-course"
+                                class="text-blue-400 font-mono w-6 text-center text-sm font-bold">1.0</span>
+                            <button onclick="changeWeight('w-course', 0.1)"
+                                class="w-7 h-7 bg-slate-600 hover:bg-slate-500 rounded text-lg font-bold flex items-center justify-center">＋</button>
+                        </div>
+                        <input type="hidden" id="w-course" value="1.0">
                     </div>
                 </div>
-                <!-- Live Odds -->
-                <div id="odds-box" class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-                    <div class="px-4 py-3 bg-slate-750 border-b border-slate-700 flex justify-between items-center">
-                        <h3 class="font-bold text-slate-300 text-sm">📊 リアルタイムオッズ（3連単）</h3>
-                        <button onclick="loadOdds()"
-                            class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded transition-colors">🔄
-                            更新</button>
-                    </div>
-                    <div id="odds-content" class="p-3">
-                        <p class="text-sm text-slate-500 text-center py-4">レースを選択してください</p>
-                    </div>
-                </div>
+
             </div>
         </div>
 
-        <!-- Welcome Screen -->
-        <div id="welcome-screen" class="flex-1 flex flex-col items-center justify-center p-8 text-center">
-            <div class="text-6xl mb-4">⛵</div>
-            <h2 class="text-2xl font-black text-slate-300 mb-2">Kyotei Advisor</h2>
-            <p class="text-sm text-slate-500 max-w-xs">左メニューから本日開催場を選択し、レース番号をクリックしてください</p>
+        <!-- [5] オッズ — mobile:order-5 / desktop:col-span-3 row-4 -->
+        <div id="odds-result-section" class="order-5 lg:col-span-3 lg:row-start-4 hidden space-y-4 scroll-mt-20">
+            <!-- Result Banner -->
+            <div id="result-banner"
+                class="hidden bg-gradient-to-r from-emerald-700 to-teal-700 text-white rounded-xl p-5 shadow-lg">
+                <h3 class="font-bold text-lg mb-3">🏆 レース結果</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-xs opacity-70 mb-1">着順</p>
+                        <p id="result-ranking" class="text-4xl font-black tracking-widest">--</p>
+                    </div>
+                    <div id="result-payouts" class="space-y-1 text-sm"></div>
+                </div>
+            </div>
+            <!-- Live Odds -->
+            <div id="odds-box" class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                <div class="px-4 py-3 bg-slate-750 border-b border-slate-700 flex justify-between items-center">
+                    <h3 class="font-bold text-slate-300 text-sm">📊 リアルタイムオッズ（3連単）</h3>
+                    <button onclick="loadOdds()"
+                        class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded transition-colors">🔄
+                        更新</button>
+                </div>
+                <div id="odds-content" class="p-3">
+                    <p class="text-sm text-slate-500 text-center py-4">レースを選択してください</p>
+                </div>
+            </div>
         </div>
+    </div>
+
+    <!-- Welcome Screen -->
+    <div id="welcome-screen" class="flex-1 flex flex-col items-center justify-center p-8 text-center">
+        <div class="text-6xl mb-4">⛵</div>
+        <h2 class="text-2xl font-black text-slate-300 mb-2">Kyotei Advisor</h2>
+        <p class="text-sm text-slate-500 max-w-xs">左メニューから本日開催場を選択し、レース番号をクリックしてください</p>
+    </div>
     </div>
 
     <!-- Mobile Bottom Tab Bar -->
@@ -466,6 +614,7 @@
         let currentPlayersData = [];
         let originalPlayersSnapshot = [];
         let isFirstLoad = true;
+        let activeFixedHead = 0; // 0 = none
 
         const boatColors = [
             'bg-white text-slate-900 border-slate-300',
@@ -476,25 +625,51 @@
             'bg-green-500 text-white border-green-600'
         ];
 
+        // Dropdown options generators
+        function generateOptions(min, max, step, selectedValue, fixedDigits = 2) {
+            let options = '';
+            for (let v = min; v <= max; v += step) {
+                // To avoid floating point precision issues
+                const val = parseFloat(v.toFixed(fixedDigits));
+                const sel = (Math.abs(val - selectedValue) < 0.001) ? 'selected' : '';
+                options += `<option value="${val.toFixed(fixedDigits)}" ${sel}>${val.toFixed(fixedDigits)}</option>`;
+            }
+            return options;
+        }
+
+        function generateTiltOptions(selectedValue) {
+            const tilts = [-0.5, -0.0, 0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0];
+            let options = '';
+            // Display empty string or custom behavior if needed, but defaults to numeric options
+            tilts.forEach(t => {
+                const label = (t > 0 && t !== -0.0) ? `+${t.toFixed(1)}` : (Object.is(t, -0.0) ? '-0.0' : t.toFixed(1));
+                const valStr = Object.is(t, -0.0) ? "-0.5" : t.toFixed(1); // Note: In logic tilt often treats -0.5 logic, just representing -0.5 here.
+                const sel = (Math.abs(t - selectedValue) < 0.001) ? 'selected' : '';
+                options += `<option value="${valStr}" ${sel}>${label}</option>`;
+            });
+            return options;
+        }
+
         // ─── Grade detection ───────────────────────────────────────────────────
         function getGradeInfo(race_title) {
             if (!race_title) return { label: '一般', cls: 'grade-gen' };
             const t = race_title.toUpperCase();
             // SG検出
-            if (t.includes('SG') || t.includes('グランプリ') || t.includes('ダービー') ||
+            if (/(?:^|[\s　(（【\-])[SＳ][GＧ](?:$|[\s　)）】\-])/.test(t) ||
+                t.startsWith('SG') || t.startsWith('ＳＧ') ||
+                t.includes('グランプリ') || t.includes('ダービー') ||
                 t.includes('メモリアル') || t.includes('ピーターリング') ||
-                t.includes('オールスター') || t.includes('チャンピオン')
+                t.includes('オールスター') || t.includes('チャンピオンシップ')
             ) return { label: 'SG', cls: 'grade-sg' };
             // G1検出
-            if (t.includes('G1') || t.includes('GⅠ') || t.includes('Gあ1') ||
-                t.includes('クラシック') || t.includes('クイーン') ||
-                t.includes('王者') || t.includes('龍王')
+            if (/[GＧ][1１ⅠI]/.test(t) ||
+                t.includes('クラシック') || t.includes('王者') || t.includes('龍王')
             ) return { label: 'G1', cls: 'grade-g1' };
             // G2検出
-            if (t.includes('G2') || t.includes('GⅡ') || t.includes('Gあ2')
+            if (/[GＧ][2２ⅡI]/.test(t) || t.includes('GII') || t.includes('ＧＩＩ')
             ) return { label: 'G2', cls: 'grade-g2' };
             // G3検出
-            if (t.includes('G3') || t.includes('GⅢ') || t.includes('Gあ3')
+            if (/[GＧ][3３ⅢI]/.test(t) || t.includes('GIII') || t.includes('ＧＩＩＩ')
             ) return { label: 'G3', cls: 'grade-g3' };
             // 女子レース
             if (race_title.includes('ヴィーナス') || race_title.includes('レディース') ||
@@ -631,8 +806,8 @@
                     btn.className = 'py-1.5 rounded text-xs font-bold transition-all hover:bg-blue-600 bg-slate-700 border border-slate-600 flex flex-col items-center gap-0.5 leading-tight relative';
                     btn.innerHTML = `<span class="text-slate-100">${r.race_number}R</span>${r.race_title ? gradeBadge(g.label, g.cls, true) : ''}`;
                     btn.onclick = () => {
-                        document.querySelectorAll('[id^="race-btn-"]').forEach(b => b.classList.remove('ring-2','ring-blue-400'));
-                        btn.classList.add('ring-2','ring-blue-400');
+                        document.querySelectorAll('[id^="race-btn-"]').forEach(b => b.classList.remove('ring-2', 'ring-blue-400'));
+                        btn.classList.add('ring-2', 'ring-blue-400');
                         loadRaceDetail(r.id);
                         if (window.innerWidth < 768) {
                             drawer.classList.remove('drawer-open');
@@ -668,7 +843,7 @@
                     } else {
                         raceResultCache[r.id] = null;
                     }
-                } catch (_) {}
+                } catch (_) { }
                 await new Promise(res => setTimeout(res, 120)); // 負荷分散
             }
         }
@@ -718,20 +893,36 @@
         function getSettings() {
             return {
                 max_items: parseInt(document.getElementById('setting-max-items').value),
-                bet_type: document.getElementById('setting-bet-type').value
+                bet_type: document.getElementById('setting-bet-type').value,
+                fixed_1st: activeFixedHead
             };
         }
 
-        // Sliders
-        ['w-win', 'w-moto', 'w-ex', 'w-st', 'w-course'].forEach(id => {
+        function changeWeight(id, delta) {
             const el = document.getElementById(id);
-            const val = document.getElementById(id.replace('w-', 'val-'));
-            el.addEventListener('input', () => val.textContent = parseFloat(el.value).toFixed(1));
-            el.addEventListener('change', () => { if (currentRaceId) requestPrediction(); });
-        });
+            const valEl = document.getElementById(id.replace('w-', 'val-'));
+            let current = parseFloat(el.value);
+            const max = id === 'w-course' ? 2.0 : 3.0; // max value constraint
+            current += delta;
+            if (current < 0) current = 0;
+            if (current > max) current = max;
+            el.value = current.toFixed(1);
+            valEl.textContent = el.value;
+            if (currentRaceId) requestPrediction();
+        }
+
         ['setting-bet-type', 'setting-max-items'].forEach(id => {
             document.getElementById(id).addEventListener('change', () => { if (currentRaceId) requestPrediction(); });
         });
+
+        function toggleFixedHead(boatNum) {
+            if (activeFixedHead === boatNum) {
+                activeFixedHead = 0; // toggle off
+            } else {
+                activeFixedHead = boatNum;
+            }
+            if (currentRaceId) requestPrediction();
+        }
 
         async function requestPrediction() {
             try {
@@ -775,7 +966,7 @@
 
             const w = race.weather || '--', wv = race.wave_height != null && race.wave_height > 0 ? `波${race.wave_height}cm` : '';
             const wd = race.wind_direction || '', ws = race.wind_speed != null && race.wind_speed > 0 ? `風${race.wind_speed}m` : '';
-            const weatherEmoji = {'晴れ': '☀️', '曇り': '☁️', '雨': '🌧️', '雪': '❄️', '霧': '🌫️', '不明': '🌀'};
+            const weatherEmoji = { '晴れ': '☀️', '曇り': '☁️', '雨': '🌧️', '雪': '❄️', '霧': '🌫️', '不明': '🌀' };
             const wEmoji = weatherEmoji[w] || '';
             document.getElementById('weather-info').innerHTML = `<span class="font-semibold text-slate-200">${wEmoji} ${w}</span> ${wv}<br>${wd} ${ws}`;
 
@@ -796,6 +987,22 @@
             };
             renderList('rule-focus', predictions.rule_focus, false);
             renderList('ai-focus', predictions.ai_focus, true);
+
+            // Render AI Win Probs
+            const aiWinProbsEl = document.getElementById('ai-win-probs');
+            if (aiWinProbsEl && predictions.ai_win_probs) {
+                aiWinProbsEl.innerHTML = [1, 2, 3, 4, 5, 6].map(b => {
+                    const isSelected = activeFixedHead === b;
+                    const isOtherSelected = activeFixedHead !== 0 && !isSelected;
+                    const ringCls = isSelected ? 'ring-2 ring-blue-400 bg-slate-700' : 'bg-slate-800 hover:bg-slate-750';
+                    const dimCls = isOtherSelected ? 'opacity-40' : '';
+                    const cc = boatColors[b - 1];
+                    return `<button onclick="toggleFixedHead(${b})" class="flex-1 text-center rounded py-1 border border-slate-700 transition-all cursor-pointer ${ringCls} ${dimCls}">
+                      <div class="w-4 h-4 mx-auto rounded flex items-center justify-center text-[10px] font-bold mb-0.5 ${cc}">${b}</div>
+                      <div class="text-[10px] font-mono ${isSelected ? 'text-blue-300 font-bold' : 'text-slate-300'}">${predictions.ai_win_probs[b] || 0}%</div>
+                    </button>`;
+                }).join('');
+            }
 
             const sbox = document.getElementById('scenario-box');
             if (predictions.scenario && predictions.scenario.active) {
@@ -834,13 +1041,25 @@
                 </div>
                 <div class="grid grid-cols-4 gap-1 text-xs">
                     <div><label class="block text-slate-500 mb-0.5">進入</label>
-                        <input type="number" id="m-course-${p.boat_number}" value="${p.calc_course || p.boat_number}" class="w-full bg-slate-700 border border-slate-600 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-blue-400"></div>
+                        <select id="m-course-${p.boat_number}" class="w-full bg-slate-700 border border-slate-600 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-blue-400">
+                            ${[...Array(6)].map((_, i) => `<option value="${i + 1}" ${(p.calc_course || p.boat_number) === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}
+                        </select>
+                    </div>
                     <div><label class="block text-slate-500 mb-0.5">展示T</label>
-                        <input type="number" step="0.01" id="m-ex-${p.boat_number}" value="${p.calc_ex || 0}" class="w-full bg-amber-900/30 border border-amber-700/50 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-amber-500"></div>
+                        <select id="m-ex-${p.boat_number}" class="w-full bg-amber-900/30 border border-amber-700/50 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-amber-500">
+                            ${generateOptions(6.30, 7.30, 0.01, p.calc_ex || 6.80)}
+                        </select>
+                    </div>
                     <div><label class="block text-slate-500 mb-0.5">ST</label>
-                        <input type="number" step="0.01" id="m-st-${p.boat_number}" value="${p.calc_st || 0}" class="w-full bg-amber-900/30 border border-amber-700/50 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-amber-500"></div>
+                        <select id="m-st-${p.boat_number}" class="w-full bg-amber-900/30 border border-amber-700/50 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-amber-500">
+                            ${generateOptions(-0.10, 0.50, 0.01, p.calc_st || 0.15)}
+                        </select>
+                    </div>
                     <div><label class="block text-slate-500 mb-0.5">チルト</label>
-                        <input type="number" step="0.5" id="m-tilt-${p.boat_number}" value="${p.tilt != null ? p.tilt : 0}" class="w-full bg-orange-900/30 border border-orange-700/50 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-orange-500"></div>
+                        <select id="m-tilt-${p.boat_number}" class="w-full bg-orange-900/30 border border-orange-700/50 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-orange-500">
+                            ${generateTiltOptions(p.tilt != null ? p.tilt : 0.0)}
+                        </select>
+                    </div>
                 </div>`;
                 mc.appendChild(card);
             });
@@ -862,13 +1081,25 @@
                 <td class="px-3 py-2 text-center border-l border-slate-700"><span class="font-mono text-slate-200">${p.motor_2_quinella || 0}</span><span class="text-xs text-slate-500">%</span></td>
                 <td class="px-3 py-2 text-center text-xs text-slate-500 font-mono">${p.motor_number || '-'}</td>
                 <td class="px-3 py-2 border-l border-slate-700 bg-amber-900/10" onclick="event.stopPropagation()">
-                    <input type="number" id="in-course-${p.boat_number}" value="${p.calc_course || p.boat_number}" onclick="event.stopPropagation()" class="w-14 bg-slate-700 border border-slate-600 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-blue-400"></td>
+                    <select id="in-course-${p.boat_number}" onclick="event.stopPropagation()" class="w-14 bg-slate-700 border border-slate-600 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-blue-400 appearance-none text-center-last">
+                        ${[...Array(6)].map((_, i) => `<option value="${i + 1}" ${(p.calc_course || p.boat_number) === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}
+                    </select>
+                </td>
                 <td class="px-3 py-2 bg-amber-900/10" onclick="event.stopPropagation()">
-                    <input type="number" step="0.01" id="in-ex-${p.boat_number}" value="${p.calc_ex || 0}" onclick="event.stopPropagation()" class="w-16 bg-slate-700 border border-amber-700/40 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-amber-500"></td>
+                    <select id="in-ex-${p.boat_number}" onclick="event.stopPropagation()" class="w-16 bg-slate-700 border border-amber-700/40 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-amber-500 appearance-none text-center-last">
+                        ${generateOptions(6.30, 7.30, 0.01, p.calc_ex || 6.80)}
+                    </select>
+                </td>
                 <td class="px-3 py-2 bg-amber-900/10" onclick="event.stopPropagation()">
-                    <input type="number" step="0.01" id="in-st-${p.boat_number}" value="${p.calc_st || 0}" onclick="event.stopPropagation()" class="w-16 bg-slate-700 border border-amber-700/40 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-amber-500"></td>
+                    <select id="in-st-${p.boat_number}" onclick="event.stopPropagation()" class="w-16 bg-slate-700 border border-amber-700/40 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-amber-500 appearance-none text-center-last">
+                        ${generateOptions(-0.10, 0.50, 0.01, p.calc_st || 0.15)}
+                    </select>
+                </td>
                 <td class="px-3 py-2 bg-orange-900/10" onclick="event.stopPropagation()">
-                    <input type="number" step="0.5" id="in-tilt-${p.boat_number}" value="${p.tilt != null ? p.tilt : 0}" onclick="event.stopPropagation()" class="w-14 bg-slate-700 border border-orange-700/40 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-orange-500"></td>
+                    <select id="in-tilt-${p.boat_number}" onclick="event.stopPropagation()" class="w-16 bg-slate-700 border border-orange-700/40 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-orange-500 appearance-none text-center-last">
+                        ${generateTiltOptions(p.tilt != null ? p.tilt : 0.0)}
+                    </select>
+                </td>
                 <td class="px-3 py-2 text-center border-l border-slate-700">
                     <div class="flex justify-evenly text-sm font-bold">
                         <span class="text-slate-300">${p.ai_mark}</span>
@@ -921,7 +1152,7 @@
                 } else if (data.odds && data.odds.all_odds) {
                     renderOdds(data.odds.all_odds);
                     // 次回更新時刻を表示（既存要素を置換）
-                    const nextTime = new Date(Date.now() + 30000).toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+                    const nextTime = new Date(Date.now() + 30000).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                     document.getElementById('odds-next-refresh')?.remove();
                     document.getElementById('odds-content').insertAdjacentHTML('afterend', `<p id="odds-next-refresh" class="text-[10px] text-slate-600 text-right pr-2 mt-0.5">🔄 次回自動更新: ${nextTime}</p>`);
                 } else {
@@ -965,30 +1196,30 @@
                 const p = item.pattern.split('-');
                 if (p.length === 3) omap[item.pattern] = item.odds;
             }
-            const boats = [1,2,3,4,5,6];
+            const boats = [1, 2, 3, 4, 5, 6];
             const allN = odds_list.map(o => parseFloat(o.odds)).filter(v => !isNaN(v));
             const mn = Math.min(...allN), th1 = mn * 3, th2 = mn * 15;
-            const hdrCls = ['odds-boat-hdr-1','odds-boat-hdr-2','odds-boat-hdr-3','odds-boat-hdr-4','odds-boat-hdr-5','odds-boat-hdr-6'];
+            const hdrCls = ['odds-boat-hdr-1', 'odds-boat-hdr-2', 'odds-boat-hdr-3', 'odds-boat-hdr-4', 'odds-boat-hdr-5', 'odds-boat-hdr-6'];
 
             let html = '<div class="space-y-2">';
             for (const f of boats) {
                 const others = boats.filter(b => b !== f);
                 // この1著のオッズが1つもなければスキップ
-                const hasData = others.some(s => others.filter(t => t!==s).some(t => omap[`${f}-${s}-${t}`]));
+                const hasData = others.some(s => others.filter(t => t !== s).some(t => omap[`${f}-${s}-${t}`]));
                 if (!hasData) continue;
                 html += `<details class="odds-group" open>
 <summary class="odds-group-summary">
-<div class="w-5 h-5 flex items-center justify-center rounded text-xs font-bold ${hdrCls[f-1]}">${f}</div>
+<div class="w-5 h-5 flex items-center justify-center rounded text-xs font-bold ${hdrCls[f - 1]}">${f}</div>
 <span>${f}号艇 1著</span>
 <svg class="odds-chevron w-3.5 h-3.5 ml-auto text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
 </summary>
 <div class="odds-table-wrap mt-1 px-1 pb-1">
 <table class="odds-tbl">
 <thead><tr><th class="corner">2蝀 3蝀</th>`;
-                for (const t of others) html += `<th class="${hdrCls[t-1]}">${t}</th>`;
+                for (const t of others) html += `<th class="${hdrCls[t - 1]}">${t}</th>`;
                 html += '</tr></thead><tbody>';
                 for (const s of others) {
-                    html += `<tr><th class="${hdrCls[s-1]}">${s}</th>`;
+                    html += `<tr><th class="${hdrCls[s - 1]}">${s}</th>`;
                     for (const t of others) {
                         if (t === s) { html += '<td class="odds-cell-dash">–</td>'; continue; }
                         const odds = omap[`${f}-${s}-${t}`] || '-';
@@ -1010,15 +1241,15 @@
                 const p = item.pattern.split('-');
                 if (p.length === 2) omap[item.pattern] = item.odds;
             }
-            const boats = [1,2,3,4,5,6];
+            const boats = [1, 2, 3, 4, 5, 6];
             const allN = odds_list.map(o => parseFloat(o.odds)).filter(v => !isNaN(v));
             const mn = Math.min(...allN), th1 = mn * 3, th2 = mn * 15;
-            const hdrCls = ['odds-boat-hdr-1','odds-boat-hdr-2','odds-boat-hdr-3','odds-boat-hdr-4','odds-boat-hdr-5','odds-boat-hdr-6'];
+            const hdrCls = ['odds-boat-hdr-1', 'odds-boat-hdr-2', 'odds-boat-hdr-3', 'odds-boat-hdr-4', 'odds-boat-hdr-5', 'odds-boat-hdr-6'];
             let html = '<div class="odds-table-wrap"><table class="odds-tbl"><thead><tr><th class="corner">1蝀 2蝀</th>';
-            for (const b of boats) html += `<th class="${hdrCls[b-1]}">${b}</th>`;
+            for (const b of boats) html += `<th class="${hdrCls[b - 1]}">${b}</th>`;
             html += '</tr></thead><tbody>';
             for (const f of boats) {
-                html += `<tr><th class="${hdrCls[f-1]}">${f}</th>`;
+                html += `<tr><th class="${hdrCls[f - 1]}">${f}</th>`;
                 for (const s of boats) {
                     if (f === s) { html += '<td class="odds-cell-dash">–</td>'; continue; }
                     const odds = omap[`${f}-${s}`] || '-';
@@ -1035,7 +1266,7 @@
         // ─── Weather display helper ────────────────────────────────────────────
         function updateWeatherDisplay(weatherInfo) {
             if (!weatherInfo) return;
-            const weatherEmoji = {'晴れ': '☀️', '曇り': '☁️', '雨': '🌧️', '雪': '❄️', '霧': '🌫️', '不明': '🌀'};
+            const weatherEmoji = { '晴れ': '☀️', '曇り': '☁️', '雨': '🌧️', '雪': '❄️', '霧': '🌫️', '不明': '🌀' };
             const w = weatherInfo.weather || '--';
             const wEmoji = weatherEmoji[w] || '';
             const wv = weatherInfo.wave_height != null && weatherInfo.wave_height > 0 ? `波${weatherInfo.wave_height}cm` : '';
@@ -1053,49 +1284,54 @@
             try {
                 const res = await fetch(`${API_BASE}/races/${currentRaceId}/exhibition/scrape`);
                 if (!res.ok) {
-                    let msg = '展示情報がまだありません。\n展示タイムはレース開始約ん分前に公開されます。';
-                    try { const err = await res.json(); if(err.detail) msg = err.detail; } catch(_) {}
-                    showToast(msg, 'warn');
+                    let msg = '展示情報がまだありません。\\n展示タイムはレース開始約10~15分前に公開されます。';
+                    try { const err = await res.json(); if (err.detail) msg = err.detail; } catch (_) { }
+                    alert(msg);
                     return;
                 }
                 const data = await res.json();
                 const ex = data.scraped_exhibition || {};
-                const tiltInfo = data.tilt_info || {};
 
-                if (!ex || Object.keys(ex).length === 0) {
-                    showToast('展示情報がまだ公開されていません。\n展示タイムはレース開始約ん分前に公開されます。', 'warn');
-                    return;
-                }
+                // Update DOM `<select>` inputs safely. 
+                // The `<select>` options only accept strings that exactly match their `<option value="...">`.
+                currentPlayersData.forEach(p => {
+                    const pData = data.players.find(x => x.boat_number === p.boat_number);
+                    if (!pData) return;
 
-                // 入力欄に値を反映
-                Object.entries(ex).forEach(([bn, info]) => {
-                    ['in-course-', 'm-course-'].forEach(pref => {
-                        const n = document.getElementById(`${pref}${bn}`);
-                        if (n) { n.value = info.entry_course; n.classList.add('ring-2','ring-blue-400'); setTimeout(() => n.classList.remove('ring-2','ring-blue-400'), 2000); }
+                    // Helper to snap to nearest valid select target (e.g., 0.15 for ST)
+                    const snapValid = (val, step=0.01) => (Math.round(val / step) * step).toFixed(2);
+                    const snapTilt = (val) => val >= 1.0 ? "1.0" : val >= 0.5 ? "0.5" : val >= 0.0 ? "0.0" : "-0.5";
+
+                    ['in-course', 'm-course'].forEach(prefix => {
+                        const el = document.getElementById(`${prefix}-${p.boat_number}`);
+                        if (el && pData.calc_course) el.value = String(pData.calc_course);
                     });
-                    ['in-ex-', 'm-ex-'].forEach(pref => {
-                        const n = document.getElementById(`${pref}${bn}`);
-                        if (n) { n.value = info.exhibition_time; n.classList.add('ring-2','ring-blue-400'); setTimeout(() => n.classList.remove('ring-2','ring-blue-400'), 2000); }
+                    ['in-ex', 'm-ex'].forEach(prefix => {
+                        const el = document.getElementById(`${prefix}-${p.boat_number}`);
+                        if (el && pData.calc_ex) {
+                            const snapped = snapValid(pData.calc_ex, 0.01);
+                            // Only set if option exists
+                            if(Array.from(el.options).some(opt => opt.value === snapped)) el.value = snapped;
+                        }
                     });
-                    ['in-st-', 'm-st-'].forEach(pref => {
-                        const n = document.getElementById(`${pref}${bn}`);
-                        if (n) { n.value = info.start_timing; n.classList.add('ring-2','ring-blue-400'); setTimeout(() => n.classList.remove('ring-2','ring-blue-400'), 2000); }
+                    ['in-st', 'm-st'].forEach(prefix => {
+                        const el = document.getElementById(`${prefix}-${p.boat_number}`);
+                        if (el && pData.calc_st !== null) {
+                            const snapped = snapValid(pData.calc_st, 0.01);
+                            if(Array.from(el.options).some(opt => opt.value === snapped)) el.value = snapped;
+                        }
+                    });
+                    ['in-tilt', 'm-tilt'].forEach(prefix => {
+                        const el = document.getElementById(`${prefix}-${p.boat_number}`);
+                        if (el && pData.tilt !== null) el.value = snapTilt(pData.tilt);
                     });
                 });
-                // チルト値を入力欄に反映
-                Object.entries(tiltInfo).forEach(([bn, tilt]) => {
-                    ['in-tilt-', 'm-tilt-'].forEach(pref => {
-                        const n = document.getElementById(`${pref}${bn}`);
-                        if (n) { n.value = tilt; n.classList.add('ring-2','ring-orange-400'); setTimeout(() => n.classList.remove('ring-2','ring-orange-400'), 2000); }
-                    });
-                });
-                // 天候をヘッダーに反映
-                updateWeatherDisplay(data.scraped_weather || {});
-                showToast('展示情報を取得しました。「反映」ボタンで再計算できます。', 'ok');
+
+                showToast('展示情報を入力欄に反映しました。「✅反映」を押すと予想を更新します。', 'ok');
             } catch (e) {
-                showToast('展示情報の取得中にエラーが発生しました。', 'error');
+                alert('展示情報の取得中にエラーが発生しました。');
             }
-            finally { btn.disabled = false; btn.textContent = '🔄 展示情報更新'; }
+            finally { btn.disabled = false; btn.textContent = '🔄 展示反映'; }
         });
 
         // ─── Toast notification ───────────────────────────────────────────────────────────────────────
@@ -1272,8 +1508,8 @@
         // 各タブのスクロールターゲットID
         const TAB_TARGETS = {
             predict: 'predict-section',
-            race:    'race-section',
-            odds:    'odds-result-section',
+            race: 'race-section',
+            odds: 'odds-result-section',
             setting: 'setting-section',
         };
 

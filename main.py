@@ -24,6 +24,14 @@ from database import get_db_connection, init_db
 app = FastAPI(title="Kyotei Advisor MVP")
 init_db()
 
+@app.on_event("startup")
+def clear_locks():
+    if LOCK_FILE.exists():
+        try:
+            LOCK_FILE.unlink()
+        except:
+            pass
+
 def get_today_str() -> str:
     now_jst = datetime.now(JST)
     return now_jst.strftime('%Y-%m-%d')
@@ -82,6 +90,7 @@ class ExhibitionUpdate(BaseModel):
 class PredictSettings(BaseModel):
     max_items: int = 8
     bet_type: str = "3連単"
+    fixed_1st: int = 0
 
 class PredictRequest(BaseModel):
     weights: CustomWeights
@@ -115,18 +124,51 @@ def get_places():
         ).fetchall()
         db_place_codes = {row['place_code'] for row in db_places}
 
-        grade_rows = conn.execute(
-            'SELECT place_code, place_name, race_title, MAX(race_number) as max_race '
-            'FROM races WHERE race_date = ? GROUP BY place_code',
+        # Fetch all races for today to determine best grade across all race numbers
+        all_race_rows = conn.execute(
+            'SELECT place_code, place_name, race_title, race_number FROM races WHERE race_date = ?',
             (today_str,)
         ).fetchall()
     finally:
         conn.close()
 
-    grade_map_by_code = {
-        row['place_code']: (row['race_title'] or '', row['max_race'] or 0, row['place_name'])
-        for row in grade_rows
-    }
+    def _grade_priority(title: str) -> int:
+        """Grade priority: higher = more important. Used to pick best title per meet."""
+        if not title:
+            return 0
+        t = title.upper()
+        # SG
+        if any(kw in t for kw in ['SG', 'ＳＧ', 'グランプリ', 'ダービー', 'メモリアル', 'チャンピオンシップ', 'オールスター', 'ピーターリング']):
+            return 5
+        # G1
+        if any(g in t for g in ['G1', 'GⅠ', 'G１', 'GI', 'Ｇ１', 'ＧⅠ', 'ＧＩ']) or any(kw in title for kw in ['クラシック', '龍王', '王者']):
+            return 4
+        # G2
+        if any(g in t for g in ['G2', 'GⅡ', 'G２', 'GII', 'Ｇ２', 'ＧⅡ', 'ＧＩＩ']):
+            return 3
+        # G3
+        if any(g in t for g in ['G3', 'GⅢ', 'G３', 'GIII', 'Ｇ３', 'ＧⅢ', 'ＧＩＩＩ']):
+            return 2
+        # Lady / Venus
+        if any(k in title for k in ['ヴィーナス', 'レディース', '女子', 'クイーン']):
+            return 1
+        return 0
+
+    # Build grade_map: per place_code, keep the title with highest grade priority
+    # and track max race_number separately
+    grade_map_by_code: dict = {}
+    for row in all_race_rows:
+        pc = row['place_code']
+        rn = row['race_number'] or 0
+        rt = row['race_title'] or ''
+        pname = row['place_name']
+        if pc not in grade_map_by_code:
+            grade_map_by_code[pc] = (rt, rn, pname)
+        else:
+            existing_title, existing_max, _ = grade_map_by_code[pc]
+            best_title = rt if _grade_priority(rt) > _grade_priority(existing_title) else existing_title
+            best_max = max(existing_max, rn)
+            grade_map_by_code[pc] = (best_title, best_max, pname)
 
     if now - _active_places_cache_time > 300:
         try:
@@ -303,14 +345,18 @@ def calculate_predictions(race_data, players_data, weights: CustomWeights, setti
         rule_score = course_score + win_score + motor_score + exhibition_score + st_score + tilt_adj
 
         ai_base = (p.get("local_win_rate") or 4.0) * 12 + (m_rate * 0.7)
+        # 競艇におけるコース（枠）の絶対的な有利度をAI基礎点に加算 (1コースが圧倒的有利)
+        course_bonus = {1: 45, 2: 25, 3: 15, 4: 10, 5: 5, 6: 0}.get(course, 0)
+        ai_base += course_bonus
+
         if course >= 4 and st_time < 0.12:
             ai_base += 15
         if tilt >= 1.0 and course >= 3:
             ai_base += tilt * 4
-        ai_score = ai_base + max(0, (7.0 - ex_time) * 30) + random.uniform(-2, 2)
 
         p["rule_score"] = round(rule_score, 2)
-        p["ai_score"] = round(ai_score, 2)
+        p["ai_base"] = ai_base + max(0, (7.0 - ex_time) * 30)  # For Monte Carlo base
+        p["ai_score"] = round(p["ai_base"] + random.uniform(-2, 2), 2) # keep original static single score for UI
         p["calc_st"] = st_time
         p["calc_course"] = course
         p["calc_ex"] = ex_time
@@ -355,18 +401,38 @@ def calculate_predictions(race_data, players_data, weights: CustomWeights, setti
         return {p["boat_number"]: e / s for p, e in zip(scored_players, exps)}
 
     rule_probs = get_probabilities("rule_score")
-    ai_probs = get_probabilities("ai_score")
 
-    def generate_combinations(boat_probs, bet_type, max_items):
+    # 1万回のモンテカルロ・シミュレーション
+    NUM_SIMS = 10000
+    ai_wins = {p["boat_number"]: 0 for p in scored_players}
+    ai_pattern_counts = {}
+
+    for _ in range(NUM_SIMS):
+        # ガウス分布でばらつきを持たせる (標準偏差を25.0に変更し、大穴の可能性を0%にしない)
+        sim_scores = [(p["boat_number"], p["ai_base"] + random.gauss(0, 25.0)) for p in scored_players]
+        sim_scores.sort(key=lambda x: x[1], reverse=True)
+        top1 = sim_scores[0][0]
+        top2 = sim_scores[1][0]
+        top3 = sim_scores[2][0]
+
+        ai_wins[top1] += 1
+        trio = (top1, top2, top3)
+        ai_pattern_counts[trio] = ai_pattern_counts.get(trio, 0) + 1
+
+    ai_1st_probs = {b: count / NUM_SIMS for b, count in ai_wins.items()}
+
+    def generate_rule_combinations(boat_probs, bet_type, max_items, fixed_head=0):
         boats = list(boat_probs.keys())
         results = []
         if bet_type == "3連単":
             for c in itertools.permutations(boats, 3):
+                if fixed_head and c[0] != fixed_head: continue
                 p1 = boat_probs[c[0]]; p2 = boat_probs[c[1]] / (1 - p1 + 1e-9)
                 p3 = boat_probs[c[2]] / (1 - p1 - boat_probs[c[1]] + 1e-9)
                 results.append({"pattern": f"{c[0]}-{c[1]}-{c[2]}", "prob": p1*p2*p3})
         elif bet_type == "3連複":
             for c in itertools.combinations(boats, 3):
+                if fixed_head and fixed_head not in c: continue
                 total = 0.0
                 for perm in itertools.permutations(c, 3):
                     p1 = boat_probs[perm[0]]; p2 = boat_probs[perm[1]] / (1 - p1 + 1e-9)
@@ -375,27 +441,100 @@ def calculate_predictions(race_data, players_data, weights: CustomWeights, setti
                 results.append({"pattern": f"{c[0]}={c[1]}={c[2]}", "prob": total})
         elif bet_type == "2連単":
             for c in itertools.permutations(boats, 2):
+                if fixed_head and c[0] != fixed_head: continue
                 p1 = boat_probs[c[0]]; p2 = boat_probs[c[1]] / (1 - p1 + 1e-9)
                 results.append({"pattern": f"{c[0]}-{c[1]}", "prob": p1*p2})
         elif bet_type == "2連複":
             for c in itertools.combinations(boats, 2):
+                if fixed_head and fixed_head not in c: continue
                 total = sum(boat_probs[p[0]] * boat_probs[p[1]] / (1 - boat_probs[p[0]] + 1e-9)
                             for p in itertools.permutations(c, 2))
                 results.append({"pattern": f"{c[0]}={c[1]}", "prob": total})
         elif bet_type == "単勝":
             for b in boats:
+                if fixed_head and b != fixed_head: continue
                 results.append({"pattern": str(b), "prob": boat_probs[b]})
         else:
             for c in itertools.permutations(boats, 3):
+                if fixed_head and c[0] != fixed_head: continue
                 p1 = boat_probs[c[0]]; p2 = boat_probs[c[1]] / (1 - p1 + 1e-9)
                 p3 = boat_probs[c[2]] / (1 - p1 - boat_probs[c[1]] + 1e-9)
                 results.append({"pattern": f"{c[0]}-{c[1]}-{c[2]}", "prob": p1*p2*p3})
         results.sort(key=lambda x: x["prob"], reverse=True)
         return [{"pattern": r["pattern"], "prob": round(r["prob"]*100, 1)} for r in results[:max_items]]
 
+    def generate_ai_combinations(pattern_counts, bet_type, max_items, total_sims, fixed_head=0):
+        # AIの結果から確率を計算
+        prob_map = {}
+        boats = [p["boat_number"] for p in scored_players]
+
+        # 0回でも確実に8点を出すため、ベースとして全ての対象組み合わせを0回で初期化
+        def prepopulate():
+            if bet_type == "3連単":
+                for c in itertools.permutations(boats, 3):
+                    if fixed_head and c[0] != fixed_head: continue
+                    prob_map[f"{c[0]}-{c[1]}-{c[2]}"] = 0
+            elif bet_type == "3連複":
+                for c in itertools.combinations(boats, 3):
+                    if fixed_head and fixed_head not in c: continue
+                    prob_map[f"{c[0]}={c[1]}={c[2]}"] = 0
+            elif bet_type == "2連単":
+                for c in itertools.permutations(boats, 2):
+                    if fixed_head and c[0] != fixed_head: continue
+                    prob_map[f"{c[0]}-{c[1]}"] = 0
+            elif bet_type == "2連複":
+                for c in itertools.combinations(boats, 2):
+                    if fixed_head and fixed_head not in c: continue
+                    prob_map[f"{c[0]}={c[1]}"] = 0
+            elif bet_type == "単勝":
+                for b in boats:
+                    if fixed_head and b != fixed_head: continue
+                    prob_map[str(b)] = 0
+            else:
+                for c in itertools.permutations(boats, 3):
+                    if fixed_head and c[0] != fixed_head: continue
+                    prob_map[f"{c[0]}-{c[1]}-{c[2]}"] = 0
+
+        prepopulate()
+
+        for (b1, b2, b3), count in pattern_counts.items():
+            if bet_type == "3連単":
+                if fixed_head and b1 != fixed_head: continue
+                pat = f"{b1}-{b2}-{b3}"
+                prob_map[pat] = prob_map.get(pat, 0) + count
+            elif bet_type == "3連複":
+                c = tuple(sorted([b1, b2, b3]))
+                if fixed_head and fixed_head not in c: continue
+                pat = f"{c[0]}={c[1]}={c[2]}"
+                prob_map[pat] = prob_map.get(pat, 0) + count
+            elif bet_type == "2連単":
+                if fixed_head and b1 != fixed_head: continue
+                pat = f"{b1}-{b2}"
+                prob_map[pat] = prob_map.get(pat, 0) + count
+            elif bet_type == "2連複":
+                c = tuple(sorted([b1, b2]))
+                if fixed_head and fixed_head not in c: continue
+                pat = f"{c[0]}={c[1]}"
+                prob_map[pat] = prob_map.get(pat, 0) + count
+            elif bet_type == "単勝":
+                if fixed_head and b1 != fixed_head: continue
+                pat = str(b1)
+                prob_map[pat] = prob_map.get(pat, 0) + count
+            else:
+                if fixed_head and b1 != fixed_head: continue
+                pat = f"{b1}-{b2}-{b3}"
+                prob_map[pat] = prob_map.get(pat, 0) + count
+        
+        results = [{"pattern": pat, "prob": round((cnt / total_sims) * 100, 1)} for pat, cnt in prob_map.items()]
+        results.sort(key=lambda x: x["prob"], reverse=True)
+        return results[:max_items]
+
+    win_probs_percent = {b: round(p*100, 1) for b, p in ai_1st_probs.items()}
+
     predictions = {
-        "rule_focus": generate_combinations(rule_probs, settings.bet_type, settings.max_items),
-        "ai_focus": generate_combinations(ai_probs, settings.bet_type, settings.max_items),
+        "rule_focus": generate_rule_combinations(rule_probs, settings.bet_type, settings.max_items),
+        "ai_focus": generate_ai_combinations(ai_pattern_counts, settings.bet_type, settings.max_items, NUM_SIMS, settings.fixed_1st),
+        "ai_win_probs": win_probs_percent,
         "scenario": legacy_scenario,
         "scenarios": scenarios,
     }
@@ -538,10 +677,10 @@ def scrape_exhibition(race_id: int):
     try:
         for boat_number, info in exhibition.items():
             conn.execute(
-                'UPDATE entries SET exhibition_time=?, start_timing=?, entry_course=? '
+                'UPDATE entries SET exhibition_time=?, start_timing=?, entry_course=?, tilt=? '
                 'WHERE race_id=? AND boat_number=?',
                 (info["exhibition_time"], info["start_timing"], info["entry_course"],
-                 race_id, int(boat_number))
+                 info.get("tilt", 0.0), race_id, int(boat_number))
             )
         weather_info = data.get("weather_info", {})
         if weather_info:

@@ -68,11 +68,11 @@ def _parse_3t(soup):
     def page_order():
         res = []
         for first in range(1, 7):
-            for third in range(1, 7):
-                if third == first:
+            for second in range(1, 7):
+                if second == first:
                     continue
-                for second in range(1, 7):
-                    if second == first or second == third:
+                for third in range(1, 7):
+                    if third == first or third == second:
                         continue
                     res.append((first, second, third))
         return res
@@ -232,62 +232,55 @@ def fetch_exhibition_data(place_code: str, race_number: int, date_str: str) -> d
             return {"error": "展示情報はまだありません"}
 
         results = {}
-        tables = soup.find_all("table")
-        exhibition_table = None
-        for t in tables:
-            text = t.get_text()
-            if "展示タイム" in text or "展示T" in text:
-                exhibition_table = t
-                break
-
-        if not exhibition_table:
-            tbodies = soup.select("tbody.is-fs12")
-            for idx, tbody in enumerate(tbodies):
-                if idx >= 6:
-                    break
-                boat_number = idx + 1
-                tds = tbody.select("td")
-                if len(tds) >= 4:
-                    try:
-                        entry_course = int(tds[0].text.strip()) if tds[0].text.strip().isdigit() else boat_number
-                        ex_time = float(tds[1].text.strip()) if tds[1].text.strip().replace('.', '').isdigit() else 6.80
-                        st_time = float(tds[3].text.strip()) if tds[3].text.strip().replace('.', '').isdigit() else 0.15
-                        results[boat_number] = {
-                            "boat_number": boat_number,
-                            "entry_course": entry_course,
-                            "exhibition_time": ex_time,
-                            "start_timing": st_time,
-                        }
-                    except Exception:
-                        pass
-            weather_info = _parse_weather(soup)
-            return {"exhibition": results, "weather_info": weather_info, "url": url}
-
-        rows = exhibition_table.find_all("tr")
-        for row in rows:
-            cells = row.find_all("td")
-            if len(cells) >= 4:
+        # ----- Parse Ex Time and Tilt (Table 1) -----
+        for tbody in soup.select("tbody.is-fs12"):
+            tds = tbody.find_all("td")
+            if len(tds) >= 6:
                 try:
-                    boat_cell_text = cells[0].text.strip()
-                    if not boat_cell_text.isdigit():
-                        continue
-                    boat_number = int(boat_cell_text)
-                    if not (1 <= boat_number <= 6):
-                        continue
-                    entry_course_text = cells[1].text.strip()
-                    ex_time_text = cells[2].text.strip()
-                    st_time_text = cells[3].text.strip()
-                    entry_course = int(entry_course_text) if entry_course_text.isdigit() else boat_number
-                    ex_time = float(ex_time_text) if ex_time_text.replace('.', '', 1).isdigit() else 6.80
-                    st_time = float(st_time_text) if st_time_text.replace('.', '', 1).lstrip('-').isdigit() else 0.15
-                    results[boat_number] = {
-                        "boat_number": boat_number,
-                        "entry_course": entry_course,
-                        "exhibition_time": ex_time,
-                        "start_timing": st_time,
-                    }
+                    boat_str = tds[0].text.strip()
+                    if not boat_str.isdigit(): continue
+                    boat_number = int(boat_str)
+                    if not (1 <= boat_number <= 6): continue
+                    
+                    ex_time_str = tds[4].text.strip()
+                    ex_time = float(ex_time_str) if ex_time_str.replace('.', '', 1).isdigit() else 6.80
+                    
+                    tilt_str = tds[5].text.strip()
+                    tilt = float(tilt_str) if tilt_str.replace('.', '', 1).replace('-', '', 1).isdigit() else 0.0
+                    
+                    if boat_number not in results:
+                        results[boat_number] = {"boat_number": boat_number}
+                    results[boat_number]["exhibition_time"] = ex_time
+                    results[boat_number]["tilt"] = tilt
+                    
+                    # Default values for st and course in case they aren't parsed below
+                    if "entry_course" not in results[boat_number]:
+                        results[boat_number]["entry_course"] = boat_number
+                    if "start_timing" not in results[boat_number]:
+                        results[boat_number]["start_timing"] = 0.15
                 except Exception:
                     pass
+
+        # ----- Parse ST and Course (Table 2 / image layout) -----
+        st_spans = soup.select(".table1_boatImage1Time")
+        boat_spans = soup.select(".table1_boatImage1Number")
+        
+        for i, (b_span, st_span) in enumerate(zip(boat_spans, st_spans)):
+            try:
+                b_class = [c for c in b_span.get("class", []) if c.startswith("is-type")]
+                if b_class:
+                    boat_number = int(b_class[0].replace("is-type", ""))
+                    course = i + 1
+                    
+                    st_str = st_span.text.strip().lstrip('F').lstrip('L')
+                    st_time = float(st_str) if st_str.replace('.', '', 1).isdigit() else 0.15
+                    
+                    if boat_number not in results:
+                        results[boat_number] = {"boat_number": boat_number}
+                    results[boat_number]["entry_course"] = course
+                    results[boat_number]["start_timing"] = st_time
+            except Exception:
+                pass
 
         if not results:
             return {"error": "展示データの解析に失敗しました", "url": url}
