@@ -3,17 +3,20 @@ from bs4 import BeautifulSoup
 import datetime
 import time
 import concurrent.futures
+import sqlite3
+import live_scraper
 
 from app_config import JST, LOCK_FILE, REQUEST_TIMEOUT, USER_AGENT
 from database import get_db_connection, init_db
 
 
-def get_current_date():
+def get_current_date(target_dt: datetime.datetime = None):
     """Returns (now_jst, target_date_str as YYYYMMDD, iso_date as YYYY-MM-DD)"""
-    now_jst = datetime.datetime.now(JST)
-    target_date_str = now_jst.strftime('%Y%m%d')
-    iso_date = now_jst.strftime('%Y-%m-%d')
-    return now_jst, target_date_str, iso_date
+    if target_dt is None:
+        target_dt = datetime.datetime.now(JST)
+    target_date_str = target_dt.strftime('%Y%m%d')
+    iso_date = target_dt.strftime('%Y-%m-%d')
+    return target_dt, target_date_str, iso_date
 
 places_dict = {
     "01": "桐生", "02": "戸田", "03": "江戸川", "04": "平和島", "05": "多摩川", "06": "浜名湖",
@@ -27,13 +30,16 @@ HEADERS = {
     'Accept-Language': 'ja,en;q=0.9',
 }
 
-def scrape_index():
-    """本日の開催場JCDコード一覧を公式サイトから取得する"""
-    _, target_date_str, _ = get_current_date()
+def scrape_index(target_dt: datetime.datetime = None):
+    """指定日の開催場JCDコード一覧を公式サイトから取得する"""
+    _, target_date_str, _ = get_current_date(target_dt)
     url = f"https://www.boatrace.jp/owpc/pc/race/index?hd={target_date_str}"
+    print(f"[INFO] Fetching index from: {url}")
     try:
-        response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
-        response.raise_for_status()
+        # 開催場一覧取得にもリトライを適用
+        response = _fetch_with_retry(url)
+        print(f"[INFO] scrape_index status: {response.status_code}")
+        
         soup = BeautifulSoup(response.content, 'html.parser')
         active_jcd_list = []
         for a in soup.find_all('a', href=True):
@@ -42,9 +48,18 @@ def scrape_index():
                 jcd = href.split('jcd=')[1].split('&')[0].zfill(2)
                 if jcd in places_dict and jcd not in active_jcd_list:
                     active_jcd_list.append(jcd)
+        
+        print(f"[INFO] Found {len(active_jcd_list)} active places.")
         return active_jcd_list
     except Exception as e:
-        print(f"[ERROR] scrape_index: {e}")
+        # requests.exceptions.HTTPError などの詳細を取得
+        status_code = "Unknown"
+        if hasattr(e, 'response') and e.response is not None:
+            status_code = e.response.status_code
+        
+        print(f"[ERROR] scrape_index error (status {status_code}): {e}")
+        if status_code == 403:
+            print("[CRITICAL] IP Blocked (403 Forbidden). Boatrace site might be blocking this server.")
         return []
 
 def _get_grade_from_soup(soup):
@@ -129,9 +144,9 @@ def _fetch_with_retry(url, retries=3, wait=2):
             else:
                 raise
 
-def scrape_race_syusso(jcd, race_no):
+def scrape_race_syusso(jcd, race_no, target_dt: datetime.datetime = None):
     """特定のレースの出走表データを取得しDBに保存。race_titleも取得・更新する。"""
-    _, target_date_str, iso_date = get_current_date()
+    _, target_date_str, iso_date = get_current_date(target_dt)
     url = f"https://www.boatrace.jp/owpc/pc/race/racelist?rno={race_no}&jcd={jcd}&hd={target_date_str}"
     place_name = places_dict.get(jcd, jcd)
     print(f"  Scraping {place_name} {race_no}R ...")
@@ -162,7 +177,6 @@ def scrape_race_syusso(jcd, race_no):
                         'UPDATE races SET race_title = ? WHERE id = ?',
                         (race_title, race_id)
                     )
-                cursor.execute('DELETE FROM entries WHERE race_id = ?', (race_id,))
             else:
                 try:
                     cursor.execute('''
@@ -178,7 +192,6 @@ def scrape_race_syusso(jcd, race_no):
                         (iso_date, jcd, race_no)
                     )
                     race_id = cursor.fetchone()[0]
-                    cursor.execute('DELETE FROM entries WHERE race_id = ?', (race_id,))
 
             tbody_list = soup.select('tbody.is-fs12')
             if not tbody_list:
@@ -232,7 +245,7 @@ def scrape_race_syusso(jcd, race_no):
                         boat_2_quinella = float(boat_data[1]) if len(boat_data) > 1 else 0.0
 
                     cursor.execute('''
-                        INSERT INTO entries (
+                        INSERT OR REPLACE INTO entries (
                             race_id, boat_number, racer_name, racer_class, racer_id,
                             global_win_rate, global_2_quinella, local_win_rate, local_2_quinella,
                             motor_number, motor_2_quinella, boat_number_machine, boat_2_quinella
@@ -256,9 +269,9 @@ def scrape_race_syusso(jcd, race_no):
         print(f"  [ERROR] scrape_race_syusso({jcd},{race_no}): {e}")
 
 
-def scrape_today():
-    """本日の全開催場、全レース(1~12R)のデータを取得してDBに保存"""
-    _, target_date_str, iso_date = get_current_date()
+def scrape_today(target_dt: datetime.datetime = None):
+    """指定日の全開催場、全レース(1~12R)のデータを取得してDBに保存"""
+    target_dt, target_date_str, iso_date = get_current_date(target_dt)
     print(f"=== {target_date_str} のレース情報を取得開始 ===")
 
     init_db()
@@ -274,30 +287,159 @@ def scrape_today():
     LOCK_FILE.write_text("1", encoding="utf-8")
 
     try:
-        active_jcds = scrape_index()
-        print(f"本日開催場: {[places_dict.get(j) for j in active_jcds]}")
+        active_jcds = scrape_index(target_dt)
+        print(f"[INFO] 本日開催場: {[places_dict.get(j) for j in active_jcds]}")
 
         if not active_jcds:
-            print("開催中の場なし。")
+            print("[WARN] 開催中の場が見つかりませんでした。取得を中止します。")
             return
 
         # 並列スクレイピング (max_workers=3 に減らして安定化)
+        print(f"[INFO] Starting parallel scraping with 3 workers for {len(active_jcds)} places.")
         tasks = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
             for jcd in active_jcds:
                 for race_no in range(1, 13):
-                    tasks.append(executor.submit(scrape_race_syusso, jcd, race_no))
+                    tasks.append(executor.submit(scrape_race_syusso, jcd, race_no, target_dt))
+            
+            completed_count = 0
+            total_tasks = len(tasks)
             for future in concurrent.futures.as_completed(tasks):
+                completed_count += 1
                 try:
                     future.result()
+                    if completed_count % 10 == 0:
+                        print(f"[INFO] Progress: {completed_count}/{total_tasks} tasks completed.")
                 except Exception as e:
-                    print(f"[TASK ERROR] {e}")
+                    print(f"[ERROR] Task failed: {e}")
 
         print("=== データ取得完了 ===")
-    finally:
-        if LOCK_FILE.exists():
-            LOCK_FILE.unlink()
+    except Exception as e:
+        print(f"[CRITICAL] scrape_today failed: {e}")
+def update_exhibition(jcd, race_no, target_dt: datetime.datetime = None):
+    """展示データのみを更新する"""
+    _, target_date_str, iso_date = get_current_date(target_dt)
+    print(f"  Updating exhibition: {places_dict.get(jcd, jcd)} {race_no}R...")
+    data = live_scraper.fetch_exhibition_data(jcd, race_no, target_date_str)
+    
+    if "exhibition" in data:
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            # racesテーブルの天気・風・波を更新
+            w = data.get("weather_info", {})
+            cursor.execute('''
+                UPDATE races SET 
+                    weather = ?, wind_direction = ?, wind_speed = ?, wave_height = ?,
+                    is_exhibition_done = 1
+                WHERE race_date = ? AND place_code = ? AND race_number = ?
+            ''', (w.get("weather", "不明"), w.get("wind_direction", ""), 
+                  w.get("wind_speed", 0.0), w.get("wave_height", 0.0),
+                  iso_date, jcd, race_no))
 
+            # entriesテーブルの展示タイム・ST・コース・チルトを更新
+            for boat_num, ex_data in data["exhibition"].items():
+                cursor.execute('''
+                    UPDATE entries SET
+                        exhibition_time = ?, start_timing = ?, entry_course = ?, tilt = ?
+                    WHERE race_id = (
+                        SELECT id FROM races WHERE race_date = ? AND place_code = ? AND race_number = ?
+                    ) AND boat_number = ?
+                ''', (ex_data.get("exhibition_time", 0.0), ex_data.get("start_timing", 0.15),
+                      ex_data.get("entry_course", boat_num), ex_data.get("tilt", 0.0),
+                      iso_date, jcd, race_no, boat_num))
+            conn.commit()
+            print(f"    -> OK: Exhibition updated.")
+        except Exception as e:
+            print(f"    [DB ERROR] update_exhibition: {e}")
+        finally:
+            conn.close()
+    else:
+        print(f"    -> {data.get('error', 'No data')}")
 
-if __name__ == "__main__":
-    scrape_today()
+def update_result(jcd, race_no, target_dt: datetime.datetime = None):
+    """レース結果（着順）のみを更新する"""
+    _, target_date_str, iso_date = get_current_date(target_dt)
+    print(f"  Checking result: {places_dict.get(jcd, jcd)} {race_no}R...")
+    data = live_scraper.fetch_match_result(jcd, race_no, target_date_str)
+    
+    if data and data.get("finished"):
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            # racesテーブルの終了フラグと着順文字列、詳細結果JSONを更新
+            import json
+            cursor.execute('''
+                UPDATE races SET is_finished = 1, ranking_str = ?, result_json = ?
+                WHERE race_date = ? AND place_code = ? AND race_number = ?
+            ''', (data.get("ranking_str", ""), json.dumps(data), iso_date, jcd, race_no))
+            
+            # entriesテーブルの到着順位とタイムを更新
+            for rank_item in data.get("ranking", []):
+                boat = rank_item.get("boat")
+                rank = rank_item.get("rank")
+                time_str = data.get("race_times", {}).get(boat, "")
+                cursor.execute('''
+                    UPDATE entries SET arrival_order = ?, race_time = ?
+                    WHERE race_id = (
+                        SELECT id FROM races WHERE race_date = ? AND place_code = ? AND race_number = ?
+                    ) AND boat_number = ?
+                ''', (rank, time_str, iso_date, jcd, race_no, boat))
+            
+            conn.commit()
+            print(f"    -> OK: Race finished. Result: {data.get('ranking_str')}")
+        except Exception as e:
+            print(f"    [DB ERROR] update_result: {e}")
+        finally:
+            conn.close()
+    else:
+        print(f"    -> Still no result.")
+
+def update_all_active_races(target_dt: datetime.datetime = None):
+    """全開催場の展示・結果を巡回更新する (バックグラウンドワーカー用)"""
+    target_dt, target_date_str, iso_date = get_current_date(target_dt)
+    print(f"\n[WORKER] Periodic update started at {datetime.datetime.now(JST)}")
+    
+    active_jcds = scrape_index(target_dt)
+    if not active_jcds:
+        print("[WORKER] No active places found.")
+        return
+
+    # 全開催場の1〜12Rを巡回
+    for jcd in active_jcds:
+        # DBに基本データ（出走表）がなければまず取得
+        conn = get_db_connection()
+        try:
+            races_in_db = conn.execute(
+                "SELECT race_number, is_exhibition_done, is_finished FROM races WHERE race_date = ? AND place_code = ?",
+                (iso_date, jcd)
+            ).fetchall()
+        finally:
+            conn.close()
+        
+        db_race_nums = {r["race_number"] for r in races_in_db}
+        finished_nums = {r["race_number"] for r in races_in_db if r["is_finished"]}
+        ex_done_nums = {r["race_number"] for r in races_in_db if r["is_exhibition_done"]}
+
+        for rno in range(1, 13):
+            # 既に終了しているレースはスキップ
+            if rno in finished_nums:
+                continue
+            
+            # 出走表データすらない場合はフルスクレイピング
+            if rno not in db_race_nums:
+                scrape_race_syusso(jcd, rno, target_dt)
+                time.sleep(1) # 連続アクセス負荷軽減
+            
+            # 展示がまだの場合、または結果待ちの場合
+            # 負荷を考えて、全レースを一律チェックするのではなく、適宜 sleep
+            if rno not in ex_done_nums:
+                update_exhibition(jcd, rno, target_dt)
+                time.sleep(1)
+            
+            # 展示済みなら結果をチェック
+            # (実際は展示から20-30分後だが、一律チェックしても 404/データなしで返るだけなのでOK)
+            update_result(jcd, rno, target_dt)
+            time.sleep(1)
+
+    print(f"[WORKER] Periodic update finished at {datetime.datetime.now(JST)}\n")

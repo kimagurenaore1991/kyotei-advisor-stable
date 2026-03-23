@@ -243,6 +243,7 @@ def fetch_exhibition_data(place_code: str, race_number: int, date_str: str) -> d
                     if not (1 <= boat_number <= 6): continue
                     
                     ex_time_str = tds[4].text.strip()
+                    is_absent = ("欠" in ex_time_str or "-" in ex_time_str)
                     ex_time = float(ex_time_str) if ex_time_str.replace('.', '', 1).isdigit() else 6.80
                     
                     tilt_str = tds[5].text.strip()
@@ -252,8 +253,7 @@ def fetch_exhibition_data(place_code: str, race_number: int, date_str: str) -> d
                         results[boat_number] = {"boat_number": boat_number}
                     results[boat_number]["exhibition_time"] = ex_time
                     results[boat_number]["tilt"] = tilt
-                    
-                    # Default values for st and course in case they aren't parsed below
+                    results[boat_number]["is_absent"] = is_absent
                     if "entry_course" not in results[boat_number]:
                         results[boat_number]["entry_course"] = boat_number
                     if "start_timing" not in results[boat_number]:
@@ -272,8 +272,12 @@ def fetch_exhibition_data(place_code: str, race_number: int, date_str: str) -> d
                     boat_number = int(b_class[0].replace("is-type", ""))
                     course = i + 1
                     
-                    st_str = st_span.text.strip().lstrip('F').lstrip('L')
-                    st_time = float(st_str) if st_str.replace('.', '', 1).isdigit() else 0.15
+                    raw_st = st_span.text.strip()
+                    is_flying = 'F' in raw_st
+                    st_str = raw_st.lstrip('F').lstrip('L')
+                    st_time = float(st_str) if st_str.replace('.', '', 1).replace('-', '', 1).isdigit() else 0.15
+                    if is_flying:
+                        st_time = -st_time
                     
                     if boat_number not in results:
                         results[boat_number] = {"boat_number": boat_number}

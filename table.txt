@@ -1,0 +1,152 @@
+<table class="is-w495">
+ <colgroup span="1" style="width:52px;">
+ </colgroup>
+ <colgroup span="1" style="width:55px;">
+ </colgroup>
+ <colgroup span="1" style="width:228px;">
+ </colgroup>
+ <colgroup span="1" style="width:158px;">
+ </colgroup>
+ <thead>
+  <tr class="is-fs14">
+   <th>
+    着
+   </th>
+   <th>
+    枠
+   </th>
+   <th>
+    ボートレーサー
+   </th>
+   <th>
+    レースタイム
+   </th>
+  </tr>
+ </thead>
+ <tbody>
+  <tr>
+   <td class="is-fs14">
+    １
+   </td>
+   <td class="is-fs14 is-fBold is-boatColor6">
+    6
+   </td>
+   <td class="is-p10-0">
+    <span class="is-fs12">
+     3623
+    </span>
+    <span class="is-fs18 is-fBold is-lh24__3rdadd">
+     深川　　真二
+    </span>
+   </td>
+   <td>
+    1'56"5
+   </td>
+  </tr>
+ </tbody>
+ <tbody>
+  <tr>
+   <td class="is-fs14">
+    ２
+   </td>
+   <td class="is-fs14 is-fBold is-boatColor5">
+    5
+   </td>
+   <td class="is-p10-0">
+    <span class="is-fs12">
+     4989
+    </span>
+    <span class="is-fs18 is-fBold is-lh24__3rdadd">
+     石原　　　翼
+    </span>
+   </td>
+   <td>
+    1'59"1
+   </td>
+  </tr>
+ </tbody>
+ <tbody>
+  <tr>
+   <td class="is-fs14">
+    ３
+   </td>
+   <td class="is-fs14 is-fBold is-boatColor1">
+    1
+   </td>
+   <td class="is-p10-0">
+    <span class="is-fs12">
+     5075
+    </span>
+    <span class="is-fs18 is-fBold is-lh24__3rdadd">
+     中島　　秀治
+    </span>
+   </td>
+   <td>
+    2'01"5
+   </td>
+  </tr>
+ </tbody>
+ <tbody>
+  <tr>
+   <td class="is-fs14">
+    ４
+   </td>
+   <td class="is-fs14 is-fBold is-boatColor2">
+    2
+   </td>
+   <td class="is-p10-0">
+    <span class="is-fs12">
+     5139
+    </span>
+    <span class="is-fs18 is-fBold is-lh24__3rdadd">
+     大場　　恒季
+    </span>
+   </td>
+   <td>
+    2'02"3
+   </td>
+  </tr>
+ </tbody>
+ <tbody>
+  <tr>
+   <td class="is-fs14">
+    ５
+   </td>
+   <td class="is-fs14 is-fBold is-boatColor4">
+    4
+   </td>
+   <td class="is-p10-0">
+    <span class="is-fs12">
+     5243
+    </span>
+    <span class="is-fs18 is-fBold is-lh24__3rdadd">
+     三馬　　崇史
+    </span>
+   </td>
+   <td>
+    2'05"8
+   </td>
+  </tr>
+ </tbody>
+ <tbody>
+  <tr>
+   <td class="is-fs14">
+    転
+   </td>
+   <td class="is-fs14 is-fBold is-boatColor3">
+    3
+   </td>
+   <td class="is-p10-0">
+    <span class="is-fs12">
+     5224
+    </span>
+    <span class="is-fs18 is-fBold is-lh24__3rdadd">
+     西岡　　顕心
+    </span>
+   </td>
+   <td>
+   </td>
+  </tr>
+ </tbody>
+</table>
+

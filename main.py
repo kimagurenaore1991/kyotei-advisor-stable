@@ -7,6 +7,7 @@ import random
 import os
 import json
 import concurrent.futures
+import hashlib
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -15,8 +16,9 @@ from live_scraper import (
     fetch_exhibition_data, fetch_all_odds
 )
 import scraper
-from scraper import scrape_today
+from scraper import scrape_today, update_all_active_races
 import time
+import asyncio
 
 from app_config import JST, LOCK_FILE, STATIC_DIR
 from database import get_db_connection, init_db
@@ -25,12 +27,43 @@ app = FastAPI(title="Kyotei Advisor MVP")
 init_db()
 
 @app.on_event("startup")
-def clear_locks():
+async def startup_event():
+    # ロックファイルのクリーンアップ
     if LOCK_FILE.exists():
         try:
             LOCK_FILE.unlink()
         except:
             pass
+    
+    # バックグラウンドワーカーの起動
+    asyncio.create_task(background_worker())
+
+async def background_worker():
+    """5分おきに全レース場のデータを自動更新する"""
+    print("[SYSTEM] Background worker started.")
+    # 初回起動時は少し待機してから開始する（APIリクエスト時の「取得中」表示を避けるため）
+    await asyncio.sleep(5)
+    
+    while True:
+        try:
+            # 実行
+            # loop.run_in_executor を使ってブロッキングなスクレイピングを別スレッドで実行
+            loop = asyncio.get_event_loop()
+            
+            # 当日の更新
+            await loop.run_in_executor(None, update_all_active_races)
+            
+            # 18時以降であれば翌日のデータも自動取得（出走表のみ）
+            now_jst = datetime.now(JST)
+            if now_jst.hour >= 18:
+                tomorrow_dt = now_jst + datetime.timedelta(days=1)
+                await loop.run_in_executor(None, update_all_active_races, tomorrow_dt)
+                
+        except Exception as e:
+            print(f"[WORKER ERROR] {e}")
+        
+        # 300秒（5分）待機
+        await asyncio.sleep(300)
 
 def get_today_str() -> str:
     now_jst = datetime.now(JST)
@@ -79,6 +112,15 @@ class CustomWeights(BaseModel):
     exhibition: float = 1.0
     st: float = 1.0
     course: float = 1.0
+    wind: float = 0.0
+
+class PlayerOverride(BaseModel):
+    boat_number: int
+    entry_course: Optional[int] = None
+    exhibition_time: Optional[float] = None
+    start_timing: Optional[float] = None
+    tilt: Optional[float] = None
+    is_absent: Optional[bool] = None
 
 class ExhibitionUpdate(BaseModel):
     boat_number: int
@@ -86,6 +128,7 @@ class ExhibitionUpdate(BaseModel):
     start_timing: float
     entry_course: int
     tilt: Optional[float] = None
+    is_absent: bool = False
 
 class PredictSettings(BaseModel):
     max_items: int = 8
@@ -95,6 +138,8 @@ class PredictSettings(BaseModel):
 class PredictRequest(BaseModel):
     weights: CustomWeights
     settings: PredictSettings = PredictSettings()
+    overrides: Optional[List[PlayerOverride]] = None
+    recalculate_ai: bool = False
 
 
 # ─────────────────────────── Places ─────────────────────────────────────────
@@ -111,10 +156,10 @@ _active_places_cache_jcds = []
 
 
 @app.get("/api/places")
-def get_places():
+def get_places(date: Optional[str] = Query(None)):
     global _active_places_cache_time, _active_places_cache_jcds
     now = time.time()
-    today_str = get_today_str()
+    today_str = date if date else get_today_str()
 
     conn = get_db_connection()
     try:
@@ -170,15 +215,16 @@ def get_places():
             best_max = max(existing_max, rn)
             grade_map_by_code[pc] = (best_title, best_max, pname)
 
-    if now - _active_places_cache_time > 300:
-        try:
-            active_jcds = scraper.scrape_index()
-            _active_places_cache_jcds = active_jcds
-            _active_places_cache_time = now
-        except Exception as e:
-            print(f"Error fetching active places index: {e}")
+    is_today = (today_str == get_today_str())
 
-    active_place_codes = set(db_place_codes) | set(_active_places_cache_jcds)
+    # 背景：閲覧者が増えても耐えられるよう、APIリクエスト時の自動スクレイピングは廃止。
+    # 代わりにバックグラウンドワーカーが常に最新状態を保つ。
+    
+    # (既存のキャッシュ更新ロジックはデバッグ用に残すが、実質的にはDBからのみ取得)
+    if is_today:
+        active_place_codes = set(db_place_codes) | set(_active_places_cache_jcds)
+    else:
+        active_place_codes = set(db_place_codes)
 
     result = []
     for place in places_dict_order:
@@ -200,8 +246,8 @@ def get_places():
 
 
 @app.get("/api/places/{place_name}/races")
-def get_races(place_name: str):
-    today_str = get_today_str()
+def get_races(place_name: str, date: Optional[str] = Query(None)):
+    today_str = date if date else get_today_str()
     conn = get_db_connection()
     races = conn.execute(
         'SELECT id, race_date, place_code, place_name, race_number, race_title, is_finished '
@@ -220,11 +266,20 @@ def get_status():
 
 
 @app.post("/api/scrape/today")
-def trigger_scrape_today(background_tasks: BackgroundTasks):
+def trigger_scrape_today(background_tasks: BackgroundTasks, date: Optional[str] = Query(None)):
     if LOCK_FILE.exists():
         raise HTTPException(status_code=400, detail="既にデータ取得処理が実行中です。")
-    background_tasks.add_task(scrape_today)
-    return {"status": "started", "message": "データ取得を開始しました。"}
+    
+    target_dt = None
+    if date:
+        try:
+            target_dt = datetime.strptime(date, '%Y-%m-%d').replace(tzinfo=JST)
+        except Exception:
+            raise HTTPException(status_code=400, detail="日付形式が正しくありません (YYYY-MM-DD)。")
+
+    print(f"[INFO] Triggering scrape for date: {date or 'today'}")
+    background_tasks.add_task(scrape_today, target_dt)
+    return {"status": "started", "message": f"{date or '今日'}のデータ取得を開始しました。"}
 
 
 # ─────────────────────────── Scenario Engine (全艇対応) ─────────────────────
@@ -236,9 +291,9 @@ def calculate_scenarios(scored_players):
     scenarios = []
 
     for player in scored_players:
-        course = player["calc_course"]
-        if course < 2:
+        if player.get("is_absent"):
             continue
+        course = player["calc_course"]
 
         boat_no = player["boat_number"]
         racer_name = player.get("racer_name", "")
@@ -315,9 +370,26 @@ def calculate_scenarios(scored_players):
     return scenarios
 
 
-# ─────────────────────────── Prediction Engine ──────────────────────────────
+# AI解析結果のサーバー側キャッシュ
+# { race_id: { "hash": "data_hash", "results": { ...AI成果物... } } }
+AI_RESULT_CACHE = {}
 
-def calculate_predictions(race_data, players_data, weights: CustomWeights, settings: PredictSettings = None):
+def compute_players_hash(players_data: List[dict]) -> str:
+    """AIの計算に影響する項目のみを抽出してハッシュ化する"""
+    relevant = []
+    # 艇番、展示タイム、ST、進入、チルト、欠場状況がAI計算の入力値
+    for p in sorted(players_data, key=lambda x: x.get('boat_number', 0)):
+        relevant.append({
+            "b": p.get("boat_number"),
+            "e": p.get("exhibition_time"),
+            "s": p.get("start_timing"),
+            "c": p.get("entry_course"),
+            "t": p.get("tilt"),
+            "a": p.get("is_absent")
+        })
+    return hashlib.md5(json.dumps(relevant, sort_keys=True).encode()).hexdigest()
+
+def calculate_predictions(race_data, players_data, weights: CustomWeights, settings: PredictSettings = None, ai_cache: dict = None):
     if settings is None:
         settings = PredictSettings()
 
@@ -326,9 +398,23 @@ def calculate_predictions(race_data, players_data, weights: CustomWeights, setti
     rng = random.Random(race_id)
 
     scored_players = []
+    active_players_for_sim = []
 
     for row in players_data:
         p = dict(row)
+        if p.get("is_absent"):
+            p["rule_score"] = -1.0
+            p["rule_mark"] = "欠"
+            p["ai_score"] = -1.0
+            p["ai_mark"] = "欠場"
+            p["calc_course"] = p.get("entry_course") or p["boat_number"]
+            p["calc_ex"] = 6.80
+            p["calc_st"] = 0.15
+            scored_players.append(p)
+            continue
+        
+        # ── 以下、欠場でない艇の計算 ──
+        active_players_for_sim.append(p)
 
         ex_time = p.get("exhibition_time") or 6.80
         # ★ ST=0.0 は有効値なので None のみデフォルト補填
@@ -346,21 +432,67 @@ def calculate_predictions(race_data, players_data, weights: CustomWeights, setti
         motor_score = m_rate * 0.5 * weights.motor
         exhibition_score = max(0, (7.0 - ex_time) * 50) * weights.exhibition
         st_score = max(0, (0.3 - st_time) * 100) * weights.st
-        rule_score = course_score + win_score + motor_score + exhibition_score + st_score + tilt_adj
+        
+        # 風の影響計算
+        wind_adj = 0.0
+        if weights.wind > 0:
+            w_speed = float(race_data.get("wind_speed") or 0)
+            w_dir = race_data.get("wind_direction") or ""
+            if "追い風" in w_dir:
+                if w_speed <= 4:
+                    if course == 1: wind_adj = 2.0
+                    elif course == 2: wind_adj = 1.0
+                else:
+                    if course == 1: wind_adj = -2.0
+                    elif course == 2: wind_adj = 2.0
+                    elif course == 3: wind_adj = 1.0
+            elif "向かい風" in w_dir:
+                if w_speed <= 4:
+                    if course == 1: wind_adj = -0.5
+                    elif course == 3: wind_adj = 0.5
+                    elif course == 4: wind_adj = 1.5
+                else:
+                    if course == 1: wind_adj = -3.5
+                    elif course in [3, 4]: wind_adj = 2.5
+                    elif course in [5, 6]: wind_adj = 1.5
+            elif w_dir: # 横風など
+                if course == 1: wind_adj = -0.5
+        
+        rule_score = course_score + win_score + motor_score + exhibition_score + st_score + tilt_adj + (wind_adj * weights.wind)
 
-        ai_base = (p.get("local_win_rate") or 4.0) * 12 + (m_rate * 0.7)
-        # 競艇におけるコース（枠）の絶対的な有利度をAI基礎点に加算 (1コースが圧倒的有利)
-        course_bonus = {1: 45, 2: 25, 3: 15, 4: 10, 5: 5, 6: 0}.get(course, 0)
-        ai_base += course_bonus
+        # AIの計算 (キャッシュがあれば優先的に使用)
+        race_id = race_data.get("id", 0)
+        p_hash = compute_players_hash(players_data)
+        
+        # 外部から渡されたai_cache、あるいはサーバー側のグローバルキャッシュを確認
+        effective_ai_cache = ai_cache
+        if not effective_ai_cache and race_id in AI_RESULT_CACHE:
+            if AI_RESULT_CACHE[race_id]["hash"] == p_hash:
+                effective_ai_cache = AI_RESULT_CACHE[race_id]["results"]
 
-        if course >= 4 and st_time < 0.12:
-            ai_base += 15
-        if tilt >= 1.0 and course >= 3:
-            ai_base += tilt * 4
+        if effective_ai_cache and "ai_player_data" in effective_ai_cache:
+            p_cache = effective_ai_cache["ai_player_data"].get(str(p["boat_number"]), {})
+            ai_base = p_cache.get("ai_base", 40.0)
+            ai_score = p_cache.get("ai_score", 40.0)
+            p["ai_mark"] = p_cache.get("ai_mark", "")
+        else:
+            ai_base = (p.get("local_win_rate") or 4.0) * 12 + (m_rate * 0.7)
+            # 競艇におけるコース（枠）の絶対的な有利度をAI基礎点に加算 (1コースが圧倒的有利)
+            course_bonus = {1: 45, 2: 25, 3: 15, 4: 10, 5: 5, 6: 0}.get(course, 0)
+            ai_base += course_bonus
+
+            if course >= 4 and st_time < 0.12:
+                ai_base += 15
+            if tilt >= 1.0 and course >= 3:
+                ai_base += tilt * 4
+            
+            ai_base += max(0, (7.0 - ex_time) * 30)
+            ai_score = round(ai_base + rng.uniform(-2, 2), 2)
+            p["ai_mark"] = "" # Will fill later
 
         p["rule_score"] = round(rule_score, 2)
-        p["ai_base"] = ai_base + max(0, (7.0 - ex_time) * 30)  # For Monte Carlo base
-        p["ai_score"] = round(p["ai_base"] + rng.uniform(-2, 2), 2) # keep original static single score for UI
+        p["ai_base"] = ai_base
+        p["ai_score"] = ai_score
         p["calc_st"] = st_time
         p["calc_course"] = course
         p["calc_ex"] = ex_time
@@ -377,13 +509,73 @@ def calculate_predictions(race_data, players_data, weights: CustomWeights, setti
     for i, p in enumerate(scored_players):
         p["rule_mark"] = marks[i] if i < len(marks) else ""
 
-    scored_players.sort(key=lambda x: x["ai_score"], reverse=True)
-    for i, p in enumerate(scored_players):
-        p["ai_mark"] = marks[i] if i < len(marks) else ""
+    if not ai_cache or "ai_player_data" not in ai_cache:
+        scored_players.sort(key=lambda x: x["ai_score"], reverse=True)
+        for i, p in enumerate(scored_players):
+            p["ai_mark"] = marks[i] if i < len(marks) else ""
 
     scored_players.sort(key=lambda x: x["boat_number"])
 
-    scenarios = calculate_scenarios(scored_players)
+    # シナリオ、モンテカルロ等のAI関連情報の取得
+    race_id = race_data.get("id", 0)
+    p_hash = compute_players_hash(players_data)
+    
+    effective_ai_cache = ai_cache
+    if not effective_ai_cache and race_id in AI_RESULT_CACHE:
+        if AI_RESULT_CACHE[race_id]["hash"] == p_hash:
+            effective_ai_cache = AI_RESULT_CACHE[race_id]["results"]
+
+    if effective_ai_cache:
+        scenarios = effective_ai_cache.get("scenarios", [])
+        ai_win_probs = effective_ai_cache.get("ai_win_probs", {})
+        # パターンカウントからの生成
+        ai_pattern_counts = {}
+        for pat_str, count in effective_ai_cache.get("ai_pattern_counts_list", []):
+            try:
+                tup = tuple(int(x) for x in pat_str.split(','))
+                ai_pattern_counts[tup] = count
+            except: pass
+        NUM_SIMS = effective_ai_cache.get("num_sims", 10000)
+    else:
+        scenarios = calculate_scenarios(scored_players)
+        
+        # 欠場艇を除外してシミュレーション
+        active_for_sim = [p for p in scored_players if not p.get("is_absent")]
+        NUM_SIMS = 10000
+        ai_wins = {p["boat_number"]: 0 for p in scored_players}
+        ai_pattern_counts = {}
+
+        for _ in range(NUM_SIMS):
+            # ガウス分布でばらつきを持たせる
+            sim_scores = [(p["boat_number"], p["ai_base"] + rng.gauss(0, 25.0)) for p in active_for_sim]
+            sim_scores.sort(key=lambda x: x[1], reverse=True)
+            
+            # 走っている艇数に応じて安全に取得
+            top_boats = [s[0] for s in sim_scores]
+            top1 = top_boats[0] if len(top_boats) > 0 else 0
+            top2 = top_boats[1] if len(top_boats) > 1 else 0
+            top3 = top_boats[2] if len(top_boats) > 2 else 0
+
+            if top1:
+                ai_wins[top1] += 1
+            
+            if top1 and top2 and top3:
+                trio = (top1, top2, top3)
+                ai_pattern_counts[trio] = ai_pattern_counts.get(trio, 0) + 1
+
+        ai_win_probs = {str(b): round((count / NUM_SIMS)*100, 1) for b, count in ai_wins.items()}
+
+        # 計算結果をサーバーキャッシュに保存（以降の設定変更時に再利用）
+        AI_RESULT_CACHE[race_id] = {
+            "hash": p_hash,
+            "results": {
+                "ai_player_data": {str(p["boat_number"]): {"ai_base": p["ai_base"], "ai_score": p["ai_score"], "ai_mark": p["ai_mark"]} for p in scored_players},
+                "scenarios": scenarios,
+                "ai_win_probs": ai_win_probs,
+                "ai_pattern_counts_list": [[",".join(map(str, k)), v] for k, v in ai_pattern_counts.items()],
+                "num_sims": NUM_SIMS
+            }
+        }
 
     legacy_scenario = {"active": False, "probability": 0, "text": "", "focus": ""}
     if scenarios:
@@ -405,25 +597,6 @@ def calculate_predictions(race_data, players_data, weights: CustomWeights, setti
         return {p["boat_number"]: e / s for p, e in zip(scored_players, exps)}
 
     rule_probs = get_probabilities("rule_score")
-
-    # 1万回のモンテカルロ・シミュレーション
-    NUM_SIMS = 10000
-    ai_wins = {p["boat_number"]: 0 for p in scored_players}
-    ai_pattern_counts = {}
-
-    for _ in range(NUM_SIMS):
-        # ガウス分布でばらつきを持たせる (標準偏差を25.0に変更し、大穴の可能性を0%にしない)
-        sim_scores = [(p["boat_number"], p["ai_base"] + rng.gauss(0, 25.0)) for p in scored_players]
-        sim_scores.sort(key=lambda x: x[1], reverse=True)
-        top1 = sim_scores[0][0]
-        top2 = sim_scores[1][0]
-        top3 = sim_scores[2][0]
-
-        ai_wins[top1] += 1
-        trio = (top1, top2, top3)
-        ai_pattern_counts[trio] = ai_pattern_counts.get(trio, 0) + 1
-
-    ai_1st_probs = {b: count / NUM_SIMS for b, count in ai_wins.items()}
 
     def generate_rule_combinations(boat_probs, bet_type, max_items, fixed_head=0):
         boats = list(boat_probs.keys())
@@ -533,14 +706,15 @@ def calculate_predictions(race_data, players_data, weights: CustomWeights, setti
         results.sort(key=lambda x: x["prob"], reverse=True)
         return results[:max_items]
 
-    win_probs_percent = {b: round(p*100, 1) for b, p in ai_1st_probs.items()}
-
     predictions = {
-        "rule_focus": generate_rule_combinations(rule_probs, settings.bet_type, settings.max_items),
+        "rule_focus": generate_rule_combinations(rule_probs, settings.bet_type, settings.max_items, 0),
         "ai_focus": generate_ai_combinations(ai_pattern_counts, settings.bet_type, settings.max_items, NUM_SIMS, settings.fixed_1st),
-        "ai_win_probs": win_probs_percent,
+        "ai_default_focus": generate_ai_combinations(ai_pattern_counts, "3連単", 8, NUM_SIMS, 0),
+        "ai_win_probs": ai_win_probs,
         "scenario": legacy_scenario,
         "scenarios": scenarios,
+        "_ai_pattern_counts_list": [[",".join(map(str, k)), v] for k, v in ai_pattern_counts.items()],
+        "_num_sims": NUM_SIMS
     }
     return scored_players, predictions
 
@@ -556,27 +730,108 @@ def api_get_racer(toban: str):
 def api_get_race_live_data(race_id: int):
     conn = get_db_connection()
     race = conn.execute(
-        'SELECT place_code, race_number, race_date FROM races WHERE id = ?', (race_id,)
+        'SELECT place_code, race_number, race_date, is_finished, result_json FROM races WHERE id = ?', (race_id,)
     ).fetchone()
     conn.close()
     if not race:
         raise HTTPException(status_code=404, detail="Race not found")
+    
+    # すでに終了して結果が保存されていればそれを返す
+    if race["is_finished"] and race["result_json"]:
+        try:
+            result = json.loads(race["result_json"])
+            return {"result": result, "odds": None}
+        except:
+            pass
+
     date_str = race["race_date"].replace("-", "")
     result = fetch_match_result(race["place_code"], race["race_number"], date_str)
     
     if result and result.get("finished"):
         conn = get_db_connection()
         try:
-            conn.execute('UPDATE races SET is_finished = 1 WHERE id = ?', (race_id,))
+            ranking_str = result.get("ranking_str", "")
+            result_json = json.dumps(result)
+            conn.execute('UPDATE races SET is_finished = 1, ranking_str = ?, result_json = ? WHERE id = ?', 
+                         (ranking_str, result_json, race_id))
             conn.commit()
         finally:
             conn.close()
 
     odds = None
-    if not result or "error" in result:
+    if not result or "error" in result or not result.get("finished"):
         odds = fetch_live_odds(race["place_code"], race_number=race["race_number"], date_str=date_str)
+    
     return {"result": result, "odds": odds}
 
+
+def is_hit(pattern: str, result_text: str) -> bool:
+    if not result_text or result_text == '--':
+        return False
+    r = result_text.split('-')
+    if len(r) < 3:
+        return False
+    p = pattern
+    if '-' in p and len(p.split('-')) == 3:
+        # 3連単
+        return r[0] == p.split('-')[0] and r[1] == p.split('-')[1] and r[2] == p.split('-')[2]
+    elif '=' in p:
+        pts = p.split('=')
+        if len(pts) == 3:
+            return pts[0] in r[0:3] and pts[1] in r[0:3] and pts[2] in r[0:3]
+        elif len(pts) == 2:
+            return pts[0] in r[0:2] and pts[1] in r[0:2]
+    elif '-' in p and len(p.split('-')) == 2:
+        # 2連単
+        return r[0] == p.split('-')[0] and r[1] == p.split('-')[1]
+    else:
+        # 単勝
+        return r[0] == p
+    return False
+
+@app.post("/api/daily_hits")
+def get_daily_hits(req: PredictRequest, date: str = Query(...)):
+    conn = get_db_connection()
+    try:
+        races = conn.execute(
+            'SELECT * FROM races WHERE race_date = ? AND is_finished = 1 AND ranking_str IS NOT NULL AND ranking_str != ""',
+            (date,)
+        ).fetchall()
+        if not races:
+            return {}
+        
+        race_ids = [r['id'] for r in races]
+        placeholders = ','.join('?' for _ in race_ids)
+        entries = conn.execute(
+            f'SELECT * FROM entries WHERE race_id IN ({placeholders}) ORDER BY race_id, boat_number',
+            race_ids
+        ).fetchall()
+    finally:
+        conn.close()
+
+    entries_by_race = {}
+    for e in entries:
+        entries_by_race.setdefault(e['race_id'], []).append(dict(e))
+        
+    hits = {}
+    for race in races:
+        rid = race['id']
+        players = entries_by_race.get(rid, [])
+        if not players:
+            hits[rid] = False
+            continue
+            
+        rdict = dict(race)
+        _, preds = calculate_predictions(rdict, players, req.weights, req.settings)
+        
+        ranking = rdict.get("ranking_str", "")
+        hit = any(is_hit(p["pattern"], ranking) for p in preds["rule_focus"])
+        if not hit:
+            hit = any(is_hit(p["pattern"], ranking) for p in preds["ai_focus"])
+            
+        hits[rid] = hit
+        
+    return hits
 
 @app.get("/api/races/{race_id}/odds")
 def api_get_race_odds(race_id: int, bet_type: str = Query(default="3t")):
@@ -650,22 +905,81 @@ def get_race_detail(race_id: int):
 @app.post("/api/races/{race_id}/predict")
 def get_custom_predict(race_id: int, req: PredictRequest):
     conn = get_db_connection()
-    race = conn.execute('SELECT * FROM races WHERE id = ?', (race_id,)).fetchone()
-    if not race:
+    try:
+        race = conn.execute('SELECT * FROM races WHERE id = ?', (race_id,)).fetchone()
+        if not race:
+            raise HTTPException(status_code=404, detail="Race not found")
+        players = conn.execute(
+            'SELECT * FROM entries WHERE race_id = ? ORDER BY boat_number', (race_id,)
+        ).fetchall()
+
+        race_dict = dict(race)
+        
+        # Overrides 適用
+        scored_players_raw = [dict(p) for p in players]
+        if req.overrides:
+            for ov in req.overrides:
+                for p in scored_players_raw:
+                    if p["boat_number"] == ov.boat_number:
+                        if ov.entry_course is not None: p["entry_course"] = ov.entry_course
+                        if ov.exhibition_time is not None: p["exhibition_time"] = ov.exhibition_time
+                        if ov.start_timing is not None: p["start_timing"] = ov.start_timing
+                        if ov.tilt is not None: p["tilt"] = ov.tilt
+                        if ov.is_absent is not None: p["is_absent"] = 1 if ov.is_absent else 0
+                        # 常にこれらを計算用に使用するようにフラグをセット
+                        p["calc_course"] = p["entry_course"]
+                        p["calc_ex"] = p["exhibition_time"]
+                        p["calc_st"] = p["start_timing"]
+
+        ai_cache = None
+        # overrides があっても recalculate_ai が False なら、
+        # もしDBにキャッシュがあればそれを利用する（表示用）
+        if race_dict.get("ai_predictions_json") and not req.recalculate_ai:
+            try:
+                temp_cache = json.loads(race_dict["ai_predictions_json"])
+                # 通常は展示完了フラグが一致する場合のみ。
+                # ただし overrides がある場合は、ユーザーが意図的に数値をいじっているので、
+                # 計算済みAIデータをそのまま「参考」として出すことを許容する
+                ai_cache = temp_cache
+            except Exception as e:
+                pass
+
+        scored_players, predictions = calculate_predictions(race_dict, scored_players_raw, req.weights, req.settings, ai_cache=ai_cache)
+
+        # 新しく計算した場合（キャッシュがなかった、または無効だった場合）はDBに保存
+        if not ai_cache:
+            new_ai_cache = {
+                "is_exhibition_done": race_dict.get("is_exhibition_done"),
+                "ai_player_data": {
+                    str(p["boat_number"]): {
+                        "ai_base": p["ai_base"],
+                        "ai_score": p["ai_score"],
+                        "ai_mark": p["ai_mark"]
+                    } for p in scored_players
+                },
+                "ai_win_probs": predictions["ai_win_probs"],
+                "ai_pattern_counts": predictions.get("_ai_pattern_counts_list", []),
+                "num_sims": predictions.get("_num_sims", 10000),
+                "scenarios": predictions.get("scenarios", [])
+            }
+            try:
+                conn.execute(
+                    'UPDATE races SET ai_predictions_json = ? WHERE id = ?',
+                    (json.dumps(new_ai_cache), race_id)
+                )
+                conn.commit()
+            except Exception as e:
+                print(f"[CACHE ERROR] Failed to save AI cache: {e}")
+
+        return {
+            "race": race_dict,
+            "players": scored_players,
+            "predictions": predictions,
+            "current_weights": req.weights.dict(),
+            "current_settings": req.settings.dict(),
+        }
+    finally:
         conn.close()
-        raise HTTPException(status_code=404, detail="Race not found")
-    players = conn.execute(
-        'SELECT * FROM entries WHERE race_id = ? ORDER BY boat_number', (race_id,)
-    ).fetchall()
-    conn.close()
-    scored_players, predictions = calculate_predictions(dict(race), players, req.weights, req.settings)
-    return {
-        "race": dict(race),
-        "players": scored_players,
-        "predictions": predictions,
-        "current_weights": req.weights.dict(),
-        "current_settings": req.settings.dict(),
-    }
 
 
 @app.get("/api/races/{race_id}/exhibition/scrape")
@@ -690,10 +1004,11 @@ def scrape_exhibition(race_id: int):
     try:
         for boat_number, info in exhibition.items():
             conn.execute(
-                'UPDATE entries SET exhibition_time=?, start_timing=?, entry_course=?, tilt=? '
+                'UPDATE entries SET exhibition_time=?, start_timing=?, entry_course=?, tilt=?, is_absent=? '
                 'WHERE race_id=? AND boat_number=?',
                 (info["exhibition_time"], info["start_timing"], info["entry_course"],
-                 info.get("tilt", 0.0), race_id, int(boat_number))
+                 info.get("tilt", 0.0), 1 if info.get("is_absent") else 0,
+                 race_id, int(boat_number))
             )
         weather_info = data.get("weather_info", {})
         if weather_info:
@@ -722,17 +1037,19 @@ def update_exhibition(race_id: int, updates: List[ExhibitionUpdate]):
         for update in updates:
             try:
                 conn.execute(
-                    'UPDATE entries SET exhibition_time=?, start_timing=?, entry_course=?, tilt=? '
+                    'UPDATE entries SET exhibition_time=?, start_timing=?, entry_course=?, tilt=?, is_absent=? '
                     'WHERE race_id=? AND boat_number=?',
                     (update.exhibition_time, update.start_timing, update.entry_course,
                      update.tilt if update.tilt is not None else 0.0,
+                     1 if update.is_absent else 0,
                      race_id, update.boat_number)
                 )
             except Exception:
                 conn.execute(
-                    'UPDATE entries SET exhibition_time=?, start_timing=?, entry_course=? '
+                    'UPDATE entries SET exhibition_time=?, start_timing=?, entry_course=?, is_absent=? '
                     'WHERE race_id=? AND boat_number=?',
                     (update.exhibition_time, update.start_timing, update.entry_course,
+                     1 if update.is_absent else 0,
                      race_id, update.boat_number)
                 )
         conn.commit()

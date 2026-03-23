@@ -6,11 +6,16 @@ MIGRATIONS = [
     "ALTER TABLE entries ADD COLUMN racer_id TEXT DEFAULT ''",
     "ALTER TABLE entries ADD COLUMN tilt REAL DEFAULT 0.0",
     "ALTER TABLE races ADD COLUMN is_finished BOOLEAN DEFAULT 0",
+    "ALTER TABLE races ADD COLUMN ranking_str TEXT DEFAULT ''",
+    "ALTER TABLE races ADD COLUMN ai_predictions_json TEXT",
+    "ALTER TABLE entries ADD COLUMN is_absent BOOLEAN DEFAULT 0",
+    "ALTER TABLE races ADD COLUMN result_json TEXT"
 ]
 
 INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_races_date_place ON races(race_date, place_code, race_number)",
     "CREATE INDEX IF NOT EXISTS idx_entries_race_id ON entries(race_id)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_entries_race_boat ON entries(race_id, boat_number)",
 ]
 
 
@@ -70,7 +75,8 @@ def init_db() -> None:
             arrival_order INTEGER,
             race_time TEXT,
             tilt REAL DEFAULT 0.0,
-            FOREIGN KEY (race_id) REFERENCES races(id) ON DELETE CASCADE
+            FOREIGN KEY (race_id) REFERENCES races(id) ON DELETE CASCADE,
+            UNIQUE(race_id, boat_number)
         )
         """
     )

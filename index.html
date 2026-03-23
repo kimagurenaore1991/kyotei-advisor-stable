@@ -39,17 +39,6 @@
             width: 4px;
         }
 
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            /* IE and Edge */
-            scrollbar-width: none;
-            /* Firefox */
-        }
-
         .custom-scrollbar::-webkit-scrollbar-track {
             background: transparent;
         }
@@ -143,17 +132,6 @@
         .tab-icon {
             font-size: 18px;
             line-height: 1;
-        }
-
-        /* ── Dropdown Visibility Fix ── */
-        select option {
-            background-color: #1e293b !important;
-            color: #f8fafc !important;
-        }
-
-        /* Ensure focused select also stays readable */
-        select:focus {
-            background-color: #334155;
         }
 
         /* ── Odds Official Table ── */
@@ -371,6 +349,7 @@
                 class="order-first lg:col-span-3 lg:row-start-1 hidden rounded-xl overflow-hidden border border-slate-600 shadow-xl">
                 <!-- 結果ヘッダー -->
                 <div class="bg-slate-800 px-4 py-2 border-b border-slate-700 flex items-center gap-3">
+                    <span class="text-lg">🏆</span>
                     <h3 class="font-bold text-slate-200 text-sm">レース結果</h3>
                     <span id="result-ranking-compact"
                         class="ml-auto font-mono font-black text-blue-300 text-sm tracking-widest"></span>
@@ -381,7 +360,7 @@
                     <div class="bg-slate-900/60">
                         <h4
                             class="text-xs font-bold text-slate-400 px-3 py-1.5 bg-slate-800/80 border-b border-slate-700">
-                            着順</h4>
+                            🎌 着順</h4>
                         <table class="w-full text-xs">
                             <thead>
                                 <tr class="bg-blue-900/40 text-slate-300">
@@ -400,7 +379,7 @@
                     <div class="bg-slate-900/40">
                         <h4
                             class="text-xs font-bold text-slate-400 px-3 py-1.5 bg-slate-800/80 border-b border-slate-700">
-                            払戻金</h4>
+                            💴 払戻金</h4>
                         <table class="w-full text-xs">
                             <thead>
                                 <tr class="bg-blue-900/40 text-slate-300">
@@ -422,30 +401,22 @@
             <!-- [1] 出走表 — mobile:order-1 / desktop:col-span-3 row-3 -->
             <div id="race-section"
                 class="order-1 lg:col-span-3 lg:row-start-3 bg-slate-800 rounded-xl border border-slate-700 overflow-hidden scroll-mt-20">
-                <div
-                    class="px-4 py-3 bg-slate-750 border-b border-slate-700 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sticky top-0 z-20">
-                    <h3 class="font-bold text-slate-300 text-sm flex items-center gap-2 shrink-0">
-                        詳細出走表
+                <div class="px-4 py-3 bg-slate-750 border-b border-slate-700 flex justify-between items-center">
+                    <h3 class="font-bold text-slate-300 text-sm flex items-center gap-2">
+                        📋 詳細出走表
                     </h3>
-                    <div class="flex gap-1.5 overflow-x-auto no-scrollbar w-full md:w-auto pb-1 md:pb-0 scroll-smooth">
+                    <div class="flex gap-2">
                         <button id="reset-btn"
                             class="text-xs bg-slate-600 hover:bg-slate-500 text-white py-1.5 px-3 rounded transition-colors flex items-center gap-1">
-                            リセット
+                            ↺ リセット
                         </button>
                         <button id="manual-apply-btn"
-                            class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white py-1.5 px-3 rounded transition-colors flex items-center gap-1"
-                            title="この数値を自分用に保存し、カスタム予想のみを更新します">
-                            カスタム反映
-                        </button>
-                        <button id="ai-recalc-btn"
-                            class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white py-1.5 px-3 rounded transition-colors flex items-center gap-1"
-                            title="この数値でAIシミュレーションを再実行します">
-                            AI予想を反映
+                            class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white py-1.5 px-3 rounded transition-colors flex items-center gap-1">
+                            ✅ 反映
                         </button>
                         <button id="recalc-btn"
-                            class="text-xs bg-blue-600 hover:bg-blue-700 text-white py-1.5 px-3 rounded transition-colors flex items-center gap-1"
-                            title="公式サイトから最新の展示情報を取得します">
-                            展示取得
+                            class="text-xs bg-blue-600 hover:bg-blue-700 text-white py-1.5 px-3 rounded transition-colors flex items-center gap-1">
+                            🔄 展示反映
                         </button>
                     </div>
                 </div>
@@ -483,13 +454,13 @@
                 class="order-2 lg:col-span-3 lg:row-start-2 grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 scroll-mt-20">
                 <!-- Custom -->
                 <div class="bg-gradient-to-br from-slate-800 to-blue-900/40 p-4 rounded-xl border border-blue-800/50">
-                    <h3 class="font-bold text-blue-300 mb-2 pb-2 border-b border-blue-800/50 text-sm">カスタム予想</h3>
+                    <h3 class="font-bold text-blue-300 mb-2 pb-2 border-b border-blue-800/50 text-sm">🧑‍💻 カスタム予想</h3>
                     <div id="rule-focus" class="space-y-1 my-2"></div>
                     <p class="text-[10px] text-blue-500 text-center mt-1">設定に応じてリアルタイム変動</p>
                 </div>
                 <!-- AI -->
                 <div class="bg-gradient-to-br from-slate-800 to-slate-900 p-4 rounded-xl border border-slate-600">
-                    <h3 class="font-bold text-slate-300 mb-2 pb-2 border-b border-slate-600 text-sm">AI解析予想</h3>
+                    <h3 class="font-bold text-slate-300 mb-2 pb-2 border-b border-slate-600 text-sm">🤖 AI解析予想</h3>
                     <div class="text-[10px] text-slate-400 mb-1">シミュレーション1着率</div>
                     <div id="ai-win-probs" class="flex gap-1 mb-3"></div>
                     <div id="ai-focus" class="space-y-1 my-2"></div>
@@ -501,7 +472,7 @@
             <div id="scenario-box"
                 class="order-3 lg:col-span-3 lg:row-start-4 hidden bg-red-950/60 p-4 rounded-xl border-l-4 border-red-500 scroll-mt-20">
                 <h3 class="font-bold text-red-400 mb-1 flex items-center gap-1 text-sm">
-                    展開特注アラート
+                    ⚡ 展開特注アラート
                     <span class="bg-red-600 text-white text-xs px-2 py-0.5 rounded ml-1">確率 <span
                             id="makuri-prob"></span>%</span>
                 </h3>
@@ -536,9 +507,9 @@
             <!-- Live Odds -->
             <div id="odds-box" class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
                 <div class="px-4 py-3 bg-slate-750 border-b border-slate-700 flex justify-between items-center">
-                    <h3 class="font-bold text-slate-300 text-sm">リアルタイムオッズ（3連単）</h3>
+                    <h3 class="font-bold text-slate-300 text-sm">📊 リアルタイムオッズ（3連単）</h3>
                     <button onclick="loadOdds()"
-                        class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded transition-colors">
+                        class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded transition-colors">🔄
                         更新</button>
                 </div>
                 <div id="odds-content" class="p-3">
@@ -556,7 +527,7 @@
             <div
                 class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/90 rounded-t-xl sticky top-0 z-10">
                 <h3 class="font-bold text-slate-200 flex items-center gap-2 text-lg">
-                    カスタマイズ共通設定
+                    <span class="text-blue-400">⚙️</span>カスタマイズ共通設定
                 </h3>
                 <button onclick="document.getElementById('settings-modal').classList.add('hidden');"
                     class="text-slate-400 hover:text-white p-2">
@@ -675,11 +646,11 @@
                     </div>
                 </div>
             </div>
-            <div class="p-4 border-t border-slate-700 bg-slate-800/90 rounded-b-xl z-20 space-y-3">
-                <button onclick="resetSettingsToDefault(); refreshSidebarHits();"
-                    class="bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-2 px-6 rounded-lg w-full transition-colors border border-slate-600 text-xs">設定を初期値に戻す</button>
+            <div class="p-4 border-t border-slate-700 bg-slate-800/90 rounded-b-xl z-10 text-center">
+                <p class="text-xs text-slate-400 mb-4 text-left leading-relaxed">
+                    設定は端末ごとに保存され、ブラウザ内で閉じているため他ユーザーの利用へ影響を及ぼしません。<br>複数人で使っても設定はそれぞれ独立します。</p>
                 <button
-                    onclick="document.getElementById('settings-modal').classList.add('hidden'); if(currentRaceId){requestPrediction();} refreshSidebarHits();"
+                    onclick="document.getElementById('settings-modal').classList.add('hidden'); if(currentRaceId){requestPrediction();}"
                     class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-lg w-full transition-colors shadow-lg">完了・反映する</button>
             </div>
         </div>
@@ -702,10 +673,6 @@
         <div class="tab-item tab-active" id="tab-race" onclick="switchTab('race')">
             <span class="tab-icon">📋</span>
             <span>出走表</span>
-        </div>
-        <div class="tab-item" id="tab-vote" onclick="switchTab('vote')">
-            <span class="tab-icon">🛒</span>
-            <span>投票</span>
         </div>
         <div class="tab-item" id="tab-odds" onclick="switchTab('odds')">
             <span class="tab-icon">📊</span>
@@ -737,7 +704,7 @@
     </div>
 
     <script>
-        const APP_VERSION = '1.0.7';
+        const APP_VERSION = '1.0.6';
         const API_BASE = '/api';
 
         // ─── 毎回キャッシュ強制削除 ────────────────────────────────────────────
@@ -799,20 +766,8 @@
             if (prevBtn) prevBtn.style.visibility = relativeDate > -1 ? 'visible' : 'hidden';
             if (nextBtn) nextBtn.style.visibility = relativeDate < 1 ? 'visible' : 'hidden';
 
-            // 画面を初期状態（ウェルカム画面）に戻す
-            resetMainView();
-
-            // 即座にキャッシュから表示（あれば）
-            const dateStr = getTargetDateStr(relativeDate);
-            if (placesCache[dateStr]) {
-                renderPlaces(placesCache[dateStr]);
-            } else {
-                // キャッシュがない場合のみインジケータ表示（既存のリストは残す）
-                const list = document.getElementById('place-list');
-                if (list) list.innerHTML = '<li class="px-3 py-3 text-sm text-slate-500 text-center animate-pulse-fast">読み込み中...</li>';
-            }
-
-            // 非同期で最新データを取得
+            // データ再読み込み
+            lastPlacesJson = ''; // キャッシュクリア
             await loadPlaces();
         }
 
@@ -826,49 +781,12 @@
         }
         const CACHE_PREFIX = `kyotei_v1_${getTodayStr()}_`;
 
-        // 当日以外のローカルストレージキャッシュをクリア（設定は除く）
+        // 当日以外のローカルストレージキャッシュをクリア
         Object.keys(localStorage).forEach(k => {
-            if (k.startsWith('kyotei_v1_') && !k.startsWith(CACHE_PREFIX) && k !== 'kyotei_v1_user_settings') {
+            if (k.startsWith('kyotei_v1_') && !k.startsWith(CACHE_PREFIX)) {
                 localStorage.removeItem(k);
             }
         });
-
-        function saveUserSettings() {
-            const settings = {
-                weights: getWeights(),
-                settings: getSettings()
-            };
-            localStorage.setItem('kyotei_v1_user_settings', JSON.stringify(settings));
-        }
-
-        function loadUserSettings() {
-            try {
-                const val = localStorage.getItem('kyotei_v1_user_settings');
-                if (!val) return;
-                const data = JSON.parse(val);
-                if (data.weights) {
-                    const mapping = {
-                        win_rate: 'win',
-                        motor: 'moto',
-                        exhibition: 'ex',
-                        st: 'st',
-                        course: 'course',
-                        wind: 'wind'
-                    };
-                    for (const [key, v] of Object.entries(data.weights)) {
-                        const id = `w-${mapping[key]}`;
-                        const el = document.getElementById(id);
-                        if (el) el.value = v.toFixed(1);
-                        const valEl = document.getElementById(id.replace('w-', 'val-'));
-                        if (valEl) valEl.textContent = v.toFixed(1);
-                    }
-                }
-                if (data.settings) {
-                    if (data.settings.bet_type) document.getElementById('setting-bet-type').value = data.settings.bet_type;
-                    if (data.settings.max_items) document.getElementById('setting-max-items').value = data.settings.max_items;
-                }
-            } catch (e) { console.warn('loadUserSettings', e); }
-        }
 
         // キャッシュ変数の初期化（ローカルストレージから復元）
         // var を使用して既存定義との衝突を回避
@@ -913,6 +831,28 @@
             }
         }
 
+        // ─── renderList: グローバルスコープ ──────────────────────────────────────
+        function renderList(targetId, items, isDark) {
+            const el = document.getElementById(targetId);
+            if (!el) return;
+            el.innerHTML = '';
+            if (!items || !items.length) {
+                el.innerHTML = '<span class="text-xs text-slate-500 block text-center py-2">データなし</span>';
+                return;
+            }
+            items.forEach((item, i) => {
+                const row = document.createElement('div');
+                const hit = isHit(item.pattern, currentRaceResult);
+                const highlight = i === 0
+                    ? (isDark ? 'text-amber-400' : 'text-orange-400')
+                    : (hit ? 'text-emerald-400' : 'text-slate-200');
+                row.className = `flex justify-between items-center px-2 py-1 rounded text-sm transition-colors ${hit ? 'bg-emerald-900/30 border border-emerald-500/50' : 'bg-white/5 hover:bg-white/10'}`;
+                row.innerHTML = `<span class="w-4 text-xs text-slate-500">${i + 1}</span>
+                <span class="font-black font-mono tracking-widest flex-1 ${highlight}">${hit ? '★' : ''}${item.pattern}${hit ? ' <span class="bg-red-600 text-white text-[9px] px-1 rounded ml-1 font-bold animate-pulse">的中</span>' : ''}</span>
+                <span class="text-xs text-slate-400 font-mono">${item.prob.toFixed(1)}%</span>`;
+                el.appendChild(row);
+            });
+        }
 
 
 
@@ -1056,8 +996,6 @@
 
         // ─── Load Places ───────────────────────────────────────────────────────
         let lastPlacesJson = '';
-        const placesCache = {}; // 日付文字列をキーとしたキャッシュ
-
         async function loadPlaces() {
             try {
                 const dateStr = getTargetDateStr(relativeDate);
@@ -1075,10 +1013,6 @@
                 const res = await fetch(`${API_BASE}/places?date=${dateStr}`);
                 const text = await res.text();
                 const places = JSON.parse(text);
-
-                // キャッシュに保存
-                placesCache[dateStr] = places;
-
                 if (text !== lastPlacesJson) {
                     lastPlacesJson = text;
                     renderPlaces(places);
@@ -1087,39 +1021,6 @@
             } catch (e) { console.error('loadPlaces', e); return []; }
         }
 
-        async function refreshSidebarHits() {
-            const dateStr = getTargetDateStr(relativeDate);
-            try {
-                const reqBody = { weights: getWeights(), settings: getSettings() };
-                const dhRes = await fetch(`${API_BASE}/daily_hits?date=${dateStr}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(reqBody)
-                });
-                if (dhRes.ok) {
-                    window.dailyHitsCache = await dhRes.json();
-                    // 全てのボタンのバッジを更新 (的中表示を即座に反映)
-                    document.querySelectorAll('[id^="race-btn-"]').forEach(btn => {
-                        const raceId = parseInt(btn.id.replace('race-btn-', ''));
-                        const hitData = window.dailyHitsCache.find(h => h.race_id === raceId);
-                        if (hitData) {
-                            applyFinishBadge(btn, hitData.is_hit, raceId);
-                        }
-                    });
-                }
-            } catch (e) { }
-        }
-
-
-        function resetMainView() {
-            document.getElementById('welcome-screen').classList.remove('hidden');
-            document.getElementById('race-header').classList.add('hidden');
-            document.getElementById('main-content').classList.add('hidden');
-            document.getElementById('odds-result-section').classList.add('hidden');
-            const rb = document.getElementById('result-banner');
-            if (rb) rb.classList.add('hidden');
-            currentRaceId = null;
-        }
 
         function renderPlaces(places) {
             const list = document.getElementById('place-list');
@@ -1129,26 +1030,27 @@
                 if (!el.classList.contains('hidden')) openPlaces.push(el.id.replace('races-container-', ''));
             });
 
-            // ちらつき防止のため、新しい内容を一度バッファ（一時領域）に作成してから入れ替える
-            const tempDiv = document.createElement('div');
+            list.innerHTML = '';
             const hasActive = places && places.some(p => p.is_active);
             if (!places || places.length === 0 || !hasActive) {
                 const dateLabel = getDisplayDateLabel(relativeDate);
-                tempDiv.innerHTML = `<li class="px-4 py-8 text-center text-slate-500 text-sm">
+                list.innerHTML = `<li class="px-4 py-8 text-center text-slate-500 text-sm">
                     <div class="mb-2 text-2xl">📡</div>
                     <p class="font-bold text-slate-400 mb-1">${dateLabel}のデータがありません</p>
                     <p class="text-[10px] leading-relaxed">まだ開催前か、サーバーでの<br>データ取得に失敗した可能性があります。<br>「データ一括取得」をお試しください。</p>
                 </li>`;
-            } else {
-                let firstActive = null;
-                places.forEach(p => {
-                    if (p.is_active && !firstActive) firstActive = p.place;
-                    const li = document.createElement('li');
-                    if (p.is_active) {
-                        const gradeInfo = p.grade ? getGradeInfo(p.grade) : { label: '', cls: '' };
-                        const badge = gradeInfo.label ? gradeBadge(gradeInfo.label, gradeInfo.cls, true) : '';
-                        const raceBadge = p.max_race ? `<span class="text-[9px] text-slate-500 ml-1">${p.max_race}R</span>` : '';
-                        li.innerHTML = `
+                return;
+            }
+
+            let firstActive = null;
+            places.forEach(p => {
+                if (p.is_active && !firstActive) firstActive = p.place;
+                const li = document.createElement('li');
+                if (p.is_active) {
+                    const gradeInfo = p.grade ? getGradeInfo(p.grade) : { label: '', cls: '' };
+                    const badge = gradeInfo.label ? gradeBadge(gradeInfo.label, gradeInfo.cls, true) : '';
+                    const raceBadge = p.max_race ? `<span class="text-[9px] text-slate-500 ml-1">${p.max_race}R</span>` : '';
+                    li.innerHTML = `
                 <div>
                     <button onclick="loadRaces('${p.place}')" class="w-full text-left px-3 py-2.5 rounded-lg text-slate-200 font-semibold transition-all hover:bg-slate-700 border-l-4 border-blue-500 flex items-center justify-between bg-slate-700/30">
                         <span class="flex items-center gap-1.5">${p.place}${raceBadge} ${badge}</span>
@@ -1156,27 +1058,27 @@
                     </button>
                     <div id="races-container-${p.place}" class="hidden grid grid-cols-4 gap-1.5 p-2 bg-slate-900/60 mx-1 rounded-b-lg border-x border-b border-slate-700"></div>
                 </div>`;
-                    } else {
-                        li.innerHTML = `
+                } else {
+                    li.innerHTML = `
                 <div>
                     <button class="w-full text-left px-3 py-2 rounded-lg text-slate-600 text-sm transition-all cursor-default flex items-center justify-between">
                         <span>${p.place}</span>
                         <span class="text-[10px] text-slate-700">非開催</span>
                     </button>
                 </div>`;
-                    }
-                    tempDiv.appendChild(li);
+                }
+                list.appendChild(li);
+            });
+
+            if (isFirstLoad && firstActive) {
+                isFirstLoad = false;
+                setTimeout(() => loadRaces(firstActive, true), 200);
+            } else {
+                openPlaces.forEach(pl => {
+                    const cont = document.getElementById(`races-container-${pl}`);
+                    if (cont) loadRaces(pl);
                 });
             }
-
-            // 中身を一気に差し替える
-            list.innerHTML = tempDiv.innerHTML;
-
-            isFirstLoad = false;
-            openPlaces.forEach(pl => {
-                const cont = document.getElementById(`races-container-${pl}`);
-                if (cont) loadRaces(pl);
-            });
         }
 
         // ─── Load Races for a Place ────────────────────────────────────────────
@@ -1191,11 +1093,7 @@
             const container = document.getElementById(`races-container-${placeName}`);
             if (!container) return;
             container.classList.remove('hidden');
-
-            // すでに中身がある場合は「取得中...」を表示せずに更新（サイレント更新）
-            if (container.children.length === 0) {
-                container.innerHTML = '<div class="col-span-4 text-center text-xs py-2 text-slate-500 animate-pulse-fast">取得中...</div>';
-            }
+            container.innerHTML = '<div class="col-span-4 text-center text-xs py-2 text-slate-500 animate-pulse-fast">取得中...</div>';
 
             try {
                 const dateStr = getTargetDateStr(relativeDate);
@@ -1386,6 +1284,123 @@
             }
         }
 
+        function showToast(msg) {
+            alert(msg);
+        }
+
+        // ─── Cart & Teleboat logic ─────────────────────────────────────────────
+        let betCart = {};
+
+        function addToCart(pattern) {
+            if (!betCart[pattern]) betCart[pattern] = 100;
+            else betCart[pattern] += 100;
+            renderCart();
+            saveCart();
+            
+            // show subtle animation or feedback
+            const cartEl = document.getElementById('cart-section');
+            if(cartEl) {
+                cartEl.classList.remove('ring-2', 'ring-emerald-500', 'bg-emerald-900/20');
+                void cartEl.offsetWidth; // trigger reflow
+                cartEl.classList.add('ring-2', 'ring-emerald-500', 'transition-all', 'duration-300');
+                setTimeout(() => cartEl.classList.remove('ring-2', 'ring-emerald-500'), 500);
+            }
+        }
+
+        function updateCartAmount(pattern, amt) {
+            amt = parseInt(amt);
+            if (isNaN(amt) || amt <= 0) delete betCart[pattern];
+            else betCart[pattern] = amt;
+            renderCart();
+            saveCart();
+        }
+
+        function removeFromCart(pattern) {
+            delete betCart[pattern];
+            renderCart();
+            saveCart();
+        }
+
+        function saveCart() {
+            if (currentRaceId) saveCache('cart_' + currentRaceId, betCart);
+        }
+
+        function loadCart() {
+            if (currentRaceId) {
+                const loaded = localStorage.getItem(CACHE_PREFIX + 'cart_' + currentRaceId);
+                if (loaded) betCart = JSON.parse(loaded);
+                else betCart = {};
+            }
+            renderCart();
+        }
+
+        function renderCart() {
+            const el = document.getElementById('cart-items');
+            if(!el) return;
+            const keys = Object.keys(betCart);
+            if(keys.length === 0) {
+                el.innerHTML = '<p class="text-xs text-slate-500 text-center py-4">予想の横の「➕」から追加してください</p>';
+                document.getElementById('cart-total-amount').textContent = '0円';
+                return;
+            }
+            let html = '<div class="space-y-1">';
+            let total = 0;
+            
+            // pattern sorting: 3連単(1-2-3)等を見やすく
+            keys.sort().forEach(pat => {
+                const amt = betCart[pat];
+                total += amt;
+                
+                // parse pattern for display
+                let displayPat = pat;
+                if(pat.includes('-')) {
+                    displayPat = pat.split('-').map(n => `<span class="inline-block w-4 h-4 text-center rounded text-[10px] text-white border ${boatColors[parseInt(n)-1]||'bg-slate-700'}">${n}</span>`).join('<span class="text-slate-500 text-[10px] mx-0.5">-</span>');
+                } else if(pat.includes('=')) {
+                    displayPat = pat.split('=').map(n => `<span class="inline-block w-4 h-4 text-center rounded text-[10px] text-white border ${boatColors[parseInt(n)-1]||'bg-slate-700'}">${n}</span>`).join('<span class="text-slate-500 text-[10px] mx-0.5">=</span>');
+                } else {
+                    displayPat = `<span class="inline-block w-4 h-4 text-center rounded text-[10px] text-white border ${boatColors[parseInt(pat)-1]||'bg-slate-700'}">${pat}</span>`;
+                }
+
+                html += `
+                <div class="flex justify-between items-center py-1.5 px-2 bg-slate-700/40 rounded border border-slate-600/50">
+                    <div class="flex items-center gap-2">
+                        <button onclick="removeFromCart('${pat}')" class="text-slate-500 hover:text-red-400 text-xs px-1">✖</button>
+                        <div class="flex items-center font-bold tracking-widest">${displayPat}</div>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <input type="number" min="100" step="100" value="${amt}" class="w-20 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-right font-mono outline-none text-white focus:border-blue-400 text-sm" onchange="updateCartAmount('${pat}', this.value)">
+                        <span class="text-slate-400 text-[10px]">円</span>
+                    </div>
+                </div>`;
+            });
+            html += '</div>';
+            el.innerHTML = html;
+            document.getElementById('cart-total-amount').textContent = total.toLocaleString() + '円';
+        }
+
+        function copyAndOpenTeleboat() {
+            const keys = Object.keys(betCart);
+            if(keys.length === 0) {
+                alert("カートが空です。予想を追加してください。");
+                return;
+            }
+            let text = "■ 買い目メモ\n";
+            let total = 0;
+            keys.sort().forEach(p => {
+                text += `${p} : ${betCart[p]}円\n`;
+                total += betCart[p];
+            });
+            text += `----------\n合計: ${total.toLocaleString()}円`;
+            
+            navigator.clipboard.writeText(text).then(() => {
+                alert("買い目をコピーしました！\nテレボートのログインページを開きます。");
+            }).catch(e => {
+                alert("コピーに失敗しました。手動でメモしてください。\n\n" + text);
+            }).finally(() => {
+                window.open("https://www.boatrace.jp/owpc/pc/login", "_blank", "noopener,noreferrer");
+            });
+        }
+
         function getWeights() {
             return {
                 win_rate: parseFloat(document.getElementById('w-win').value),
@@ -1418,40 +1433,12 @@
             if (current > max) current = max;
             el.value = current.toFixed(1);
             valEl.textContent = el.value;
-            saveUserSettings();
             if (currentRaceId) requestPrediction();
         }
 
         ['setting-bet-type', 'setting-max-items'].forEach(id => {
-            document.getElementById(id).addEventListener('change', () => {
-                saveUserSettings();
-                if (currentRaceId) requestPrediction();
-            });
+            document.getElementById(id).addEventListener('change', () => { if (currentRaceId) requestPrediction(); });
         });
-
-        function resetSettingsToDefault() {
-            document.getElementById('w-win').value = "1.0";
-            document.getElementById('val-win').textContent = "1.0";
-            document.getElementById('w-moto').value = "1.0";
-            document.getElementById('val-moto').textContent = "1.0";
-            document.getElementById('w-ex').value = "1.0";
-            document.getElementById('val-ex').textContent = "1.0";
-            document.getElementById('w-st').value = "1.0";
-            document.getElementById('val-st').textContent = "1.0";
-            document.getElementById('w-course').value = "1.0";
-            document.getElementById('val-course').textContent = "1.0";
-            document.getElementById('w-wind').value = "0.0";
-            document.getElementById('val-wind').textContent = "0.0";
-
-            document.getElementById('setting-bet-type').value = "3連単";
-            document.getElementById('setting-max-items').value = "8";
-
-            document.getElementById('setting-max-items').value = "8";
-
-            saveUserSettings();
-            showToast('設定を初期値にリセットしました。');
-            if (currentRaceId) requestPrediction();
-        }
 
         function toggleFixedHead(boatNum) {
             if (activeFixedHead === boatNum) {
@@ -1462,20 +1449,12 @@
             if (currentRaceId) requestPrediction();
         }
 
-        async function requestPrediction(recalculateAi = false) {
+        async function requestPrediction() {
             try {
-                // ローカル保存されている上書き情報の取得
-                const overrides = currentRaceId ? (JSON.parse(localStorage.getItem(`kyotei_override_${currentRaceId}`)) || null) : null;
-
                 const res = await fetch(`${API_BASE}/races/${currentRaceId}/predict`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        weights: getWeights(),
-                        settings: getSettings(),
-                        overrides: overrides,
-                        recalculate_ai: recalculateAi
-                    })
+                    body: JSON.stringify({ weights: getWeights(), settings: getSettings() })
                 });
                 if (!res.ok) throw new Error(`API ${res.status}`);
                 const data = await res.json();
@@ -1487,8 +1466,8 @@
                     const preds = data.predictions;
                     // 表示されている点数内での的中のみを判定対象にする
                     const isHitFlag = preds.rule_focus.some(p => isHit(p.pattern, data.race.ranking_str)) ||
-                        preds.ai_focus.some(p => isHit(p.pattern, data.race.ranking_str));
-
+                                preds.ai_focus.some(p => isHit(p.pattern, data.race.ranking_str));
+                    
                     if (window.dailyHitsCache) window.dailyHitsCache[currentRaceId] = isHitFlag;
                     const btn = document.getElementById(`race-btn-${currentRaceId}`);
                     if (btn) applyFinishBadge(btn, isHitFlag);
@@ -1542,18 +1521,14 @@
             const aiWinProbsEl = document.getElementById('ai-win-probs');
             if (aiWinProbsEl && predictions.ai_win_probs) {
                 aiWinProbsEl.innerHTML = [1, 2, 3, 4, 5, 6].map(b => {
-                    const player = players.find(p => p.boat_number === b);
-                    const isAbsent = player && player.is_absent;
                     const isSelected = activeFixedHead === b;
                     const isOtherSelected = activeFixedHead !== 0 && !isSelected;
                     const ringCls = isSelected ? 'ring-2 ring-blue-400 bg-slate-700' : 'bg-slate-800 hover:bg-slate-750';
-                    const dimCls = (isOtherSelected || isAbsent) ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer';
+                    const dimCls = isOtherSelected ? 'opacity-40' : '';
                     const cc = boatColors[b - 1];
-                    const prob = isAbsent ? '--' : (predictions.ai_win_probs[b] || 0) + '%';
-
-                    return `<button onclick="${isAbsent ? '' : `toggleFixedHead(${b})`}" class="flex-1 text-center rounded py-1 border border-slate-700 transition-all ${ringCls} ${dimCls}" ${isAbsent ? 'disabled' : ''}>
+                    return `<button onclick="toggleFixedHead(${b})" class="flex-1 text-center rounded py-1 border border-slate-700 transition-all cursor-pointer ${ringCls} ${dimCls}">
                       <div class="w-4 h-4 mx-auto rounded flex items-center justify-center text-[10px] font-bold mb-0.5 ${cc}">${b}</div>
-                      <div class="text-[10px] font-mono ${isSelected ? 'text-blue-300 font-bold' : 'text-slate-300'}">${prob}</div>
+                      <div class="text-[10px] font-mono ${isSelected ? 'text-blue-300 font-bold' : 'text-slate-300'}">${predictions.ai_win_probs[b] || 0}%</div>
                     </button>`;
                 }).join('');
             }
@@ -1575,16 +1550,15 @@
 
             // Mobile cards
             players.slice().sort((a, b) => a.boat_number - b.boat_number).forEach(p => {
-                const isAbs = p.is_absent;
                 const cc = boatColors[p.boat_number - 1];
                 const card = document.createElement('div');
-                card.className = `p-4 bg-slate-800 border-b border-slate-700 space-y-2 ${isAbs ? 'opacity-50 grayscale-[0.5]' : ''}`;
+                card.className = 'p-4 bg-slate-800 border-b border-slate-700 space-y-2';
                 card.innerHTML = `
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
                         <div class="w-7 h-7 rounded flex items-center justify-center font-bold text-sm border ${cc}">${p.boat_number}</div>
-                        <span class="font-bold text-base ${isAbs ? 'line-through text-slate-500' : ''}">${p.racer_name || '--'}</span>
-                        ${isAbs ? '<span class="text-[10px] px-1 py-px bg-red-900/60 text-red-200 border border-red-700 rounded font-bold">欠場</span>' : `<span class="text-[10px] px-1 py-px bg-slate-700 rounded">${p.racer_class || '-'}</span>`}
+                        <span class="font-bold text-base">${p.racer_name || '--'}</span>
+                        <span class="text-[10px] px-1 py-px bg-slate-700 rounded">${p.racer_class || '-'}</span>
                     </div>
                     <div class="text-sm font-bold flex gap-1 items-center">
                         <span class="text-slate-300">${p.ai_mark}</span><span class="text-slate-600">|</span><span class="text-blue-400">${p.rule_mark}</span>
@@ -1597,22 +1571,22 @@
                 <div class="grid grid-cols-4 gap-1 text-xs">
                     <div><label class="block text-slate-500 mb-0.5">進入</label>
                         <select id="m-course-${p.boat_number}" class="w-full bg-slate-700 border border-slate-600 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-blue-400">
-                            ${[...Array(6)].map((_, i) => `<option value="${i + 1}" ${(p.calc_course ?? p.boat_number) === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}
+                            ${[...Array(6)].map((_, i) => `<option value="${i + 1}" ${(p.calc_course || p.boat_number) === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}
                         </select>
                     </div>
                     <div><label class="block text-slate-500 mb-0.5">展示T</label>
                         <select id="m-ex-${p.boat_number}" class="w-full bg-amber-900/30 border border-amber-700/50 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-amber-500">
-                            ${generateOptions(6.30, 7.30, 0.01, p.calc_ex ?? 6.80)}
+                            ${generateOptions(6.30, 7.30, 0.01, p.calc_ex || 6.80)}
                         </select>
                     </div>
                     <div><label class="block text-slate-500 mb-0.5">ST</label>
                         <select id="m-st-${p.boat_number}" class="w-full bg-amber-900/30 border border-amber-700/50 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-amber-500">
-                            ${generateOptions(-0.10, 0.50, 0.01, p.calc_st ?? 0.15)}
+                            ${generateOptions(-0.10, 0.50, 0.01, p.calc_st || 0.15)}
                         </select>
                     </div>
                     <div><label class="block text-slate-500 mb-0.5">チルト</label>
                         <select id="m-tilt-${p.boat_number}" class="w-full bg-orange-900/30 border border-orange-700/50 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-orange-500">
-                            ${generateTiltOptions(p.tilt ?? 0.0)}
+                            ${generateTiltOptions(p.tilt != null ? p.tilt : 0.0)}
                         </select>
                     </div>
                 </div>`;
@@ -1622,22 +1596,14 @@
 
         function appendTableRows(tb, players) {
             players.forEach(p => {
-                const isAbs = p.is_absent;
                 const cc = boatColors[p.boat_number - 1];
                 const tr = document.createElement('tr');
-                tr.className = `hover:bg-slate-700/40 transition-colors ${isAbs ? 'bg-slate-900/50 text-slate-500 italic opacity-60' : ''}`;
+                tr.className = 'hover:bg-slate-700/40 transition-colors';
                 tr.innerHTML = `
-                <td class="px-3 py-2 text-center" onclick="toggleAbsent(${p.boat_number})">
-                    <div class="w-6 h-6 rounded flex items-center justify-center font-bold text-xs border mx-auto cursor-pointer hover:scale-110 transition-transform ${cc}">
-                        ${p.boat_number}
-                    </div>
-                </td>
-                <td class="px-3 py-2 cursor-pointer" onclick="${isAbs ? '' : `openPlayerModal('${p.racer_id || p.toban || ''}','${(p.racer_name || '').replace(/'/g, "\\'")}')`}">
-                    <div class="flex items-center gap-1">
-                        <div class="font-bold ${isAbs ? 'line-through' : 'text-slate-200'}">${p.racer_name || '--'}</div>
-                        ${isAbs ? '<span class="text-[9px] px-1 bg-red-900/40 text-red-400 border border-red-900/60 rounded not-italic font-bold">欠場</span>' : ''}
-                    </div>
-                    ${isAbs ? '' : `<div class="text-[10px] text-slate-500">${p.racer_class || '-'} <span class="text-blue-400">▶ 詳細</span></div>`}
+                <td class="px-3 py-2 text-center"><div class="w-6 h-6 rounded flex items-center justify-center font-bold text-xs border mx-auto ${cc}">${p.boat_number}</div></td>
+                <td class="px-3 py-2 cursor-pointer" onclick="openPlayerModal('${p.racer_id || p.toban || ''}','${(p.racer_name || '').replace(/'/g, "\\'")}')">
+                    <div class="font-bold text-slate-200">${p.racer_name || '--'}</div>
+                    <div class="text-[10px] text-slate-500">${p.racer_class || '-'} <span class="text-blue-400">▶ 詳細</span></div>
                 </td>
                 <td class="px-3 py-2 text-center font-mono text-sm text-slate-300">${p.global_win_rate || 0}</td>
                 <td class="px-3 py-2 text-center font-mono text-sm text-slate-300">${p.local_win_rate || 0}</td>
@@ -1645,22 +1611,22 @@
                 <td class="px-3 py-2 text-center text-xs text-slate-500 font-mono">${p.motor_number || '-'}</td>
                 <td class="px-3 py-2 border-l border-slate-700 bg-amber-900/10" onclick="event.stopPropagation()">
                     <select id="in-course-${p.boat_number}" onclick="event.stopPropagation()" class="w-14 bg-slate-700 border border-slate-600 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-blue-400 appearance-none text-center-last">
-                        ${[...Array(6)].map((_, i) => `<option value="${i + 1}" ${(p.calc_course ?? p.boat_number) === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}
+                        ${[...Array(6)].map((_, i) => `<option value="${i + 1}" ${(p.calc_course || p.boat_number) === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}
                     </select>
                 </td>
                 <td class="px-3 py-2 bg-amber-900/10" onclick="event.stopPropagation()">
                     <select id="in-ex-${p.boat_number}" onclick="event.stopPropagation()" class="w-16 bg-slate-700 border border-amber-700/40 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-amber-500 appearance-none text-center-last">
-                        ${generateOptions(6.30, 7.30, 0.01, p.calc_ex ?? 6.80)}
+                        ${generateOptions(6.30, 7.30, 0.01, p.calc_ex || 6.80)}
                     </select>
                 </td>
                 <td class="px-3 py-2 bg-amber-900/10" onclick="event.stopPropagation()">
                     <select id="in-st-${p.boat_number}" onclick="event.stopPropagation()" class="w-16 bg-slate-700 border border-amber-700/40 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-amber-500 appearance-none text-center-last">
-                        ${generateOptions(-0.10, 0.50, 0.01, p.calc_st ?? 0.15)}
+                        ${generateOptions(-0.10, 0.50, 0.01, p.calc_st || 0.15)}
                     </select>
                 </td>
                 <td class="px-3 py-2 bg-orange-900/10" onclick="event.stopPropagation()">
                     <select id="in-tilt-${p.boat_number}" onclick="event.stopPropagation()" class="w-16 bg-slate-700 border border-orange-700/40 rounded px-1 py-1 text-center font-mono text-sm text-slate-100 outline-none focus:border-orange-500 appearance-none text-center-last">
-                        ${generateTiltOptions(p.tilt ?? 0.0)}
+                        ${generateTiltOptions(p.tilt != null ? p.tilt : 0.0)}
                     </select>
                 </td>
                 <td class="px-3 py-2 text-center border-l border-slate-700">
@@ -2041,95 +2007,76 @@
 
 
         document.getElementById('reset-btn').addEventListener('click', async () => {
-            if (!currentRaceId) return;
+            if (!currentRaceId || !originalPlayersSnapshot.length) return;
+            originalPlayersSnapshot.forEach(p => {
+                const snapValid = (val, step = 0.01) => (Math.round(val / step) * step).toFixed(2);
+                const snapTilt = (val) => val >= 1.0 ? "1.0" : val >= 0.5 ? "0.5" : val >= 0.0 ? "0.0" : "-0.5";
 
-            // ローカル上書きの削除
-            localStorage.removeItem(`kyotei_override_${currentRaceId}`);
-
-            // 画面表示を強制的にデフォルト値(展示6.80, ST0.15等)にリセット
-            if (currentPlayersData) {
-                currentPlayersData.forEach(p => {
-                    const b = p.boat_number;
-                    // デスクトップ用とモバイル用の両方の要素をセット
-                    ['in', 'm'].forEach(prefix => {
-                        const cn = document.getElementById(`${prefix}-course-${b}`);
-                        const en = document.getElementById(`${prefix}-ex-${b}`);
-                        const sn = document.getElementById(`${prefix}-st-${b}`);
-                        const tn = document.getElementById(`${prefix}-tilt-${b}`);
-                        if (cn) cn.value = String(b);
-                        if (en) en.value = "6.80";
-                        if (sn) sn.value = "0.15";
-                        if (tn) tn.value = "0.0";
-                    });
+                ['in-course', 'm-course'].forEach(prefix => {
+                    const el = document.getElementById(`${prefix}-${p.boat_number}`);
+                    if (el) el.value = String(p.calc_course || p.boat_number);
                 });
-            }
-
+                ['in-ex', 'm-ex'].forEach(prefix => {
+                    const el = document.getElementById(`${prefix}-${p.boat_number}`);
+                    if (el) el.value = snapValid(p.calc_ex || 6.80, 0.01);
+                });
+                ['in-st', 'm-st'].forEach(prefix => {
+                    const el = document.getElementById(`${prefix}-${p.boat_number}`);
+                    if (el) el.value = snapValid(p.calc_st || 0.15, 0.01);
+                });
+                ['in-tilt', 'm-tilt'].forEach(prefix => {
+                    const el = document.getElementById(`${prefix}-${p.boat_number}`);
+                    if (el) el.value = snapTilt(p.tilt != null ? p.tilt : 0.0);
+                });
+            });
             try {
-                showToast('数値を初期値にリセット中...', 'ok');
-                await requestPrediction(true); // AIも公式データで再計算
-                showToast('数値を初期値にリセットしました。', 'ok');
+                const updates = originalPlayersSnapshot.map(p => ({
+                    boat_number: p.boat_number,
+                    entry_course: p.calc_course || p.boat_number,
+                    exhibition_time: p.calc_ex || 6.80,
+                    start_timing: p.calc_st || 0.15,
+                    tilt: p.tilt != null ? p.tilt : 0.0
+                }));
+                await fetch(`${API_BASE}/races/${currentRaceId}/exhibition`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates)
+                });
+                requestPrediction();
+                showToast('数値を初期状態にリセットしました。', 'ok');
             } catch (e) {
                 console.error(e);
                 showToast('リセット中にエラーが発生しました。', 'error');
             }
         });
 
-        // 共通保存関数
-        function getOverrideDataFromInputs() {
-            if (!currentPlayersData) return null;
-            return currentPlayersData.map(p => {
-                const cn = document.getElementById(`in-course-${p.boat_number}`) || document.getElementById(`m-course-${p.boat_number}`);
-                const en = document.getElementById(`in-ex-${p.boat_number}`) || document.getElementById(`m-ex-${p.boat_number}`);
-                const sn = document.getElementById(`in-st-${p.boat_number}`) || document.getElementById(`m-st-${p.boat_number}`);
-                const tn = document.getElementById(`in-tilt-${p.boat_number}`) || document.getElementById(`m-tilt-${p.boat_number}`);
-                return {
-                    boat_number: p.boat_number,
-                    entry_course: cn ? parseInt(cn.value) : p.boat_number,
-                    exhibition_time: en ? parseFloat(en.value) : 6.80,
-                    start_timing: sn ? parseFloat(sn.value) : 0.15,
-                    tilt: tn ? parseFloat(tn.value) : 0.0,
-                    is_absent: !!p.is_absent
-                };
-            });
-        }
-
-        function toggleAbsent(boatNum) {
-            if (!currentPlayersData) return;
-            const p = currentPlayersData.find(x => x.boat_number === boatNum);
-            if (p) {
-                p.is_absent = !p.is_absent;
-                const updates = getOverrideDataFromInputs();
-                localStorage.setItem(`kyotei_override_${currentRaceId}`, JSON.stringify(updates));
-                // 画面を更新（requestPrediction を呼ぶと全更新されるが、ここでは見た目だけ変える）
-                const cache = lastPredictionsCache[currentRaceId];
-                if (cache) {
-                    renderRace(cache.race, currentPlayersData, cache.predictions);
-                }
-            }
-        }
-
         document.getElementById('manual-apply-btn').addEventListener('click', async () => {
-            if (!currentRaceId) return;
-            const updates = getOverrideDataFromInputs();
-            localStorage.setItem(`kyotei_override_${currentRaceId}`, JSON.stringify(updates));
-            await requestPrediction(false); // AI再計算なし（キャッシュ優先）
-            showToast('カスタム予想に反映しました。', 'ok');
-        });
-
-        document.getElementById('ai-recalc-btn').addEventListener('click', async () => {
-            if (!currentRaceId) return;
-            const btn = document.getElementById('ai-recalc-btn');
-            const orig = btn.innerHTML;
-            btn.disabled = true; btn.textContent = 'AI計算中...';
+            if (!currentRaceId || !currentPlayersData.length) return;
+            const btn = document.getElementById('manual-apply-btn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true; btn.textContent = '反映中...';
             try {
-                const updates = getOverrideDataFromInputs();
-                localStorage.setItem(`kyotei_override_${currentRaceId}`, JSON.stringify(updates));
-                await requestPrediction(true); // AI再計算あり
-                showToast('AI予想を再計算・反映しました。', 'ok');
+                // Read from mobile or desktop inputs
+                const updates = currentPlayersData.map(p => {
+                    const cn = document.getElementById(`in-course-${p.boat_number}`) || document.getElementById(`m-course-${p.boat_number}`);
+                    const en = document.getElementById(`in-ex-${p.boat_number}`) || document.getElementById(`m-ex-${p.boat_number}`);
+                    const sn = document.getElementById(`in-st-${p.boat_number}`) || document.getElementById(`m-st-${p.boat_number}`);
+                    const tn = document.getElementById(`in-tilt-${p.boat_number}`) || document.getElementById(`m-tilt-${p.boat_number}`);
+                    return {
+                        boat_number: p.boat_number,
+                        entry_course: cn ? parseInt(cn.value) : p.boat_number,
+                        exhibition_time: en ? parseFloat(en.value) : 6.80,
+                        start_timing: sn ? parseFloat(sn.value) : 0.15,
+                        tilt: tn ? parseFloat(tn.value) : 0.0
+                    };
+                });
+                const res = await fetch(`${API_BASE}/races/${currentRaceId}/exhibition`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates)
+                });
+                if (!res.ok) throw new Error('Update failed');
+                await requestPrediction();
             } catch (e) {
-                showToast('AI再計算中にエラーが発生しました。', 'error');
+                alert('反映中にエラーが発生しました: ' + e);
             } finally {
-                btn.disabled = false; btn.innerHTML = orig;
+                btn.disabled = false; btn.innerHTML = originalText;
             }
         });
 
@@ -2192,49 +2139,44 @@
 
         function closeModal() { document.getElementById('player-modal').classList.add('hidden'); }
 
-        let lastScrapingState = false;
+        // ─── Status polling & auto-refresh ────────────────────────────────────
+        let isScraping = false;
         let isFirstStatusCheck = true;
         async function checkStatus() {
-            let nextDelay = 15000;
+            let nextDelay = 10000;
             try {
                 const res = await fetch(`${API_BASE}/status`);
                 const data = await res.json();
-                const isScrapingNow = !!data.is_scraping;
-
-                // 状態が「実行中」から「完了」に変わった瞬間を検知
-                const scrapingFinished = lastScrapingState && !isScrapingNow;
-                lastScrapingState = isScrapingNow;
-
                 const ind = document.getElementById('scraping-indicator');
                 const btn = document.getElementById('force-scrape-btn');
-
-                if (isScrapingNow) {
+                
+                if (data.is_scraping) {
                     ind.classList.remove('hidden');
-                    if (btn) {
-                        btn.disabled = true;
-                        btn.textContent = '⏳ 自動更新中...';
+                    if (btn) { 
+                        btn.disabled = true; 
+                        btn.textContent = '⏳ 自動更新中...'; 
                     }
-                    nextDelay = 4000; // 更新中は頻度を上げる
+                    nextDelay = 5000;
                 } else {
                     ind.classList.add('hidden');
-                    if (btn) {
-                        btn.disabled = false;
-                        btn.innerHTML = '📥 データ一括取得';
+                    if (btn) { 
+                        btn.disabled = false; 
+                        btn.innerHTML = '📥 データ一括取得'; 
                     }
                     nextDelay = 15000;
                 }
 
-                // 初回、更新中、または更新が完了した瞬間にデータを最新化
-                if (isFirstStatusCheck || isScrapingNow || scrapingFinished) {
-                    await loadPlaces();
-                    const openContainer = document.querySelector('[id^="races-container-"]:not(.hidden)');
-                    if (openContainer) {
-                        const placeName = openContainer.id.replace('races-container-', '');
-                        await loadRaces(placeName);
-                    }
-                    if (currentRaceId) {
-                        await requestPrediction();
-                    }
+                // データの再読み込み（場一覧と、現在開いている場のレース一覧）
+                await loadPlaces();
+                const openContainer = document.querySelector('[id^="races-container-"]:not(.hidden)');
+                if (openContainer) {
+                    const placeName = openContainer.id.replace('races-container-', '');
+                    await loadRaces(placeName);
+                }
+                
+                // 現在詳細を見ているレースがあれば、その詳細（展示・結果）を更新
+                if (currentRaceId) {
+                    await requestPrediction();
                 }
 
             } catch (e) { console.error('checkStatus error', e); }
@@ -2250,7 +2192,6 @@
         const TAB_TARGETS = {
             predict: 'predict-section',
             race: 'race-section',
-            vote: 'cart-section',
             odds: 'odds-result-section',
             setting: 'setting-section',
         };
@@ -2300,146 +2241,9 @@
         }
 
         // Start
-        loadUserSettings();
-        // 強制的に3連単をデフォルトにする（設定がない場合）
-        const betSelect = document.getElementById('setting-bet-type');
-        if (!localStorage.getItem('kyotei_v1_user_settings')) {
-            betSelect.value = "3連単";
-        }
         checkStatus();
         // Refresh places every 5 min
         setInterval(loadPlaces, 300000);
-
-        // ─── Cart & Teleboat logic ─────────────────────────────────────────────
-        let betCart = {};
-
-        function addToCart(pattern) {
-            if (!betCart[pattern]) betCart[pattern] = 100;
-            else betCart[pattern] += 100;
-            renderCart();
-            saveCart();
-            
-            // show subtle animation or feedback
-            const cartEl = document.getElementById('cart-section');
-            if(cartEl) {
-                cartEl.classList.remove('ring-2', 'ring-emerald-500', 'bg-emerald-900/20');
-                void cartEl.offsetWidth; // trigger reflow
-                cartEl.classList.add('ring-2', 'ring-emerald-500', 'transition-all', 'duration-300');
-                setTimeout(() => cartEl.classList.remove('ring-2', 'ring-emerald-500'), 500);
-            }
-        }
-
-        function updateCartAmount(pattern, amt) {
-            amt = parseInt(amt);
-            if (isNaN(amt) || amt <= 0) delete betCart[pattern];
-            else betCart[pattern] = amt;
-            renderCart();
-            saveCart();
-        }
-
-        function removeFromCart(pattern) {
-            delete betCart[pattern];
-            renderCart();
-            saveCart();
-        }
-
-        function saveCart() {
-            if (currentRaceId) saveCache('cart_' + currentRaceId, betCart);
-        }
-
-        function loadCart() {
-            if (currentRaceId) {
-                const loaded = localStorage.getItem(CACHE_PREFIX + 'cart_' + currentRaceId);
-                if (loaded) betCart = JSON.parse(loaded);
-                else betCart = {};
-            }
-            renderCart();
-        }
-
-        function renderCart() {
-            const el = document.getElementById('cart-items');
-            if(!el) return;
-            const keys = Object.keys(betCart);
-            if(keys.length === 0) {
-                el.innerHTML = '<p class="text-xs text-slate-500 text-center py-4">予想の横の「➕」から追加してください</p>';
-                document.getElementById('cart-total-amount').textContent = '0円';
-                return;
-            }
-            let html = '<div class="space-y-1">';
-            let total = 0;
-            
-            // pattern sorting: 3連単(1-2-3)等を見やすく
-            keys.sort().forEach(pat => {
-                const amt = betCart[pat];
-                total += amt;
-                
-                // parse pattern for display
-                let displayPat = pat;
-                if(pat.includes('-')) {
-                    displayPat = pat.split('-').map(n => `<span class="inline-block w-4 h-4 text-center rounded text-[10px] text-white border ${boatColors[parseInt(n)-1]||'bg-slate-700'}">${n}</span>`).join('<span class="text-slate-500 text-[10px] mx-0.5">-</span>');
-                } else if(pat.includes('=')) {
-                    displayPat = pat.split('=').map(n => `<span class="inline-block w-4 h-4 text-center rounded text-[10px] text-white border ${boatColors[parseInt(n)-1]||'bg-slate-700'}">${n}</span>`).join('<span class="text-slate-500 text-[10px] mx-0.5">=</span>');
-                } else {
-                    displayPat = `<span class="inline-block w-4 h-4 text-center rounded text-[10px] text-white border ${boatColors[parseInt(pat)-1]||'bg-slate-700'}">${pat}</span>`;
-                }
-
-                html += `
-                <div class="flex justify-between items-center py-1.5 px-2 bg-slate-700/40 rounded border border-slate-600/50">
-                    <div class="flex items-center gap-2">
-                        <button onclick="removeFromCart('${pat}')" class="text-slate-500 hover:text-red-400 text-xs px-1">✖</button>
-                        <div class="flex items-center font-bold tracking-widest">${displayPat}</div>
-                    </div>
-                    <div class="flex items-center gap-1.5">
-                        <input type="number" min="100" step="100" value="${amt}" class="w-20 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-right font-mono outline-none text-white focus:border-blue-400 text-sm" onchange="updateCartAmount('${pat}', this.value)">
-                        <span class="text-slate-400 text-[10px]">円</span>
-                    </div>
-                </div>`;
-            });
-            html += '</div>';
-            el.innerHTML = html;
-            document.getElementById('cart-total-amount').textContent = total.toLocaleString() + '円';
-        }
-
-        function copyAndOpenTeleboat() {
-            const keys = Object.keys(betCart);
-            if(keys.length === 0) {
-                alert("カートが空です。予想を追加してください。");
-                return;
-            }
-            let text = "■ 買い目メモ\n";
-            let total = 0;
-            keys.sort().forEach(p => {
-                text += `${p} : ${betCart[p]}円\n`;
-                total += betCart[p];
-            });
-            text += `----------\n合計: ${total.toLocaleString()}円`;
-            
-            navigator.clipboard.writeText(text).then(() => {
-                alert("買い目をコピーしました！\nテレボートを開きます。");
-            }).catch(e => {
-                alert("コピーに失敗しました。手動でメモしてください。\n\n" + text);
-            }).finally(() => {
-                const ua = navigator.userAgent.toLowerCase();
-                const isSP = /iphone|ipad|ipod|android/.test(ua);
-                if (isSP) {
-                    const spWebUrl = "https://www.boatrace.jp/owsm/sm/login";
-                    const now = Date.now();
-                    setTimeout(() => {
-                        if (Date.now() - now < 1000 && !document.hidden) {
-                            window.location.href = spWebUrl;
-                        }
-                    }, 500);
-                    if (/android/.test(ua)) {
-                        window.location.href = "intent://#Intent;scheme=teleboat;package=jp.or.mbrace.teleboat;end";
-                    } else {
-                        window.location.href = "teleboat://";
-                    }
-                } else {
-                    window.open("https://www.boatrace.jp/owpc/pc/login", "_blank", "noopener,noreferrer");
-                }
-            });
-        }
     </script>
 </body>
-
 </html>
