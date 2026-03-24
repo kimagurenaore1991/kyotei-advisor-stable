@@ -9,6 +9,9 @@ import live_scraper
 from app_config import JST, LOCK_FILE, REQUEST_TIMEOUT, USER_AGENT
 from database import get_db_connection, init_db
 
+# SSEプッシュ用コールバック (main.py側からセットされる)
+sse_broadcast_callback = None
+
 
 def get_current_date(target_dt: datetime.datetime = None):
     """Returns (now_jst, target_date_str as YYYYMMDD, iso_date as YYYY-MM-DD)"""
@@ -162,6 +165,35 @@ def scrape_race_syusso(jcd, race_no, target_dt: datetime.datetime = None):
             # レースタイトル取得
             race_title = _get_grade_from_soup(soup)
 
+            # 締切時刻の取得 (最新の安定した方法: 12レース一覧表から当該レース番号のものを抽出)
+            scheduled_time = ""
+            try:
+                # 12レース一覧表の「締切予定時刻」行を探す
+                import re
+                for tr in soup.select('.table1 table tr'):
+                    tds = tr.find_all('td')
+                    if any('締切予定時刻' in td.get_text() for td in tds):
+                        # この行の tds の中から、race_no に対応するものを取得
+                        # 最初の td は colspan="2" なので、インデックスは race_no になる
+                        if len(tds) > race_no:
+                            target_td = tds[race_no]
+                            m = re.search(r'(\d{1,2}:\d{2})', target_td.get_text())
+                            if m:
+                                scheduled_time = m.group(1)
+                                break
+            except Exception as e:
+                print(f"      [DEBUG] New deadline scraper failed: {e}")
+
+            # フォールバック (既存のロジック: 複数のパターンの要素から「締切」を含むものを探す）
+            if not scheduled_time:
+                time_elements = soup.find_all(lambda tag: tag.name in ['span', 'div', 'p', 'td'] and '締切' in tag.get_text())
+                for el in time_elements:
+                    import re
+                    t_text = el.get_text(separator=' ', strip=True)
+                    m = re.search(r'(\d{1,2}:\d{2})', t_text)
+                    if m:
+                        scheduled_time = m.group(1)
+                        break
             # 既存レースを確認
             cursor.execute(
                 'SELECT id FROM races WHERE race_date = ? AND place_code = ? AND race_number = ?',
@@ -171,20 +203,20 @@ def scrape_race_syusso(jcd, race_no, target_dt: datetime.datetime = None):
 
             if existing:
                 race_id = existing[0]
-                # 既存でも race_title を更新（グレード情報を最新に保つ）
-                if race_title:
+                # 既存でも race_title / scheduled_time を更新（グレード情報や時刻を最新に保つ）
+                if race_title or scheduled_time:
                     cursor.execute(
-                        'UPDATE races SET race_title = ? WHERE id = ?',
-                        (race_title, race_id)
+                        'UPDATE races SET race_title = ?, scheduled_time = ? WHERE id = ?',
+                        (race_title, scheduled_time, race_id)
                     )
             else:
                 try:
                     cursor.execute('''
                         INSERT INTO races (race_date, place_code, place_name, race_number,
-                                           weather, wind_direction, wind_speed, wave_height, race_title)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                           weather, wind_direction, wind_speed, wave_height, race_title, scheduled_time)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (iso_date, jcd, place_name, race_no,
-                          '不明', '', 0.0, 0.0, race_title))
+                          '不明', '', 0.0, 0.0, race_title, scheduled_time))
                     race_id = cursor.lastrowid
                 except sqlite3.IntegrityError:
                     cursor.execute(
@@ -365,14 +397,35 @@ def update_result(jcd, race_no, target_dt: datetime.datetime = None):
     
     if data and data.get("finished"):
         conn = get_db_connection()
+        race_id = None
         try:
             cursor = conn.cursor()
             # racesテーブルの終了フラグと着順文字列、詳細結果JSONを更新
             import json
+            # レースが終了したので最終オッズを取得して保存
+            # 基本の3連単(3t)に加えて、主要な賭式のオッズを並行して取得
+            new_odds_cache = {}
+            for bt in ["3t", "3f", "2t", "2f", "1t"]:
+                try:
+                    o = live_scraper.fetch_all_odds(jcd, race_no, target_date_str, bt)
+                    if o and "error" not in o:
+                        new_odds_cache[bt] = o
+                except: pass
+            
+            odds_json_val = json.dumps(new_odds_cache) if new_odds_cache else None
+
             cursor.execute('''
-                UPDATE races SET is_finished = 1, ranking_str = ?, result_json = ?
+                UPDATE races SET is_finished = 1, ranking_str = ?, result_json = ?, odds_json = ?
                 WHERE race_date = ? AND place_code = ? AND race_number = ?
-            ''', (data.get("ranking_str", ""), json.dumps(data), iso_date, jcd, race_no))
+            ''', (data.get("ranking_str", ""), json.dumps(data), odds_json_val, iso_date, jcd, race_no))
+            
+            # race_id を取得（SSEプッシュ用）
+            row = cursor.execute(
+                'SELECT id FROM races WHERE race_date = ? AND place_code = ? AND race_number = ?',
+                (iso_date, jcd, race_no)
+            ).fetchone()
+            if row:
+                race_id = row[0]
             
             # entriesテーブルの到着順位とタイムを更新
             for rank_item in data.get("ranking", []):
@@ -381,17 +434,27 @@ def update_result(jcd, race_no, target_dt: datetime.datetime = None):
                 time_str = data.get("race_times", {}).get(boat, "")
                 cursor.execute('''
                     UPDATE entries SET arrival_order = ?, race_time = ?
-                    WHERE race_id = (
-                        SELECT id FROM races WHERE race_date = ? AND place_code = ? AND race_number = ?
-                    ) AND boat_number = ?
-                ''', (rank, time_str, iso_date, jcd, race_no, boat))
+                    WHERE race_id = ? AND boat_number = ?
+                ''', (rank, time_str, race_id, boat))
             
             conn.commit()
-            print(f"    -> OK: Race finished. Result: {data.get('ranking_str')}")
+            print(f"    -> OK: Race finished. Result: {data.get('ranking_str')}. Odds cached: {list(new_odds_cache.keys())}")
         except Exception as e:
             print(f"    [DB ERROR] update_result: {e}")
         finally:
             conn.close()
+        
+        # === SSEプッシュ: 結果が確定したらブラウザへリアルタイム通知 ===
+        if race_id and sse_broadcast_callback:
+            try:
+                sse_broadcast_callback("race_finished", {
+                    "race_id": race_id,
+                    "place_name": places_dict.get(jcd, jcd),
+                    "race_number": race_no,
+                    "ranking_str": data.get("ranking_str", ""),
+                })
+            except Exception as e:
+                print(f"    [SSE ERROR] {e}")
     else:
         print(f"    -> Still no result.")
 
