@@ -1375,15 +1375,19 @@ def get_daily_hits(req: PredictRequest, date: str = Query(...)):
         ranking = rdict.get("ranking_str", "")
         hit = False
         ht = req.settings.hit_type
-        
+        hit_count = 0
         if ht == "custom":
-            hit = any(is_hit(p["pattern"], ranking) for p in preds["rule_focus"])
+            hit_count = 1 if any(is_hit(p["pattern"], ranking) for p in preds["rule_focus"]) else 0
         elif ht == "ai":
-            hit = any(is_hit(p["pattern"], ranking) for p in preds["ai_focus"])
-        else: # "both" or "buy" (backend treats "buy" as "both" since it doesn't know the cart)
-            hit = any(is_hit(p["pattern"], ranking) for p in preds["rule_focus"]) or \
-                  any(is_hit(p["pattern"], ranking) for p in preds["ai_focus"])
+            hit_count = 1 if any(is_hit(p["pattern"], ranking) for p in preds["ai_focus"]) else 0
+        else: # "both" or "buy"
+            # AIとカスタムを個別に的中判定し、的中したセット数をカウント（両方の場合は2倍の払戻）
+            hit_custom = 1 if any(is_hit(p["pattern"], ranking) for p in preds["rule_focus"]) else 0
+            hit_ai = 1 if any(is_hit(p["pattern"], ranking) for p in preds["ai_focus"]) else 0
+            hit_count = hit_custom + hit_ai
             
+        hit = (hit_count > 0)
+        
         # 払戻金の抽出
         payout = 0
         if hit and rdict.get("result_json"):
@@ -1395,7 +1399,8 @@ def get_daily_hits(req: PredictRequest, date: str = Query(...)):
                     if p.get("type") == target_type:
                         p_str = p.get("payout", "0").replace(",", "").replace("円", "")
                         p_int = int(p_str)
-                        payout = p_int
+                        # 的中したセット数分だけ払戻金を計上
+                        payout = p_int * hit_count
                         break
             except:
                 pass
