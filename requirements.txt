@@ -4,3 +4,5 @@ pydantic==2.7.0
 requests==2.32.3
 beautifulsoup4==4.12.3
 python-multipart==0.0.9
+supabase>=2.13.0
+websockets>=14.0

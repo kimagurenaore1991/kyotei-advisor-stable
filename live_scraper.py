@@ -15,7 +15,13 @@ def fetch_racer_profile(toban: str) -> dict:
         res = requests.get(url, timeout=15, headers=HEADERS)
         res.raise_for_status()
         soup = BeautifulSoup(res.content, "html.parser")
-        tables = soup.select("table.is-w400")
+        
+        # 1. 統計テーブルを取得 (最新の構造: div.table1 table)
+        tables = soup.select("div.table1 table")
+        if not tables:
+            # フォールバック (旧構造: table.is-w400)
+            tables = soup.select("table.is-w400")
+
         if not tables:
             return {"error": "Stats table not found", "toban": toban}
 
@@ -34,10 +40,28 @@ def fetch_racer_profile(toban: str) -> dict:
         avg_st     = parse_table(tables[2]) if len(tables) > 2 else {}
         starts     = parse_table(tables[3]) if len(tables) > 3 else {}
 
+        # 2. 選手名の取得
         name = ""
-        name_tag = soup.select_one(".mainTitle01 h2")
+        # 12/27追記: p.racerName 内に <span> でカナが入っている場合があるため
+        name_tag = soup.select_one("p.racerName")
         if name_tag:
-            name = name_tag.text.strip().split("（")[0].strip()
+            # カナ(span)を除去して漢字氏名のみ取得
+            for span in name_tag.find_all("span"):
+                span.decompose()
+            name = name_tag.get_text(strip=True)
+        
+        if not name:
+            # フォールバック: .mainTitle01 h2 (旧構造)
+            name_tag = soup.select_one(".mainTitle01 h2")
+            if name_tag:
+                name = name_tag.get_text(strip=True).split("（")[0].strip()
+            
+        if name:
+            # "4320" などの番号が含まれる場合があるので名前だけ抽出
+            import re
+            name = re.sub(r'^\d+\s*', '', name)
+            # 全角スペース等を整理
+            name = " ".join(name.split())
 
         courses = []
         for i in range(1, 7):
@@ -51,6 +75,99 @@ def fetch_racer_profile(toban: str) -> dict:
         return {"toban": toban, "name": name, "course_stats": courses}
     except Exception as e:
         return {"error": str(e), "toban": toban}
+
+
+def fetch_racer_past_results(toban: str) -> list:
+    """
+    指定した選手の過去成績を取得する。
+    PCサイトの back3 (過去3節成績) ページから詳細な着順データを抽出する。
+    """
+    url = f"{BASE_URL}/data/racersearch/back3?toban={toban}"
+    print(f"[SCRAPE] Fetching racer past results (back3) from: {url}")
+    results = []
+    
+    # 必要な定数やインポート
+    from scraper import places_dict
+    from app_config import REQUEST_TIMEOUT
+
+    try:
+        # 参照元（Referer）をセットすることでシステムエラーを回避しやすくする
+        headers = HEADERS.copy()
+        headers["Referer"] = f"{BASE_URL}/data/racersearch/profile?toban={toban}"
+        response = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.content, 'html.parser')
+
+        # 過去3節成績のテーブルを取得
+        tables = soup.select(".is-p_result, table.table1")
+        if not tables:
+            print(f"  [WARN] No back3 tables found for toban {toban}")
+            return []
+
+        for table in tables:
+            tbody = table.select_one("tbody")
+            if not tbody: continue
+            
+            # 各節の行を処理
+            for tr in tbody.select("tr"):
+                tds = tr.find_all("td")
+                if len(tds) < 4: continue
+                
+                # 第2カラム: 開催場
+                place_val = tds[1].text.strip()
+                # 第3カラム（付近）: タイトル
+                # タイトルはtds[2]〜tds[4]のいずれか（列結合による）
+                # 確実に取るために、tds[-1]以外の名称が含まれるtdを探す
+                title_val = ""
+                for i in range(2, len(tds)-1):
+                    txt = tds[i].text.strip()
+                    if txt: title_val = txt; break
+                
+                # 最後のカラム: 節間成績 (<a>タグのリスト)
+                res_td = tds[-1]
+                res_links = res_td.select("a")
+                for link in res_links:
+                    href = link.get("href", "")
+                    rank_txt = link.get_text(strip=True)
+                    
+                    # hrefから日付、場コード、レース番号を抽出
+                    # 例: /owpc/pc/race/raceresult?rno=8&jcd=24&hd=20260313
+                    import re
+                    rno_m = re.search(r'rno=(\d+)', href)
+                    jcd_m = re.search(r'jcd=(\d+)', href)
+                    hd_m = re.search(r'hd=(\d+)', href)
+                    
+                    if rno_m and jcd_m and hd_m:
+                        rno = rno_m.group(1)
+                        jcd = jcd_m.group(1).zfill(2)
+                        hd = hd_m.group(1) # YYYYMMDD
+                        
+                        date_iso = f"{hd[:4]}-{hd[4:6]}-{hd[6:8]}"
+                        
+                        # 重複追加を避ける (同日同場同レース)
+                        if any(r['race_date'] == date_iso and r['place_code'] == jcd and r['race_no'] == int(rno) for r in results):
+                            continue
+
+                        # place_codeから場コードを特定（なければリンクから）
+                        p_code = next((c for c, n in places_dict.items() if n in place_val), jcd)
+
+                        results.append({
+                            "race_date": date_iso,
+                            "place_code": p_code,
+                            "place_name": place_val,
+                            "race_no": int(rno),
+                            "rank": rank_txt,
+                            "race_title": title_val,
+                            "entry_course": None, 
+                            "start_timing": None
+                        })
+
+        print(f"  -> Found {len(results)} historical race results for toban {toban}")
+        return results
+
+    except Exception as e:
+        print(f"[LIVE SCRAPE ERROR] fetch_racer_past_results: {e}")
+        return []
 
 
 # ── 3連単オッズ (既存互換) ──────────────────────────────────────────────────
@@ -67,14 +184,17 @@ def _parse_3t(soup):
 
     def page_order():
         res = []
-        for first in range(1, 7):
-            for second in range(1, 7):
-                if second == first:
-                    continue
-                for third in range(1, 7):
-                    if third == first or third == second:
-                        continue
-                    res.append((first, second, third))
+        # Boatrace.jp の3連単オッズ表は、横に1〜6号艇の1着が並び、縦に2着、3着が展開される。
+        # td.oddsPoint を抽出すると、行優先（各行の1号艇1着、2号艇1着…）の順で取得される。
+        for row_idx in range(20):
+            for f in range(1, 7):
+                others = [b for b in range(1, 7) if b != f]
+                s_idx = row_idx // 4  # 2着のインデックス
+                t_idx = row_idx % 4  # 3着のインデックス
+                s = others[s_idx]
+                rem = [b for b in others if b != s]
+                t = rem[t_idx]
+                res.append((f, s, t))
         return res
 
     ordered = page_order()
@@ -89,13 +209,21 @@ def _parse_3t(soup):
 
 
 def _parse_3f(soup):
-    """3連複: 20通り"""
+    """3連複: 20通り (特殊な並び順)"""
     cells = soup.select("td.oddsPoint")
     if not cells:
         return None
-    combos = list(itertools.combinations(range(1, 7), 3))
+    
+    # 公式サイトの並び順 (1=2=3, 1=2=4, 1=2=5, 1=2=6, 1=3=4, 2=3=4, 1=3=5, 2=3=5, ...)
+    ordered = [
+        (1,2,3), (1,2,4), (1,2,5), (1,2,6),
+        (1,3,4), (2,3,4), (1,3,5), (2,3,5), (1,3,6), (2,3,6),
+        (1,4,5), (2,4,5), (3,4,5), (1,4,6), (2,4,6), (3,4,6),
+        (1,5,6), (2,5,6), (3,5,6), (4,5,6)
+    ]
+    
     odds_list = []
-    for idx, (a, b, c) in enumerate(combos):
+    for idx, (a, b, c) in enumerate(ordered):
         if idx < len(cells):
             odds_list.append({
                 "pattern": f"{a}={b}={c}",
@@ -105,14 +233,23 @@ def _parse_3f(soup):
 
 
 def _parse_2t(soup):
-    """2連単: 30通り (同じページ odds2tf に 2連単/2連複 混在)"""
-    # 2連単は上半分
+    """2連単: 30通り (行優先: 1-2, 2-1, 3-1, 4-1, 5-1, 6-1, 1-3, ...)"""
     cells = soup.select("td.oddsPoint")
     if not cells:
         return None
-    combos = list(itertools.permutations(range(1, 7), 2))
+
+    def page_order():
+        res = []
+        for row in range(5):
+            for first in range(1, 7):
+                others = [b for b in range(1, 7) if b != first]
+                second = others[row]
+                res.append((first, second))
+        return res
+
+    ordered = page_order()
     odds_list = []
-    for idx, (a, b) in enumerate(combos):
+    for idx, (a, b) in enumerate(ordered):
         if idx < len(cells):
             odds_list.append({
                 "pattern": f"{a}-{b}",
@@ -151,17 +288,42 @@ def _parse_2f(soup):
 
 def _parse_1t(soup):
     """単勝: 6通り"""
-    cells = soup.select("td.oddsPoint")
-    if not cells:
+    # ページ内のtd.oddsPointを全取得
+    all_cells = soup.select("td.oddsPoint")
+    if not all_cells:
         return None
+    
     odds_list = []
+    # 単勝は通常、最初のテーブルの6件
+    for i in range(min(6, len(all_cells))):
+        val = all_cells[i].text.strip()
+        if not val or "---" in val: val = "-"
+        odds_list.append({
+            "pattern": str(i + 1),
+            "odds": val
+        })
+    return odds_list if odds_list else None
+
+
+def _parse_1f(soup):
+    """複勝: 6通り (通常 単勝の後のテーブル)"""
+    all_cells = soup.select("td.oddsPoint")
+    if len(all_cells) < 7:
+        return None
+    
+    odds_list = []
+    # 複勝は通常、7番目から12番目。
+    # ただし公式は 1.0-1.2 のような形式
     for i in range(6):
-        if i < len(cells):
+        idx = 6 + i
+        if idx < len(all_cells):
+            val = all_cells[idx].text.strip()
+            if not val or "---" in val: val = "-"
             odds_list.append({
-                "pattern": str(i + 1),
-                "odds": cells[i].text.strip()
+                "pattern": f"({i + 1})",
+                "odds": val
             })
-    return odds_list
+    return odds_list if odds_list else None
 
 
 def fetch_all_odds(place_code: str, race_number: int, date_str: str, bet_type: str = "3t") -> dict:
@@ -175,12 +337,13 @@ def fetch_all_odds(place_code: str, race_number: int, date_str: str, bet_type: s
         "2t": "odds2tf",
         "2f": "odds2tf",
         "1t": "odds1tf",
+        "1f": "odds1tf",
     }
     label_map = {
-        "3t": "3連単", "3f": "3連複", "2t": "2連単", "2f": "2連複", "1t": "単勝"
+        "3t": "3連単", "3f": "3連複", "2t": "2連単", "2f": "2連複", "1t": "単勝", "1f": "複勝"
     }
     parser_map = {
-        "3t": _parse_3t, "3f": _parse_3f, "2t": _parse_2t, "2f": _parse_2f, "1t": _parse_1t
+        "3t": _parse_3t, "3f": _parse_3f, "2t": _parse_2t, "2f": _parse_2f, "1t": _parse_1t, "1f": _parse_1f
     }
 
     url_key = url_map.get(bet_type, "odds3t")
@@ -258,6 +421,25 @@ def fetch_exhibition_data(place_code: str, race_number: int, date_str: str) -> d
                         results[boat_number]["entry_course"] = boat_number
                     if "start_timing" not in results[boat_number]:
                         results[boat_number]["start_timing"] = 0.15
+                    
+                    # --- New: Parts Exchange, Weight Adj, Propeller ---
+                    # 1. Weight Adjustment (tds[1])
+                    weight_str = tds[1].text.strip()
+                    weight_adj = float(weight_str) if weight_str.replace('.', '', 1).replace('-', '', 1).isdigit() else 0.0
+                    results[boat_number]["weight_adjustment"] = weight_adj
+
+                    # 2. Propeller (tds[3])
+                    results[boat_number]["propeller"] = tds[3].text.strip()
+
+                    # 3. Parts Exchange (tds[6] or nested list)
+                    parts_ul = tds[6].find("ul")
+                    if parts_ul:
+                        parts = [li.text.strip() for li in parts_ul.find_all("li")]
+                        results[boat_number]["parts_exchange"] = " ".join(parts)
+                    else:
+                        parts_txt = tds[6].text.strip()
+                        results[boat_number]["parts_exchange"] = parts_txt if parts_txt else ""
+                    
                 except Exception:
                     pass
 
@@ -333,7 +515,8 @@ def _parse_weather(soup) -> dict:
                 dir_map = {
                     "1": "北",   "2": "北東", "3": "東",   "4": "南東",
                     "5": "南",   "6": "南西", "7": "西",   "8": "北西",
-                    "9": "無風",
+                    "9": "無風", "10": "追い風", "11": "向かい風", "12": "左横風", "13": "右横風",
+                    "14": "左斜め追い風", "15": "右斜め追い風", "16": "左斜め向かい風", "17": "右斜め向かい風"
                 }
                 weather_info["wind_direction"] = dir_map.get(d_idx, d_idx)
     except Exception as e:
@@ -355,59 +538,103 @@ def fetch_match_result(place_code: str, race_number: int, date_str: str):
                   "racer_names": {}, "race_times": {}}
 
         # ── 着順パース（着/枠/選手/タイム）──────────────────────────────────
-        tables = soup.find_all("table")
-        for t in tables:
-            for row in t.find_all("tr"):
-                cells = row.find_all("td")
+        # 特定のテーブルクラスを指定することで、払戻金テーブルなど他テーブルの混入を防ぐ
+        ranking_table = soup.select_one("table.is-p_resultRanking3")
+        if not ranking_table:
+            # フォールバック: 「着」と「ボートレーサー」が含まれる最初のテーブルを探す
+            for t in soup.find_all("table"):
+                txt = t.get_text()
+                if "着" in txt and "ボートレーサー" in txt:
+                    ranking_table = t
+                    break
+        
+        if ranking_table:
+            for row in ranking_table.find_all("tr"):
+                cells = row.find_all(["td", "th"])
+                # ヘッダー行(th)を考慮
                 if cells and len(cells) >= 3:
-                    rank = cells[0].text.strip()
-                    boat = cells[1].text.strip() if len(cells) > 1 else ""
-                    if rank.isdigit() and boat.isdigit():
-                        entry = {"rank": int(rank), "boat": int(boat)}
-                        # 選手名を取得（boat番号の次のセルから）
-                        if len(cells) >= 3:
+                    rank_raw = cells[0].get_text(strip=True)
+                    boat_raw = cells[1].get_text(strip=True) if len(cells) > 1 else ""
+                    
+                    # 着順が1-6の数字、またはF, L, K, Sなどの失格・欠場コードであることをチェック
+                    # ただし、「単勝」「複勝」などの項目は除外する
+                    if rank_raw and not any(kw in rank_raw for kw in ["単勝", "複勝", "3連", "2連", "払戻"]):
+                        is_rank_valid = rank_raw.isdigit() or (len(rank_raw) == 1 and rank_raw.isalpha())
+                        
+                        if is_rank_valid and boat_raw.isdigit():
+                            boat_val = int(boat_raw)
+                            entry = {"rank": rank_raw, "boat": boat_val}
+                            
+                            # 選手名を2列目(index 2)以降から探す
                             import re
-                            name_raw = cells[2].text.strip()
-                            # "4320 \n 峰 竜太" のように登録番号が含まれる場合があるので除去
-                            name_clean = re.sub(r'^\d+\s+', '', name_raw)
-                            entry["name"] = " ".join(name_clean.split())
-                        # レースタイムを取得
-                        for c in cells:
-                            ct = c.text.strip()
-                            # タイム形式: 1'53"1 or 1:53.1
-                            if "'" in ct and '"' in ct:
-                                entry["time"] = ct
-                                break
-                        result["ranking"].append(entry)
-                        if entry.get("name"):
-                            result["racer_names"][int(boat)] = entry.get("name", "")
-                        if entry.get("time"):
-                            result["race_times"][int(boat)] = entry.get("time", "")
+                            potential_name = ""
+                            for i in range(2, min(len(cells), 5)):
+                                raw = cells[i].get_text(separator=' ', strip=True)
+                                # 登録番号（4桁）を削除
+                                clean = re.sub(r'^\d{4}\s*', '', raw)
+                                # 漢字・カナ・空白のみで構成されているかチェック（記号や金額を除外）
+                                if clean and len(clean) >= 2 and len(clean) < 20:
+                                    if re.match(r'^[\u4e00-\u9faf\u3040-\u309f\u30a0-\u30ff\s・]+$', clean):
+                                        potential_name = clean
+                                        break
+                            entry["name"] = " ".join(potential_name.split())
+                            
+                            # 名前が空の場合の最終手段（「枠」の文字などが含まれないもの）
+                            if not entry.get("name") and len(cells) > 3:
+                                for c in cells[3:]:
+                                    txt = c.get_text(strip=True)
+                                    if txt and len(txt) >= 2 and not any(ch in txt for ch in ["円", "¥", "￥", "着", "枠"]):
+                                        if not txt.replace(".", "").isdigit():
+                                            entry["name"] = txt
+                                            break
 
+                            # レースタイムを取得 (DQなどの場合はタイムが '--' になる)
+                            for c in cells:
+                                ct = c.get_text(strip=True)
+                                if ("'" in ct and '"' in ct) or (":" in ct and "." in ct):
+                                    entry["time"] = ct
+                                    break
+                            
+                            result["ranking"].append(entry)
+                            if entry.get("name"):
+                                result["racer_names"][boat_val] = entry.get("name", "")
+                            if entry.get("time"):
+                                result["race_times"][boat_val] = entry.get("time", "")
+
+        # 3着まで確定しているかどうかの厳密なチェック
         ranking_boats = [str(r["boat"]) for r in sorted(result["ranking"], key=lambda x: x["rank"])]
-        result["ranking_str"] = "-".join(ranking_boats[:3]) if ranking_boats else "--"
+        if len(ranking_boats) >= 3:
+            result["ranking_str"] = "-".join(ranking_boats[:3])
+        else:
+            result["ranking_str"] = "--"
+            result["finished"] = False # 3着まで確定していなければ不完全とみなす
 
         # ── 全賭式の払戻金パース ──────────────────────────
-        # 対象となる賭式名
+        # 払戻金テーブル(is-p_resultBetting)を対象にする
+        betting_tables = soup.select("table.is-p_resultBetting")
+        if not betting_tables:
+            # フォールバック: すべてのテーブルから配当らしきものを探す
+            betting_tables = soup.find_all("table")
+
         BET_TYPES = {"3連単", "3連複", "2連単", "2連複", "単勝", "複勝"}
         seen_types = set()
 
-        for t in tables:
+        for t in betting_tables:
             text = t.get_text()
             if not any(bt in text for bt in BET_TYPES):
                 continue
             for row in t.find_all("tr"):
-                cells = row.find_all("td")
+                cells = row.find_all(["td", "th"])
                 if len(cells) >= 2:
-                    bet_type_raw = cells[0].text.strip()
+                    bet_type_raw = cells[0].get_text(strip=True)
                     if bet_type_raw in BET_TYPES and bet_type_raw not in seen_types:
-                        # 組番: 2番目セル（数字を含む）
-                        combo_raw = cells[1].text.strip() if len(cells) > 1 else ""
+                        # 組番: 2番目セル
+                        combo_raw = cells[1].get_text(strip=True).replace(' ', '')
                         
-                        # 払戻金は¥マークを含むセルを探す
+                        # 払戻金は「円」または「¥」を含むセルを探す
                         payout_str = ""
                         for c in cells[1:]:
-                            txt = c.text.strip()
+                            txt = c.get_text(strip=True)
                             if "¥" in txt or "円" in txt:
                                 payout_str = txt
                                 break

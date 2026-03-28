@@ -14,6 +14,10 @@ venv/
 Thumbs.db
 
 # Project specific
-kyotei.db
+kyotei.db*
 LOCK_FILE
+.last_full_scrape
 test_beforeinfo.html
+*.log
+*.tmp
+temp/

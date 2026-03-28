@@ -7,7 +7,8 @@ import sqlite3
 import live_scraper
 
 from app_config import JST, LOCK_FILE, REQUEST_TIMEOUT, USER_AGENT
-from database import get_db_connection, init_db
+from database import get_db_connection, init_db, push_race_to_supabase
+import re
 
 # SSEプッシュ用コールバック (main.py側からセットされる)
 sse_broadcast_callback = None
@@ -47,11 +48,11 @@ def scrape_index(target_dt: datetime.datetime = None):
         active_jcd_list = []
         for a in soup.find_all('a', href=True):
             href = a['href']
-            if 'jcd=' in href and 'raceindex' in href:
+            # jcd= が含まれ、かつ raceindex, raceresult, racelist のいずれかが含まれる場合に開催場とみなす
+            if 'jcd=' in href and any(kw in href for kw in ['raceindex', 'raceresult', 'racelist']):
                 jcd = href.split('jcd=')[1].split('&')[0].zfill(2)
-                if jcd in places_dict and jcd not in active_jcd_list:
+                if jcd not in active_jcd_list:
                     active_jcd_list.append(jcd)
-        
         print(f"[INFO] Found {len(active_jcd_list)} active places.")
         return active_jcd_list
     except Exception as e:
@@ -68,20 +69,29 @@ def scrape_index(target_dt: datetime.datetime = None):
 def _get_grade_from_soup(soup):
     """ページHTMLからレースグレード/タイトルを返す"""
     # 1. ページ内の全要素からグレードを示すクラスを探す
+    # 1. ページ内の全要素からグレードを示すクラスを探す
+    found_priority = 0
     found_grade = ""
+    
     for el in soup.find_all(True):
         cls_list = el.get('class', [])
         cls_str = " ".join(cls_list) if isinstance(cls_list, list) else str(cls_list)
-        if 'is-G1b' in cls_str or 'is-grade1' in cls_str:
-            found_grade = "G1"; break
+        
+        if 'is-SGb' in cls_str or 'is-sg' in cls_str or 'is-gradeSG' in cls_str:
+            if found_priority < 5:
+                found_grade = "SG"; found_priority = 5
+        elif 'is-G1b' in cls_str or 'is-grade1' in cls_str:
+            if found_priority < 4:
+                found_grade = "G1"; found_priority = 4
         elif 'is-G2b' in cls_str or 'is-grade2' in cls_str:
-            found_grade = "G2"; break
+            if found_priority < 3:
+                found_grade = "G2"; found_priority = 3
         elif 'is-G3b' in cls_str or 'is-grade3' in cls_str:
-            found_grade = "G3"; break
-        elif 'is-SGb' in cls_str or 'is-sg' in cls_str:
-            found_grade = "SG"; break
+            if found_priority < 2:
+                found_grade = "G3"; found_priority = 2
         elif 'is-lady' in cls_str or 'is-Lady' in cls_str:
-            found_grade = "女子"
+            if found_priority < 1:
+                found_grade = "女子"; found_priority = 1
 
     # 2. タイトルテキストの特定
     main_content = soup.select_one('.contents, main, #main, #contents') or soup
@@ -92,7 +102,7 @@ def _get_grade_from_soup(soup):
     t_up = found_title.upper()
     if not found_grade:
         if '尼崎' in t_up and 'センプル' in t_up: found_grade = "G1"
-        elif 'SG' in t_up or 'ＳＧ' in t_up: found_grade = "SG"
+        elif 'SG' in t_up or 'ＳＧ' in t_up or "クラシック" in t_up: found_grade = "SG"
         elif 'G1' in t_up or 'Ｇ１' in t_up: found_grade = "G1"
         elif 'G2' in t_up or 'Ｇ２' in t_up: found_grade = "G2"
         elif 'G3' in t_up or 'Ｇ３' in t_up: found_grade = "G3"
@@ -133,6 +143,37 @@ def _get_grade_from_soup(soup):
                 return txt
     return ""
 
+def _get_day_label_from_soup(soup):
+    """ページHTMLから『初日』『2日目』『最終日』などの開催日指定ラベルを返す"""
+    # 1. アクティブな日程タブから取得（最も正確）
+    # is-active または is-active2 クラスを探す
+    active_tab = soup.select_one('.tab2 li[class*="is-active"] span')
+    if active_tab:
+        txt = active_tab.get_text(strip=True)
+        import re
+        m = re.search(r'(初日|\d+日目|最終日)', txt)
+        if m:
+            return m.group(1)
+
+    # 2. 典型的なラベルクラスを探す (互換性用)
+    labels = soup.select('.label1, .label2')
+    for l in labels:
+        txt = l.get_text(strip=True)
+        if any(kw in txt for kw in ['初日', '日目', '最終日']):
+            import re
+            m = re.search(r'(初日|\d+日目|最終日)', txt)
+            if m:
+                return m.group(1)
+    
+    # 3. 全体から正規表現で検索 (フォールバック)
+    import re
+    text = soup.get_text()
+    match = re.search(r'(初日|\d+日目|最終日)', text)
+    if match:
+        return match.group(1)
+    
+    return ""
+
 def _fetch_with_retry(url, retries=3, wait=2):
     """HTTPリクエストをリトライ付きで実行する"""
     for attempt in range(retries):
@@ -164,6 +205,7 @@ def scrape_race_syusso(jcd, race_no, target_dt: datetime.datetime = None):
 
             # レースタイトル取得
             race_title = _get_grade_from_soup(soup)
+            day_label = _get_day_label_from_soup(soup)
 
             # 締切時刻の取得 (最新の安定した方法: 12レース一覧表から当該レース番号のものを抽出)
             scheduled_time = ""
@@ -204,19 +246,19 @@ def scrape_race_syusso(jcd, race_no, target_dt: datetime.datetime = None):
             if existing:
                 race_id = existing[0]
                 # 既存でも race_title / scheduled_time を更新（グレード情報や時刻を最新に保つ）
-                if race_title or scheduled_time:
+                if race_title or scheduled_time or day_label:
                     cursor.execute(
-                        'UPDATE races SET race_title = ?, scheduled_time = ? WHERE id = ?',
-                        (race_title, scheduled_time, race_id)
+                        'UPDATE races SET race_title = ?, scheduled_time = ?, day_label = ? WHERE id = ?',
+                        (race_title, scheduled_time, day_label, race_id)
                     )
             else:
                 try:
                     cursor.execute('''
                         INSERT INTO races (race_date, place_code, place_name, race_number,
-                                           weather, wind_direction, wind_speed, wave_height, race_title, scheduled_time)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                           weather, wind_direction, wind_speed, wave_height, race_title, scheduled_time, day_label)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (iso_date, jcd, place_name, race_no,
-                          '不明', '', 0.0, 0.0, race_title, scheduled_time))
+                          '不明', '', 0.0, 0.0, race_title, scheduled_time, day_label))
                     race_id = cursor.lastrowid
                 except sqlite3.IntegrityError:
                     cursor.execute(
@@ -234,10 +276,26 @@ def scrape_race_syusso(jcd, race_no, target_dt: datetime.datetime = None):
                 print(f"    -> No entry data for {place_name} {race_no}R")
                 return
 
-            for idx, tbody in enumerate(tbody_list):
-                if idx >= 6:
-                    break
-                boat_number = idx + 1
+            for tbody in tbody_list:
+                # 艇番をHTMLから直接取得 (最初のtdのテキスト)
+                try:
+                    tds = tbody.select('td')
+                    if not tds:
+                        continue
+                    boat_str = tds[0].get_text(strip=True)
+                    # "1", "2" などの全角数字を半角に変換、または数値のみ抽出
+                    import re
+                    m = re.search(r'[1-6１-６]', boat_str)
+                    if m:
+                        b_val = m.group(0)
+                        # 全角→半角変換
+                        b_map = {'１':'1','２':'2','３':'3','４':'4','５':'5','６':'6'}
+                        boat_number = int(b_map.get(b_val, b_val))
+                    else:
+                        continue # 艇番が不明な場合はスキップ
+                except Exception as e:
+                    print(f"    -> Error identifying boat number: {e}")
+                    continue
                 try:
                     name_el = tbody.select_one('.is-fs18')
                     racer_name = name_el.get_text(strip=True).replace('\u3000', ' ') if name_el else ''
@@ -292,6 +350,8 @@ def scrape_race_syusso(jcd, race_no, target_dt: datetime.datetime = None):
 
             conn.commit()
             print(f"    -> OK: {place_name} {race_no}R ({len(tbody_list)} boats, title='{race_title}')")
+            # Supabase同期
+            push_race_to_supabase(race_id)
         except Exception as db_e:
             print(f"  [DB ERROR] {jcd} {race_no}R: {db_e}")
         finally:
@@ -346,8 +406,57 @@ def scrape_today(target_dt: datetime.datetime = None):
                     print(f"[ERROR] Task failed: {e}")
 
         print("=== データ取得完了 ===")
+        # === SSEプッシュ: 開催場リストが更新されたことを通知 ===
+        if sse_broadcast_callback:
+            sse_broadcast_callback("places_updated", {"date": iso_date})
     except Exception as e:
         print(f"[CRITICAL] scrape_today failed: {e}")
+
+def scrape_missing_today(target_dt: datetime.datetime = None):
+    """DBをチェックし、足りないレースデータ(出走表)のみを公式サイトから並列取得する"""
+    target_dt, target_date_str, iso_date = get_current_date(target_dt)
+    print(f"=== {target_date_str} の不足データを確認・補填開始 ===")
+    
+    active_jcds = scrape_index(target_dt)
+    if not active_jcds:
+        print("[WARN] 開催中の場が見つかりませんでした。")
+        return
+
+    # DB内の既存レース番号を取得 (entriesが存在するもののみ)
+    conn = get_db_connection()
+    try:
+        # entriesと紐付いている本日分の(place_code, race_number)を取得
+        existing_data = conn.execute('''
+            SELECT DISTINCT r.place_code, r.race_number 
+            FROM races r
+            JOIN entries e ON r.id = e.race_id
+            WHERE r.race_date = ?
+        ''', (iso_date,)).fetchall()
+        existing_set = {(row['place_code'], row['race_number']) for row in existing_data}
+    finally:
+        conn.close()
+
+    to_scrape = []
+    for jcd in active_jcds:
+        for rno in range(1, 13):
+            if (jcd, rno) not in existing_set:
+                to_scrape.append((jcd, rno))
+
+    if not to_scrape:
+        print("[INFO] 不足しているレースデータはありません。")
+        return
+
+    print(f"[INFO] {len(to_scrape)} 件のデータが不足しています。並列取得を開始します...")
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        futures = [executor.submit(scrape_race_syusso, jcd, rno, target_dt) for jcd, rno in to_scrape]
+        concurrent.futures.wait(futures)
+
+    print("=== 不足データの補填完了 ===")
+    # === SSEプッシュ: 開催場リストが更新されたことを通知 ===
+    if sse_broadcast_callback:
+        sse_broadcast_callback("places_updated", {"date": iso_date})
+
 def update_exhibition(jcd, race_no, target_dt: datetime.datetime = None):
     """展示データのみを更新する"""
     _, target_date_str, iso_date = get_current_date(target_dt)
@@ -369,19 +478,41 @@ def update_exhibition(jcd, race_no, target_dt: datetime.datetime = None):
                   w.get("wind_speed", 0.0), w.get("wave_height", 0.0),
                   iso_date, jcd, race_no))
 
-            # entriesテーブルの展示タイム・ST・コース・チルトを更新
+            # entriesテーブルの展示タイム・ST・コース・チルト・新規項目を更新
             for boat_num, ex_data in data["exhibition"].items():
                 cursor.execute('''
                     UPDATE entries SET
-                        exhibition_time = ?, start_timing = ?, entry_course = ?, tilt = ?
+                        exhibition_time = ?, start_timing = ?, entry_course = ?, tilt = ?,
+                        parts_exchange = ?, weight_adjustment = ?, propeller = ?
                     WHERE race_id = (
                         SELECT id FROM races WHERE race_date = ? AND place_code = ? AND race_number = ?
                     ) AND boat_number = ?
                 ''', (ex_data.get("exhibition_time", 0.0), ex_data.get("start_timing", 0.15),
                       ex_data.get("entry_course", boat_num), ex_data.get("tilt", 0.0),
+                      ex_data.get("parts_exchange", ""), ex_data.get("weight_adjustment", 0.0), ex_data.get("propeller", ""),
                       iso_date, jcd, race_no, boat_num))
-            conn.commit()
-            print(f"    -> OK: Exhibition updated.")
+            # 展示データ更新時はAIキャッシュを無効化して再計算させる
+            cursor.execute('''
+                UPDATE races SET ai_predictions_json = NULL 
+                WHERE race_date = ? AND place_code = ? AND race_number = ?
+            ''', (iso_date, jcd, race_no))
+            # Supabase同期
+            cursor.execute('SELECT id FROM races WHERE race_date = ? AND place_code = ? AND race_number = ?', (iso_date, jcd, race_no))
+            row = cursor.fetchone()
+            if row:
+                race_id = row[0]
+                push_race_to_supabase(race_id)
+                
+                # === SSEプッシュ: 展示更新をリアルタイム通知 ===
+                if sse_broadcast_callback:
+                    try:
+                        sse_broadcast_callback("exhibition_updated", {
+                            "race_id": race_id,
+                            "place_name": places_dict.get(jcd, jcd),
+                            "race_number": race_no
+                        })
+                    except Exception as e:
+                        print(f"    [SSE ERROR] {e}")
         except Exception as e:
             print(f"    [DB ERROR] update_exhibition: {e}")
         finally:
@@ -396,6 +527,11 @@ def update_result(jcd, race_no, target_dt: datetime.datetime = None):
     data = live_scraper.fetch_match_result(jcd, race_no, target_date_str)
     
     if data and data.get("finished"):
+        # 3着まで確定しているか二重チェック（live_scraper側でも行っているが念のため）
+        if not data.get("ranking_str") or data.get("ranking_str") == "--":
+            print(f"    -> Warning: Result for {race_no}R is marked finished but ranking_str is invalid. Skipping update.")
+            return
+
         conn = get_db_connection()
         race_id = None
         try:
@@ -439,6 +575,9 @@ def update_result(jcd, race_no, target_dt: datetime.datetime = None):
             
             conn.commit()
             print(f"    -> OK: Race finished. Result: {data.get('ranking_str')}. Odds cached: {list(new_odds_cache.keys())}")
+            # Supabase同期
+            if race_id:
+                push_race_to_supabase(race_id)
         except Exception as e:
             print(f"    [DB ERROR] update_result: {e}")
         finally:
@@ -458,8 +597,64 @@ def update_result(jcd, race_no, target_dt: datetime.datetime = None):
     else:
         print(f"    -> Still no result.")
 
+def update_venue_races(jcd, target_dt: datetime.datetime = None):
+    """
+    特定会場の全てのレース（1〜12R）に対して、展示・結果の更新を試みる。
+    並列実行されることを想定。
+    """
+    target_dt, target_date_str, iso_date = get_current_date(target_dt)
+    
+    # DBの状態を1回だけ取得（効率化）
+    conn = get_db_connection()
+    try:
+        # entriesの数も一緒にカウントする
+        races_in_db = conn.execute('''
+            SELECT r.race_number, r.is_exhibition_done, r.is_finished, r.ranking_str, COUNT(e.id) as entry_count
+            FROM races r
+            LEFT JOIN entries e ON r.id = e.race_id
+            WHERE r.race_date = ? AND r.place_code = ?
+            GROUP BY r.id
+        ''', (iso_date, jcd)).fetchall()
+    finally:
+        conn.close()
+    
+    db_race_nums = {r["race_number"] for r in races_in_db}
+    finished_nums = {r["race_number"] for r in races_in_db if r["is_finished"]}
+    # 着順が不完全な（"--" や 3着分揃っていない等）レース番号も再取得対象にする
+    incomplete_result_nums = {
+        r["race_number"] for r in races_in_db 
+        if r["is_finished"] and (
+            not r["ranking_str"] or 
+            r["ranking_str"] == "--" or 
+            str(r["ranking_str"] or "").count("-") < 2
+        )
+    }
+    ex_done_nums = {r["race_number"] for r in races_in_db if r["is_exhibition_done"]}
+    # 6艇揃っていないレース番号のセット
+    incomplete_nums = {r["race_number"] for r in races_in_db if r["entry_count"] < 6}
+
+    for rno in range(1, 13):
+        # 1. 出走表がない、あるいは6艇揃っていない場合は取得/再取得
+        if rno not in db_race_nums or rno in incomplete_nums:
+            scrape_race_syusso(jcd, rno, target_dt)
+            time.sleep(0.2)
+        
+        # 2. すでに正常に終了済みの場合はスキップ (不完全な結果はスキップしない)
+        if rno in finished_nums and rno not in incomplete_result_nums:
+            continue
+            
+        # 3. 展示更新
+        if rno not in ex_done_nums:
+            update_exhibition(jcd, rno, target_dt)
+            time.sleep(0.2)
+        
+        # 4. 結果更新
+        update_result(jcd, rno, target_dt)
+        time.sleep(0.2)
+
 def update_all_active_races(target_dt: datetime.datetime = None):
     """全開催場の展示・結果を巡回更新する (バックグラウンドワーカー用)"""
+    start_time = time.time()
     target_dt, target_date_str, iso_date = get_current_date(target_dt)
     print(f"\n[WORKER] Periodic update started at {datetime.datetime.now(JST)}")
     
@@ -468,41 +663,209 @@ def update_all_active_races(target_dt: datetime.datetime = None):
         print("[WORKER] No active places found.")
         return
 
-    # 全開催場の1〜12Rを巡回
-    for jcd in active_jcds:
-        # DBに基本データ（出走表）がなければまず取得
-        conn = get_db_connection()
-        try:
-            races_in_db = conn.execute(
-                "SELECT race_number, is_exhibition_done, is_finished FROM races WHERE race_date = ? AND place_code = ?",
+    # 優先順位付け：締切時刻が近い会場から先に処理する
+    # DBから各会場の「次に始まる未終了レースの時刻」を取得
+    prioritized_jcds = []
+    conn = get_db_connection()
+    try:
+        for jcd in active_jcds:
+            next_race = conn.execute(
+                "SELECT scheduled_time FROM races WHERE race_date = ? AND place_code = ? AND is_finished = 0 ORDER BY race_number LIMIT 1",
                 (iso_date, jcd)
-            ).fetchall()
-        finally:
-            conn.close()
+            ).fetchone()
+            # 時刻がない、または終了済みの場合は後回しにするための大きな値
+            sort_key = next_race['scheduled_time'] if next_race and next_race['scheduled_time'] else "23:59"
+            prioritized_jcds.append((sort_key, jcd))
+    finally:
+        conn.close()
+    
+    # 時刻順にソート
+    prioritized_jcds.sort()
+    sorted_jcds = [item[1] for item in prioritized_jcds]
+
+    # 全開催場を並列で巡回 (最大5スレッド)
+    import concurrent.futures
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {executor.submit(update_venue_races, jcd, target_dt): jcd for jcd in sorted_jcds}
+        for future in concurrent.futures.as_completed(futures):
+            jcd = futures[future]
+            try:
+                future.result()
+            except Exception as e:
+                print(f"[WORKER ERROR] Parallel update failed for {places_dict.get(jcd, jcd)}: {e}")
+
+    duration = time.time() - start_time
+    print(f"[WORKER] Periodic update finished in {duration:.1f}s at {datetime.datetime.now(JST)}\n")
+
+def get_racer_results_stats(toban: str, jcd: str = None, date_str: str = None):
+    """
+    選手の詳細情報を取得する。
+    1. プロフィール・期別成績 (data/racersearch/profile)
+    2. 過去3節成績 (data/racersearch/back3)
+    3. 今節成績 (特定レースのracelistページから抽出)
+    """
+    stats = {
+        "racer_id": toban,
+        "profile": {},
+        "seasonal": {},
+        "back3": [],
+        "current_series": []
+    }
+
+    # 1. プロフィール & 期別成績
+    profile_url = f"https://www.boatrace.jp/owpc/pc/data/racersearch/profile?toban={toban}"
+    try:
+        res = requests.get(profile_url, headers={"User-Agent": USER_AGENT}, timeout=REQUEST_TIMEOUT)
+        if res.status_code == 200:
+            soup = BeautifulSoup(res.content, "html.parser")
+            # 氏名
+            name_el = soup.select_one(".racer_name")
+            if name_el:
+                stats["profile"]["name"] = name_el.get_text(strip=True)
+            
+            # 詳細情報 (級別、出身地など)
+            profile_table = soup.select_one(".is-p_profile")
+            if profile_table:
+                dls = profile_table.select("dl")
+                for dl in dls:
+                    dt = dl.select_one("dt").get_text(strip=True)
+                    dd = dl.select_one("dd").get_text(strip=True)
+                    if "級別" in dt: stats["profile"]["class"] = dd
+                    if "支部" in dt: stats["profile"]["branch"] = dd
+                    if "出身地" in dt: stats["profile"]["hometown"] = dd
+            
+            # 期別成績
+            season_url = f"https://www.boatrace.jp/owpc/pc/data/racersearch/season?toban={toban}"
+            sres = requests.get(season_url, headers={"User-Agent": USER_AGENT}, timeout=REQUEST_TIMEOUT)
+            if sres.status_code == 200:
+                ssoup = BeautifulSoup(sres.content, "html.parser")
+                table = ssoup.select_one(".is-p_result")
+                if table:
+                    rows = table.select("tr")
+                    for row in rows:
+                        th = row.select_one("th")
+                        td = row.select_one("td")
+                        if th and td:
+                            txt = th.get_text(strip=True)
+                            val = td.get_text(strip=True)
+                            if "勝率" in txt: stats["seasonal"]["win_rate"] = val
+                            if "2連対率" in txt: stats["seasonal"]["quinella_rate"] = val
+                            if "平均ST" in txt: stats["seasonal"]["avg_st"] = val
+    except Exception as e:
+        print(f"Error scraping profile: {e}")
+
+    # 2. 過去3節成績
+    back3_url = f"https://www.boatrace.jp/owpc/pc/data/racersearch/back3?toban={toban}"
+    try:
+        res = requests.get(back3_url, headers={"User-Agent": USER_AGENT}, timeout=REQUEST_TIMEOUT)
+        if res.status_code == 200:
+            soup = BeautifulSoup(res.content, "html.parser")
+            # 過去3節のテーブルを取得
+            # 構造を詳細にみると is-p_result クラスのテーブルが複数並んでいる
+            tables = soup.select(".is-p_result")
+            for table in tables:
+                caption = table.select_one("caption")
+                if not caption: continue
+                title = caption.get_text(strip=True)
+                
+                rows = table.select("tbody tr")
+                ranks = []
+                for r in rows:
+                    tds = r.select("td")
+                    if len(tds) >= 4:
+                        # 最後のカラムが節間成績 (<a>タグのリスト)
+                        res_td = tds[-1]
+                        # すべての<a>タグから着順を取得
+                        r_links = res_td.select("a")
+                        for a in r_links:
+                            r_txt = a.get_text(strip=True)
+                            if r_txt: ranks.append(r_txt)
+                
+                if ranks:
+                    stats["back3"].append({
+                        "series_title": title,
+                        "ranks": ranks
+                    })
+    except Exception as e:
+        print(f"Error scraping back3: {e}")
+
+    # 3. 今節成績 (出走表から)
+    if jcd and date_str:
+        hd = date_str.replace("-", "")
+        # 出走表ページに今節成績が載っている
+        racelist_url = f"https://www.boatrace.jp/owpc/pc/race/racelist?rno=1&jcd={jcd}&hd={hd}"
+        try:
+            res = requests.get(racelist_url, headers={"User-Agent": USER_AGENT}, timeout=REQUEST_TIMEOUT)
+            if res.status_code == 200:
+                soup = BeautifulSoup(res.content, "html.parser")
+                racer_links = soup.select(f"a[href*='toban={toban}']")
+                if racer_links:
+                    target_tr = None
+                    for link in racer_links:
+                        parent = link.find_parent("tr")
+                        if parent: 
+                            target_tr = parent
+                            break
+                    
+                    if target_tr:
+                        perf_tds = target_tr.select("td.is-over1024")
+                        for td in perf_tds:
+                            txt = td.get_text("|", strip=True)
+                            parts = txt.split("|")
+                            # レース番号, コース/ST, 着順 の3要素セットでループ
+                            for i in range(0, len(parts) - 2, 3):
+                                stats["current_series"].append({
+                                    "race_no": parts[i],
+                                    "course_st": parts[i+1],
+                                    "rank": parts[i+2]
+                                })
+        except Exception as e:
+            print(f"Error scraping current series: {e}")
+
+    return stats
+
+def repair_corrupted_races(days_back=2):
+    """
+    過去N日間のレースを調査し、出走艇データが6艇に満たない不完全なものを再取得する。
+    """
+    print(f"[REPAIR] Checking for corrupted races in the last {days_back} days...")
+    from datetime import datetime, timedelta
+    from app_config import JST
+    
+    conn = get_db_connection()
+    try:
+        # 直近N日の不完全なレースを取得
+        threshold_date = (datetime.now(JST) - timedelta(days=days_back)).strftime('%Y-%m-%d')
         
-        db_race_nums = {r["race_number"] for r in races_in_db}
-        finished_nums = {r["race_number"] for r in races_in_db if r["is_finished"]}
-        ex_done_nums = {r["race_number"] for r in races_in_db if r["is_exhibition_done"]}
+        corrupted = conn.execute('''
+            SELECT r.id, r.race_date, r.place_code, r.race_number, COUNT(e.id) as cnt
+            FROM races r
+            LEFT JOIN entries e ON r.id = e.race_id
+            WHERE r.race_date >= ?
+            GROUP BY r.id
+            HAVING cnt < 6
+        ''', (threshold_date,)).fetchall()
+        
+        if not corrupted:
+            print("[REPAIR] No corrupted races found.")
+            return
+            
+        print(f"[REPAIR] Found {len(corrupted)} corrupted races. Repairing...")
+        for row in corrupted:
+            date_str = row['race_date']
+            jcd = row['place_code']
+            race_no = row['race_number']
+            
+            print(f"[REPAIR] Repairing {date_str} {jcd} {race_no}R (current boats: {row['cnt']})...")
+            target_dt = datetime.strptime(date_str, '%Y-%m-%d')
+            scrape_race_syusso(jcd, race_no, target_dt)
+            
+        print("[REPAIR] Repair completed.")
+    except Exception as e:
+        print(f"[REPAIR ERROR] {e}")
+    finally:
+        conn.close()
 
-        for rno in range(1, 13):
-            # 既に終了しているレースはスキップ
-            if rno in finished_nums:
-                continue
-            
-            # 出走表データすらない場合はフルスクレイピング
-            if rno not in db_race_nums:
-                scrape_race_syusso(jcd, rno, target_dt)
-                time.sleep(1) # 連続アクセス負荷軽減
-            
-            # 展示がまだの場合、または結果待ちの場合
-            # 負荷を考えて、全レースを一律チェックするのではなく、適宜 sleep
-            if rno not in ex_done_nums:
-                update_exhibition(jcd, rno, target_dt)
-                time.sleep(1)
-            
-            # 展示済みなら結果をチェック
-            # (実際は展示から20-30分後だが、一律チェックしても 404/データなしで返るだけなのでOK)
-            update_result(jcd, rno, target_dt)
-            time.sleep(1)
-
-    print(f"[WORKER] Periodic update finished at {datetime.datetime.now(JST)}\n")
+if __name__ == "__main__":
+    from database import init_db
+    init_db()

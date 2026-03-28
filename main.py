@@ -1,6 +1,6 @@
 import math
 import itertools
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional
 from pydantic import BaseModel
 import random
@@ -8,7 +8,7 @@ import os
 import json
 import concurrent.futures
 import hashlib
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Query
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from live_scraper import (
@@ -16,18 +16,73 @@ from live_scraper import (
     fetch_exhibition_data, fetch_all_odds
 )
 import scraper
-from scraper import scrape_today, update_all_active_races
+from scraper import (
+    scrape_index, scrape_race_syusso, update_exhibition, update_result, 
+    update_all_active_races, get_racer_results_stats
+)
 import time
 import asyncio
 
-from app_config import JST, LOCK_FILE, STATIC_DIR
-from database import get_db_connection, init_db
+from app_config import JST, LOCK_FILE, STATIC_DIR, LAST_SCRAPE_FILE
+from database import get_db_connection, init_db, cleanup_old_data, sync_from_supabase
 
 app = FastAPI(title="Kyotei Advisor MVP")
 init_db()
 
+# 選手プロフィールのメモリキャッシュ (toban -> {data, timestamp})
+RACER_STATS_CACHE = {}
+RACER_CACHE_TTL = 3600 # 1時間
+
+# 的中・回収率（daily_hits）のメモリキャッシュ
+# { "date_settings_hash": { "data": results, "ts": timestamp } }
+DAILY_HITS_CACHE = {}
+DAILY_HITS_CACHE_TTL = 300 # 5分 (結果が更新される可能性があるため短め)
+
 @app.on_event("startup")
 async def startup_event():
+    # 起動時のデータ収集戦略の決定
+    now_jst = datetime.now(JST)
+    today_iso = now_jst.strftime('%Y-%m-%d')
+    
+    last_scrape_date = ""
+    if LAST_SCRAPE_FILE.exists():
+        try:
+            last_scrape_date = LAST_SCRAPE_FILE.read_text(encoding="utf-8").strip()
+        except:
+            pass
+    
+    loop = asyncio.get_event_loop()
+    
+    # 1. データ同期・取得（初回: 公式から全取得、2回目以降: Supabaseから同期）
+    try:
+        if last_scrape_date != today_iso:
+            print(f"[STARTUP] {today_iso} の初回起動です。Supabaseから今日のデータを先行取得し、公式からもバックグラウンドで更新します...")
+            # 1. 今日のデータをSupabaseから最優先で取得 (UI即時表示のため)
+            from database import sync_specific_date_from_supabase
+            await loop.run_in_executor(None, sync_specific_date_from_supabase, today_iso)
+
+            # 2. 残りの同期と公式スクレイピングはバックグラウンドで実行
+            asyncio.create_task(asyncio.to_thread(sync_from_supabase, 1))
+            asyncio.create_task(asyncio.to_thread(scraper.scrape_today, now_jst))
+            
+            try:
+                LAST_SCRAPE_FILE.write_text(today_iso, encoding="utf-8")
+            except: pass
+        else:
+            print(f"[STARTUP] 本日2回目以降の起動です。バックグラウンドで同期・補填を行います...")
+            # 今日・明日のデータをSupabaseから先行取得
+            from database import sync_specific_date_from_supabase
+            asyncio.create_task(asyncio.to_thread(sync_specific_date_from_supabase, today_iso))
+            
+            asyncio.create_task(asyncio.to_thread(sync_from_supabase, 1))
+            asyncio.create_task(asyncio.to_thread(scraper.scrape_missing_today, now_jst))
+            
+        # 2. まだDBが空の場合（初回起動失敗時など）のフォールバック
+        asyncio.create_task(initial_fetch_if_empty())
+        
+    except Exception as e:
+        print(f"[STARTUP ERROR] Data initialization failed: {e}")
+
     # ロックファイルのクリーンアップ
     if LOCK_FILE.exists():
         try:
@@ -35,35 +90,83 @@ async def startup_event():
         except:
             pass
     
+    # SSEコールバックをスクレイパーに登録
+    def _sync_sse_push(event_type: str, data: dict):
+        try:
+            loop = asyncio.get_event_loop()
+            asyncio.run_coroutine_threadsafe(sse_push(event_type, data), loop)
+        except Exception as e:
+            print(f"[SSE BRIDGE ERROR] {e}")
+    
+    scraper.sse_broadcast_callback = _sync_sse_push
+    
     # バックグラウンドワーカーの起動
     asyncio.create_task(background_worker())
 
+async def initial_fetch_if_empty():
+    """起動時にデータが不足している場合にのみウェブから取得する"""
+    await asyncio.sleep(10) # 起動直後の負荷分散
+    loop = asyncio.get_event_loop()
+    now_jst = datetime.now(JST)
+    
+    for days in [-1, 0, 1]:
+        target_dt = now_jst + timedelta(days=days)
+        target_iso = target_dt.strftime('%Y-%m-%d')
+        
+        conn = get_db_connection()
+        try:
+            # 開催場があるかチェック
+            exists = conn.execute("SELECT 1 FROM races WHERE race_date = ? LIMIT 1", (target_iso,)).fetchone()
+            if not exists:
+                if days == 1 and now_jst.hour < 18: continue # 翌日分は18時以降
+                print(f"[SYSTEM] Data missing for {target_iso}. Triggering initial fetch...")
+                await loop.run_in_executor(None, scraper.scrape_today, target_dt)
+        except Exception as e:
+            print(f"[SYSTEM ERROR] Initial fetch ({target_iso}): {e}")
+        finally:
+            conn.close()
+
 async def background_worker():
-    """5分おきに全レース場のデータを自動更新する"""
+    """定期的に全レース場のデータを自動更新し、日次サイクルを管理する"""
     print("[SYSTEM] Background worker started.")
-    # 初回起動時は少し待機してから開始する（APIリクエスト時の「取得中」表示を避けるため）
-    await asyncio.sleep(5)
+    await asyncio.sleep(30)
+    
+    last_yesterday_check = 0
+    last_tomorrow_check = 0
     
     while True:
         try:
-            # 実行
-            # loop.run_in_executor を使ってブロッキングなスクレイピングを別スレッドで実行
             loop = asyncio.get_event_loop()
+            now_jst = datetime.now(JST)
+            today_iso = now_jst.strftime('%Y-%m-%d')
             
-            # 当日の更新
+            # 1. 当日の更新 (1分おき)
             await loop.run_in_executor(None, update_all_active_races)
             
-            # 18時以降であれば翌日のデータも自動取得（出走表のみ）
-            now_jst = datetime.now(JST)
-            if now_jst.hour >= 18:
-                tomorrow_dt = now_jst + datetime.timedelta(days=1)
+            # 2. 翌日のチェック (18時以降、10分おき)
+            if now_jst.hour >= 18 and (time.time() - last_tomorrow_check > 600):
+                tomorrow_dt = now_jst + timedelta(days=1)
                 await loop.run_in_executor(None, update_all_active_races, tomorrow_dt)
+                last_tomorrow_check = time.time()
+                
+            # 3. 昨日の整合性チェック (1時間おき)
+            if time.time() - last_yesterday_check > 3600:
+                yesterday_dt = now_jst - timedelta(days=1)
+                # 昨日のレースが全て終了しているか、変更がないかサイレント更新
+                # update_all_active_races は終了フラグをチェックして未了分のみ取得するが、
+                # 整合性チェックとして呼び出す
+                await loop.run_in_executor(None, update_all_active_races, yesterday_dt)
+                last_yesterday_check = time.time()
+
+            # 4. 古いデータのクリーンアップ（2日以上前のデータを削除）
+            two_days_ago_dt = now_jst - timedelta(days=2)
+            two_days_ago_iso = two_days_ago_dt.strftime('%Y-%m-%d')
+            await loop.run_in_executor(None, cleanup_old_data, two_days_ago_iso)
                 
         except Exception as e:
             print(f"[WORKER ERROR] {e}")
         
-        # 300秒（5分）待機
-        await asyncio.sleep(300)
+        await asyncio.sleep(60)
 
 def get_today_str() -> str:
     now_jst = datetime.now(JST)
@@ -103,6 +206,60 @@ def read_root():
     return RedirectResponse(url="/static/index.html")
 
 
+# ─────────────────────────── Server-Sent Events (SSE) ───────────────────────
+# Simple broadcast: any number of clients subscribe via GET /api/events
+# Backend pushes JSON messages when races finish or update.
+
+import asyncio
+from fastapi.responses import StreamingResponse
+
+_sse_clients: list[asyncio.Queue] = []
+
+async def sse_push(event_type: str, data: dict):
+    """Broadcast a JSON event to all connected SSE clients."""
+    import json
+    msg = f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+    dead = []
+    for q in _sse_clients:
+        try:
+            q.put_nowait(msg)
+        except asyncio.QueueFull:
+            dead.append(q)
+    for q in dead:
+        try: _sse_clients.remove(q)
+        except ValueError: pass
+
+@app.get("/api/events")
+async def sse_endpoint():
+    """SSE stream endpoint. The frontend connects once and receives push events."""
+    q: asyncio.Queue[str] = asyncio.Queue(maxsize=50)
+    _sse_clients.append(q)
+
+    async def generator():
+        try:
+            yield ": connected\n\n"  # initial keep-alive comment
+            while True:
+                try:
+                    msg = await asyncio.wait_for(q.get(), timeout=25)
+                    yield msg
+                except asyncio.TimeoutError:
+                    yield ": keep-alive\n\n"  # prevent proxy timeout
+        except asyncio.CancelledError:
+            pass
+        finally:
+            try: _sse_clients.remove(q)
+            except ValueError: pass
+
+    return StreamingResponse(
+        generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        }
+    )
+
+
 
 # ─────────────────────────── Pydantic Models ────────────────────────────────
 
@@ -121,6 +278,9 @@ class PlayerOverride(BaseModel):
     start_timing: Optional[float] = None
     tilt: Optional[float] = None
     is_absent: Optional[bool] = None
+    parts_exchange: Optional[str] = None
+    weight_adjustment: Optional[float] = None
+    propeller: Optional[str] = None
 
 class ExhibitionUpdate(BaseModel):
     boat_number: int
@@ -129,17 +289,24 @@ class ExhibitionUpdate(BaseModel):
     entry_course: int
     tilt: Optional[float] = None
     is_absent: bool = False
+    parts_exchange: Optional[str] = ""
+    weight_adjustment: Optional[float] = 0.0
+    propeller: Optional[str] = ""
 
 class PredictSettings(BaseModel):
     max_items: int = 8
     bet_type: str = "3連単"
     fixed_1st: int = 0
+    hit_type: str = "both"  # "buy", "ai", "custom", "both"
+    ai_prediction_mode: int = 0  # 0:本命, 1:中穴, 2:大穴
+    custom_prediction_mode: int = 0
 
 class PredictRequest(BaseModel):
     weights: CustomWeights
     settings: PredictSettings = PredictSettings()
     overrides: Optional[List[PlayerOverride]] = None
     recalculate_ai: bool = False
+    ignore_exhibition: bool = False
 
 
 # ─────────────────────────── Places ─────────────────────────────────────────
@@ -154,50 +321,135 @@ places_dict_order = [
 _active_places_cache_time = 0.0
 _active_places_cache_jcds = []
 
+# 選手の戦績キャッシュは上部で定義済み
+
+
+@app.get("/api/racer_stats/{toban}")
+def api_racer_stats(toban: str, jcd: Optional[str] = Query(None), date: Optional[str] = Query(None)):
+    now = time.time()
+    # Unique cache key per toban, jcd and date to prevent incorrect cross-venue cache hits
+    cache_key = f"{toban}_{jcd}_{date}"
+    
+    if cache_key in RACER_STATS_CACHE:
+        entry = RACER_STATS_CACHE[cache_key]
+        if now - entry.get("timestamp", 0) < 3600:
+            return entry.get("data")
+    
+    try:
+        raw_stats = get_racer_results_stats(toban, jcd, date)
+        
+        # Format for frontend
+        formatted_results = []
+        
+        for item in raw_stats.get("current_series", []):
+            formatted_results.append({
+                "date": "今節",
+                "venue": "",
+                "race_no": item.get("race_no"),
+                "course": item.get("course_st", "").split("(")[0],
+                "st": item.get("course_st", "").split("(")[1].replace(")", "") if "(" in item.get("course_st", "") else "",
+                "rank": item.get("rank")
+            })
+            
+        for series in raw_stats.get("back3", []):
+            title = series.get("series_title", "")
+            ranks = series.get("ranks", [])
+            for i, rank in enumerate(ranks):
+                formatted_results.append({
+                    "date": "前節" if i == 0 else "",
+                    "venue": title if i == 0 else "",
+                    "race_no": "-",
+                    "course": "-",
+                    "st": "-",
+                    "rank": rank
+                })
+
+        data = {
+            "profile": {
+                "toban": toban,
+                "name": raw_stats.get("profile", {}).get("name"),
+                "class": raw_stats.get("profile", {}).get("class"),
+                "branch": raw_stats.get("profile", {}).get("branch"),
+                "birthplace": raw_stats.get("profile", {}).get("hometown")
+            },
+            "seasonal_stats": {
+                "global_win_rate": raw_stats.get("seasonal", {}).get("win_rate"),
+                "local_win_rate": raw_stats.get("seasonal", {}).get("win_rate"),
+                "global_quinella": raw_stats.get("seasonal", {}).get("quinella_rate", "").replace("%", ""),
+                "local_quinella": "0.00"
+            },
+            "recent_results": formatted_results
+        }
+        
+        RACER_STATS_CACHE[cache_key] = {"timestamp": now, "data": data}
+        return data
+    except Exception as e:
+        print(f"Error in api_racer_stats: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch racer statistics")
+def _grade_priority(title: str) -> int:
+    """Grade priority: higher = more important. Used to pick best title per meet."""
+    if not title:
+        return 0
+    t = title.upper()
+    # SG
+    if any(kw in t for kw in ['SG', 'ＳＧ', 'グランプリ', 'ダービー', 'メモリアル', 'チャンピオンシップ', 'オールスター', 'ピーターリング', 'クラシック']):
+        return 5
+    # G1
+    if any(g in t for g in ['G1', 'GⅠ', 'G１', 'GI', 'Ｇ１', 'ＧⅠ', 'ＧＩ']) or any(kw in title for kw in ['龍王', '王者']):
+        return 4
+    # G2
+    if any(g in t for g in ['G2', 'GⅡ', 'G２', 'GII', 'Ｇ２', 'ＧⅡ', 'ＧＩＩ']):
+        return 3
+    # G3
+    if any(g in t for g in ['G3', 'GⅢ', 'G３', 'GIII', 'Ｇ３', 'ＧⅢ', 'ＧＩＩＩ']):
+        return 2
+    # Lady / Venus
+    if any(k in title for k in ['ヴィーナス', 'レディース', '女子', 'クイーン']):
+        return 1
+    return 0
 
 @app.get("/api/places")
-def get_places(date: Optional[str] = Query(None)):
-    global _active_places_cache_time, _active_places_cache_jcds
+async def get_places(date: Optional[str] = Query(None), background_tasks: BackgroundTasks = None):
     now = time.time()
     today_str = date if date else get_today_str()
+    loop = asyncio.get_running_loop()
 
     conn = get_db_connection()
     try:
-        db_places = conn.execute(
-            'SELECT DISTINCT place_code FROM races WHERE race_date = ?',
-            (today_str,)
-        ).fetchall()
-        db_place_codes = {row['place_code'] for row in db_places}
-
         # Fetch all races for today to determine best grade across all race numbers
         all_race_rows = conn.execute(
-            'SELECT place_code, place_name, race_title, race_number FROM races WHERE race_date = ?',
+            'SELECT place_code, place_name, race_title, race_number, day_label FROM races WHERE race_date = ?',
             (today_str,)
         ).fetchall()
+        
+        if not all_race_rows:
+            # データがない場合はSupabaseから取得を試みる (Supabase-first)
+            print(f"[API] No data for {today_str}. Attempting initial sync...")
+            from database import sync_specific_date_from_supabase
+            
+            # 最初の1回は同期的に実行して、ユーザーに「空」を返すのを極力避ける（最大3秒待機）
+            await loop.run_in_executor(None, sync_specific_date_from_supabase, today_str)
+            
+            # 同期後に再度確認（少し待機）
+            for _ in range(3):
+                all_race_rows = conn.execute(
+                    'SELECT place_code, place_name, race_title, race_number, day_label FROM races WHERE race_date = ?',
+                    (today_str,)
+                ).fetchall()
+                if all_race_rows:
+                    break
+                await asyncio.sleep(1.0)
+            
+            if not all_race_rows:
+                # それでも無い場合はバックグラウンドで公式からスクレイピングを開始
+                if background_tasks:
+                    background_tasks.add_task(scraper.scrape_today, today_str)
+                all_race_rows = []
+
+        db_place_codes = {row['place_code'] for row in all_race_rows}
     finally:
         conn.close()
 
-    def _grade_priority(title: str) -> int:
-        """Grade priority: higher = more important. Used to pick best title per meet."""
-        if not title:
-            return 0
-        t = title.upper()
-        # SG
-        if any(kw in t for kw in ['SG', 'ＳＧ', 'グランプリ', 'ダービー', 'メモリアル', 'チャンピオンシップ', 'オールスター', 'ピーターリング']):
-            return 5
-        # G1
-        if any(g in t for g in ['G1', 'GⅠ', 'G１', 'GI', 'Ｇ１', 'ＧⅠ', 'ＧＩ']) or any(kw in title for kw in ['クラシック', '龍王', '王者']):
-            return 4
-        # G2
-        if any(g in t for g in ['G2', 'GⅡ', 'G２', 'GII', 'Ｇ２', 'ＧⅡ', 'ＧＩＩ']):
-            return 3
-        # G3
-        if any(g in t for g in ['G3', 'GⅢ', 'G３', 'GIII', 'Ｇ３', 'ＧⅢ', 'ＧＩＩＩ']):
-            return 2
-        # Lady / Venus
-        if any(k in title for k in ['ヴィーナス', 'レディース', '女子', 'クイーン']):
-            return 1
-        return 0
 
     # Build grade_map: per place_code, keep the title with highest grade priority
     # and track max race_number separately
@@ -207,13 +459,15 @@ def get_places(date: Optional[str] = Query(None)):
         rn = row['race_number'] or 0
         rt = row['race_title'] or ''
         pname = row['place_name']
+        dl = row['day_label'] or ''
         if pc not in grade_map_by_code:
-            grade_map_by_code[pc] = (rt, rn, pname)
+            grade_map_by_code[pc] = (rt, rn, pname, dl)
         else:
-            existing_title, existing_max, _ = grade_map_by_code[pc]
+            existing_title, existing_max, _, existing_dl = grade_map_by_code[pc]
             best_title = rt if _grade_priority(rt) > _grade_priority(existing_title) else existing_title
             best_max = max(existing_max, rn)
-            grade_map_by_code[pc] = (best_title, best_max, pname)
+            best_dl = dl if dl else existing_dl
+            grade_map_by_code[pc] = (best_title, best_max, pname, best_dl)
 
     is_today = (today_str == get_today_str())
 
@@ -232,14 +486,16 @@ def get_places(date: Optional[str] = Query(None)):
         is_active = place_code in active_place_codes if place_code else False
         race_title = ''
         max_race = 0
+        day_label = ''
         if place_code and place_code in grade_map_by_code:
-            race_title, max_race, _ = grade_map_by_code[place_code]
+            race_title, max_race, _, day_label = grade_map_by_code[place_code]
 
         result.append({
             "place": place,
             "place_code": place_code or '',
             "is_active": is_active,
             "grade": race_title,
+            "day_label": day_label,
             "max_race": max_race,
         })
     return result
@@ -250,7 +506,7 @@ def get_races(place_name: str, date: Optional[str] = Query(None)):
     today_str = date if date else get_today_str()
     conn = get_db_connection()
     races = conn.execute(
-        'SELECT id, race_date, place_code, place_name, race_number, race_title, is_finished '
+        'SELECT id, race_date, place_code, place_name, race_number, race_title, is_finished, is_exhibition_done, scheduled_time '
         'FROM races WHERE place_name = ? AND race_date = ? GROUP BY race_number ORDER BY race_number',
         (place_name, today_str)
     ).fetchall()
@@ -263,6 +519,70 @@ def get_races(place_name: str, date: Optional[str] = Query(None)):
 @app.get("/api/status")
 def get_status():
     return {"is_scraping": LOCK_FILE.exists()}
+
+
+@app.get("/api/racers/{toban}")
+def get_racer_detail(toban: str, place_code: Optional[str] = Query(None)):
+    """選手の詳細情報（プロフィール・コース別成績・会場別過去着順）を取得する"""
+    import live_scraper
+    import database
+    
+    now = time.time()
+    
+    # 1. 基本プロフィールとコース別成績（キャッシュ利用）
+    stats = None
+    if toban in RACER_STATS_CACHE:
+        cache_data = RACER_STATS_CACHE[toban]
+        if now - cache_data['ts'] < RACER_CACHE_TTL:
+            stats = cache_data['data']
+    
+    if not stats:
+        stats = live_scraper.fetch_racer_profile(toban)
+        if stats:
+            RACER_STATS_CACHE[toban] = {'data': stats, 'ts': now}
+            # SQLite / Supabase 同期
+            _sync_racer_profile_to_db(toban, stats)
+    
+    # 2. 過去着順の取得
+    # DBから取得（entries 統合済み版）
+    past_results = database.get_racer_results(toban, place_code)
+    
+    # 今日出走しているかチェック
+    today_iso = datetime.now(JST).strftime('%Y-%m-%d')
+    conn = database.get_db_connection()
+    is_racing_today = conn.execute(
+        "SELECT COUNT(*) FROM entries INNER JOIN races ON entries.race_id = races.id WHERE entries.racer_id = ? AND races.race_date = ?",
+        (toban, today_iso)
+    ).fetchone()[0] > 0
+    conn.close()
+    
+    # データが極端に少ない、または今日出走中で最新データが必要な場合のみスクレイピング
+    # 既にDBに30件以上（または今節複数件）あるなら、頻繁なスクレイピングは避ける
+    needs_update = not past_results
+    if not needs_update and is_racing_today:
+        # 今日の日付のデータがまだ無い、かつ最後に更新してから1時間以上経過している場合
+        last_update_ts = 0
+        if past_results:
+            # 暫定的に最初のデータのupdated_atを見る（あれば）
+            pass # 既存スキーマにupdated_atがない場合は一旦常に1回は取るか、時間で制御
+        
+        # 簡易的に：30件未満なら1回は取る
+        if len(past_results) < 20:
+            needs_update = True
+
+    if needs_update:
+        # 重い処理なので必要な時だけ
+        new_results = live_scraper.fetch_racer_past_results(toban)
+        if new_results:
+            database.save_racer_results(toban, new_results)
+            past_results = database.get_racer_results(toban, place_code)
+            
+    return {
+        "toban": toban,
+        "name": stats.get("name", "") if stats else "",
+        "course_stats": stats.get("course_stats", []) if stats else [],
+        "past_results": past_results
+    }
 
 
 @app.post("/api/scrape/today")
@@ -298,9 +618,9 @@ def calculate_scenarios(scored_players):
         boat_no = player["boat_number"]
         racer_name = player.get("racer_name", "")
         st = player["calc_st"]
-        motor = player.get("motor_2_quinella") or 30.0
+        motor = player.get("motor_2_quinella") if player.get("motor_2_quinella") is not None else 30.0
         ex_time = player["calc_ex"]
-        tilt = player.get("tilt") or 0.0
+        tilt = player.get("tilt") if player.get("tilt") is not None else 0.0
 
         inner_players = [p for p in scored_players if p["calc_course"] < course]
         if not inner_players:
@@ -374,20 +694,55 @@ def calculate_scenarios(scored_players):
 # { race_id: { "hash": "data_hash", "results": { ...AI成果物... } } }
 AI_RESULT_CACHE = {}
 
-def compute_players_hash(players_data: List[dict]) -> str:
+def compute_settings_hash(weights: CustomWeights, settings: PredictSettings) -> str:
+    """予測設定（重み、モード、券種等）をハッシュ化する"""
+    s_dict = {
+        "w": weights.dict(),
+        "m": settings.max_items,
+        "bt": settings.bet_type,
+        "f1": settings.fixed_1st,
+        "ht": settings.hit_type,
+        "am": settings.ai_prediction_mode,
+        "cm": settings.custom_prediction_mode
+    }
+    s_json = json.dumps(s_dict, sort_keys=True)
+    return hashlib.mdsafe_hex_digest(s_json.encode()).hexdigest() if hasattr(hashlib, 'mdsafe_hex_digest') else hashlib.md5(s_json.encode()).hexdigest()
+
+def compute_players_hash(race_data: dict, players_data: List[dict], weights: CustomWeights = None, settings: PredictSettings = None) -> str:
     """AIの計算に影響する項目のみを抽出してハッシュ化する"""
-    relevant = []
-    # 艇番、展示タイム、ST、進入、チルト、欠場状況がAI計算の入力値
+    # 会場や風、波など、レース全体の条件をベースに含める
+    relevant_context = {
+        "place": race_data.get("place_name"),
+        "weather": race_data.get("weather"),
+        "wd": race_data.get("wind_direction"),
+        "ws": race_data.get("wind_speed"),
+        "wv": race_data.get("wave_height")
+    }
+    
+    relevant_players = []
+    # 艇番、展示タイム、ST、進入、チルト、欠場、および「選手の能力値」をハッシュに含める
     for p in sorted(players_data, key=lambda x: x.get('boat_number', 0)):
-        relevant.append({
+        relevant_players.append({
             "b": p.get("boat_number"),
             "e": p.get("exhibition_time"),
             "s": p.get("start_timing"),
             "c": p.get("entry_course"),
             "t": p.get("tilt"),
-            "a": p.get("is_absent")
+            "a": p.get("is_absent"),
+            "pe": p.get("parts_exchange"),
+            "wa": p.get("weight_adjustment"),
+            "pr": p.get("propeller"),
+            "rid": p.get("racer_id"),
+            "gwr": p.get("global_win_rate"),
+            "lwr": p.get("local_win_rate")
         })
-    return hashlib.md5(json.dumps(relevant, sort_keys=True).encode()).hexdigest()
+    
+    # ユーザー設定（重みや買い目種別、軸固定など）もハッシュに含めることで、設定変更時に再計算させる
+    w_data = weights.dict() if weights and hasattr(weights, 'dict') else weights
+    s_data = settings.dict() if settings and hasattr(settings, 'dict') else settings
+
+    full_data = {"ctx": relevant_context, "pls": relevant_players, "w": w_data, "s": s_data}
+    return hashlib.md5(json.dumps(full_data, sort_keys=True).encode()).hexdigest()
 
 def calculate_predictions(race_data, players_data, weights: CustomWeights, settings: PredictSettings = None, ai_cache: dict = None):
     if settings is None:
@@ -400,8 +755,23 @@ def calculate_predictions(race_data, players_data, weights: CustomWeights, setti
     scored_players = []
     active_players_for_sim = []
 
+    # 伸び足・出足判定用の事前ランキング計算
+    active_for_rank = [p for p in players_data if not p.get("is_absent")]
+    ex_times = [(p["boat_number"], p.get("exhibition_time") if p.get("exhibition_time") is not None else 6.80) for p in active_for_rank]
+    ex_times.sort(key=lambda x: x[1])
+    ex_rank_map = {b: i+1 for i, (b, t) in enumerate(ex_times)}
+    
+    g_wins = [(p["boat_number"], p.get("global_win_rate") if p.get("global_win_rate") is not None else 4.0) for p in active_for_rank]
+    g_wins.sort(key=lambda x: x[1], reverse=True)
+    win_rank_map = {b: i+1 for i, (b, w) in enumerate(g_wins)}
+
     for row in players_data:
         p = dict(row)
+        
+        # 伸び足・出足のタグ情報（フロント用）
+        p["leg_type"] = ""
+        p["leg_type_color"] = ""
+
         if p.get("is_absent"):
             p["rule_score"] = -1.0
             p["rule_mark"] = "欠"
@@ -416,15 +786,15 @@ def calculate_predictions(race_data, players_data, weights: CustomWeights, setti
         # ── 以下、欠場でない艇の計算 ──
         active_players_for_sim.append(p)
 
-        ex_time = p.get("exhibition_time") or 6.80
+        ex_time = p.get("exhibition_time") if p.get("exhibition_time") is not None else 6.80
         # ★ ST=0.0 は有効値なので None のみデフォルト補填
         st_time = p.get("start_timing")
         if st_time is None:
             st_time = 0.15
-        course = p.get("entry_course") or p["boat_number"]
-        g_win = p.get("global_win_rate") or 4.0
-        m_rate = p.get("motor_2_quinella") or 30.0
-        tilt = p.get("tilt") or 0.0
+        course = p.get("entry_course") if p.get("entry_course") is not None else p["boat_number"]
+        g_win = p.get("global_win_rate") if p.get("global_win_rate") is not None else 4.0
+        m_rate = p.get("motor_2_quinella") if p.get("motor_2_quinella") is not None else 30.0
+        tilt = p.get("tilt") if p.get("tilt") is not None else 0.0
 
         tilt_adj = tilt * 2.5
         course_score = max(0, 7 - course) * 3.0 * weights.course
@@ -433,36 +803,86 @@ def calculate_predictions(race_data, players_data, weights: CustomWeights, setti
         exhibition_score = max(0, (7.0 - ex_time) * 50) * weights.exhibition
         st_score = max(0, (0.3 - st_time) * 100) * weights.st
         
-        # 風の影響計算
+        # ── 風の影響計算 ──
         wind_adj = 0.0
-        if weights.wind > 0:
+        # ユーザー要望: 展示情報が入っていない場合は風を考慮しない
+        # STが0.15以外、または展示タイムが6.80以外を「展示あり」と簡易判定（あるいは None チェック）
+        has_exhibition = (p.get("start_timing") is not None) or (p.get("exhibition_time") is not None)
+
+        if has_exhibition and weights.wind > 0:
             w_speed = float(race_data.get("wind_speed") or 0)
             w_dir = race_data.get("wind_direction") or ""
+            
             if "追い風" in w_dir:
                 if w_speed <= 4:
-                    if course == 1: wind_adj = 2.0
+                    if course == 1: wind_adj = 2.5
                     elif course == 2: wind_adj = 1.0
                 else:
-                    if course == 1: wind_adj = -2.0
-                    elif course == 2: wind_adj = 2.0
-                    elif course == 3: wind_adj = 1.0
+                    if course == 1: wind_adj = -4.0
+                    elif course == 2: wind_adj = 5.0
+                    elif course in [3, 4]: wind_adj = 3.0
             elif "向かい風" in w_dir:
                 if w_speed <= 4:
+                    if course in [3, 4]: wind_adj = 3.0
                     if course == 1: wind_adj = -0.5
-                    elif course == 3: wind_adj = 0.5
-                    elif course == 4: wind_adj = 1.5
                 else:
-                    if course == 1: wind_adj = -3.5
-                    elif course in [3, 4]: wind_adj = 2.5
-                    elif course in [5, 6]: wind_adj = 1.5
-            elif w_dir: # 横風など
-                if course == 1: wind_adj = -0.5
+                    if course in [3, 4]: wind_adj = 10.0
+                    if course in [5, 6]: wind_adj = 6.0
+                    if course == 1: wind_adj = -5.0
+            elif "右横風" in w_dir or "右斜め" in w_dir:
+                if course == 2: wind_adj = 3.0
+                if course == 1: wind_adj = -1.5
+            elif "左横風" in w_dir or "左斜め" in w_dir:
+                if course in [3, 4, 5]: wind_adj = 2.0
+                if course == 1: wind_adj = -2.0
+            elif w_dir:
+                if course == 1: wind_adj = -1.0
         
-        rule_score = course_score + win_score + motor_score + exhibition_score + st_score + tilt_adj + (wind_adj * weights.wind)
+        # ── 部品交換・重量などの影響計算 ──
+        parts_exchange = p.get("parts_exchange") or ""
+        weight_adj = p.get("weight_adjustment") or 0.0
+        propeller = p.get("propeller") or ""
+        
+        parts_adj = 0.0
+        parts_tags = []
+        if "リング" in parts_exchange:
+            parts_adj += 3.0
+            parts_tags.append("リング交換")
+        if "ピストン" in parts_exchange:
+            parts_adj += 2.0
+            parts_tags.append("ピストン交換")
+        if "シリンダ" in parts_exchange:
+            parts_adj += 4.0
+            parts_tags.append("シリンダ交換")
+        if "キャリア" in parts_exchange:
+            parts_adj += 2.0
+        if "ギヤ" in parts_exchange:
+            parts_adj += 2.0
+        if "新" in propeller:
+            parts_adj += 2.5
+            parts_tags.append("新プロペラ")
+            
+        p["parts_tag_str"] = " ".join(parts_tags)
+        
+        # ── 伸び足・出足の判定 ──
+        ex_rank = ex_rank_map.get(p["boat_number"], 6)
+        win_rank = win_rank_map.get(p["boat_number"], 6)
+        
+        if ex_rank <= 2 and win_rank >= 4:
+            p["leg_type"] = "伸び足特化"
+            p["leg_type_color"] = "text-amber-500 font-bold"
+        elif ex_rank >= 4 and win_rank <= 2:
+            p["leg_type"] = "出足型警戒"
+            p["leg_type_color"] = "text-indigo-400 font-bold"
+        elif ex_rank <= 2 and win_rank <= 2:
+            p["leg_type"] = "超抜クラス"
+            p["leg_type_color"] = "text-red-500 font-bold"
+
+        rule_score = course_score + win_score + motor_score + exhibition_score + st_score + tilt_adj + (wind_adj * weights.wind) + parts_adj
 
         # AIの計算 (キャッシュがあれば優先的に使用)
         race_id = race_data.get("id", 0)
-        p_hash = compute_players_hash(players_data)
+        p_hash = compute_players_hash(race_data, players_data, weights, settings)
         
         # 外部から渡されたai_cache、あるいはサーバー側のグローバルキャッシュを確認
         effective_ai_cache = ai_cache
@@ -476,17 +896,60 @@ def calculate_predictions(race_data, players_data, weights: CustomWeights, setti
             ai_score = p_cache.get("ai_score", 40.0)
             p["ai_mark"] = p_cache.get("ai_mark", "")
         else:
-            ai_base = (p.get("local_win_rate") or 4.0) * 12 + (m_rate * 0.7)
-            # 競艇におけるコース（枠）の絶対的な有利度をAI基礎点に加算 (1コースが圧倒的有利)
-            course_bonus = {1: 45, 2: 25, 3: 15, 4: 10, 5: 5, 6: 0}.get(course, 0)
-            ai_base += course_bonus
+            # 選手の勝率計算: 当地勝率が0の場合は全国勝率を使用、両方0の場合はデフォルト3.5
+            l_win = p.get("local_win_rate") or 0.0
+            g_win_raw = p.get("global_win_rate") or 0.0
+            effective_win = l_win if l_win > 0 else (g_win_raw if g_win_raw > 0 else 3.5)
+            
+            ai_base = (effective_win * 13 * weights.win_rate) + (m_rate * 0.75 * weights.motor)
+            # 1コース偏重をわずかに緩和 (45 -> 38) し、実力差を反映しやすくする
+            course_bonus = {1: 38, 2: 24, 3: 15, 4: 10, 5: 5, 6: 0}.get(course, 0)
+            ai_base += (course_bonus * weights.course)
+
+            # ── 会場特性による補正 ──
+            place_name = race_data.get("place_name", "")
+            if course == 1:
+                # インが極めて強い会場
+                if place_name in ["徳山", "大村", "下関"]:
+                    ai_base += 6.0
+                # インが比較的強い会場
+                elif place_name in ["芦屋", "尼崎", "常滑", "若松"]:
+                    ai_base += 3.0
+                # インが弱く荒れやすい会場
+                elif place_name in ["戸田", "江戸川", "平和島"]:
+                    ai_base -= 6.0
+                # インがやや弱め
+                elif place_name in ["鳴門", "多摩川"]:
+                    ai_base -= 2.5
+
+            # 微小なジッターを加えてベーススコア自体に揺らぎを持たせる
+            ai_base += rng.gauss(0, 1.5)
+
+            # ── 風の影響をAI基礎点にも反映 ──
+            if has_exhibition and weights.wind > 0:
+                ai_base += (wind_adj * weights.wind * 2.0)
+                
+            # ── 部品交換・伸び足等のAI評価付加 ──
+            if p["leg_type"] == "伸び足特化":
+                ai_base += 2.0
+            elif p["leg_type"] == "出足型警戒":
+                ai_base += 2.0
+            elif p["leg_type"] == "超抜クラス":
+                ai_base += 4.0
+                
+            if "リング" in parts_exchange:
+                ai_base += 4.0
+            if "キャリア" in parts_exchange or "シリンダ" in parts_exchange:
+                ai_base += 4.0
+            if "新" in propeller:
+                ai_base += 2.5
 
             if course >= 4 and st_time < 0.12:
-                ai_base += 15
+                ai_base += (15 * weights.st)
             if tilt >= 1.0 and course >= 3:
-                ai_base += tilt * 4
+                ai_base += (tilt * 4 * weights.motor) # モータ/チルト関連
             
-            ai_base += max(0, (7.0 - ex_time) * 30)
+            ai_base += max(0, (7.0 - ex_time) * 30 * weights.exhibition)
             ai_score = round(ai_base + rng.uniform(-2, 2), 2)
             p["ai_mark"] = "" # Will fill later
 
@@ -518,7 +981,7 @@ def calculate_predictions(race_data, players_data, weights: CustomWeights, setti
 
     # シナリオ、モンテカルロ等のAI関連情報の取得
     race_id = race_data.get("id", 0)
-    p_hash = compute_players_hash(players_data)
+    p_hash = compute_players_hash(race_data, players_data)
     
     effective_ai_cache = ai_cache
     if not effective_ai_cache and race_id in AI_RESULT_CACHE:
@@ -545,9 +1008,15 @@ def calculate_predictions(race_data, players_data, weights: CustomWeights, setti
         ai_wins = {p["boat_number"]: 0 for p in scored_players}
         ai_pattern_counts = {}
 
+        # 抽出による高速化
+        sim_boats = [p["boat_number"] for p in active_for_sim]
+        sim_bases = [p["ai_base"] for p in active_for_sim]
+        num_active = len(active_for_sim)
+        gauss = rng.gauss
+
         for _ in range(NUM_SIMS):
-            # ガウス分布でばらつきを持たせる
-            sim_scores = [(p["boat_number"], p["ai_base"] + rng.gauss(0, 25.0)) for p in active_for_sim]
+            # dict lookupやループ内の属性アクセスを回避して高速化
+            sim_scores = [(sim_boats[i], sim_bases[i] + gauss(0, 25.0)) for i in range(num_active)]
             sim_scores.sort(key=lambda x: x[1], reverse=True)
             
             # 走っている艇数に応じて安全に取得
@@ -638,7 +1107,16 @@ def calculate_predictions(race_data, players_data, weights: CustomWeights, setti
                 p3 = boat_probs[c[2]] / (1 - p1 - boat_probs[c[1]] + 1e-9)
                 results.append({"pattern": f"{c[0]}-{c[1]}-{c[2]}", "prob": p1*p2*p3})
         results.sort(key=lambda x: x["prob"], reverse=True)
-        return [{"pattern": r["pattern"], "prob": round(r["prob"]*100, 1)} for r in results[:max_items]]
+        
+        # モード（本命・中穴・大穴）に応じたスライス
+        # 0: 1-8位, 1: 9-16位, 2: 17-24位 (max_items=8の場合)
+        mode = settings.custom_prediction_mode
+        start_idx = mode * settings.max_items
+        end_idx = start_idx + settings.max_items
+        
+        sliced_results = results[start_idx : end_idx]
+        
+        return [{"pattern": r["pattern"], "prob": round(r["prob"]*100, 1)} for r in sliced_results]
 
     def generate_ai_combinations(pattern_counts, bet_type, max_items, total_sims, fixed_head=0):
         # AIの結果から確率を計算
@@ -704,7 +1182,13 @@ def calculate_predictions(race_data, players_data, weights: CustomWeights, setti
         
         results = [{"pattern": pat, "prob": round((cnt / total_sims) * 100, 1)} for pat, cnt in prob_map.items()]
         results.sort(key=lambda x: x["prob"], reverse=True)
-        return results[:max_items]
+        
+        # モードに応じたランク帯のスライス (AI用)
+        mode = settings.ai_prediction_mode
+        start_idx = mode * settings.max_items
+        end_idx = start_idx + settings.max_items
+        
+        return results[start_idx : end_idx]
 
     predictions = {
         "rule_focus": generate_rule_combinations(rule_probs, settings.bet_type, settings.max_items, 0),
@@ -713,56 +1197,108 @@ def calculate_predictions(race_data, players_data, weights: CustomWeights, setti
         "ai_win_probs": ai_win_probs,
         "scenario": legacy_scenario,
         "scenarios": scenarios,
-        "_ai_pattern_counts_list": [[",".join(map(str, k)), v] for k, v in ai_pattern_counts.items()],
-        "_num_sims": NUM_SIMS
+        "ai_pattern_counts_list": [[",".join(map(str, k)), v] for k, v in ai_pattern_counts.items()],
+        "num_sims": NUM_SIMS
     }
     return scored_players, predictions
 
 
+def _sync_save_result(race_id, result):
+    """取得した結果をDBに保存するヘルパー"""
+    conn = get_db_connection()
+    try:
+        ranking_str = result.get("ranking_str", "")
+        result_json = json.dumps(result)
+        conn.execute('UPDATE races SET is_finished = 1, ranking_str = ?, result_json = ? WHERE id = ?', 
+                     (ranking_str, result_json, race_id))
+        conn.commit()
+    except Exception as e:
+        print(f"[DB ERROR] _sync_save_result: {e}")
+    finally:
+        conn.close()
+
+
+def _sync_save_odds(race_id, odds_cache):
+    """取得したオッズキャッシュをDBに保存するヘルパー"""
+    conn = get_db_connection()
+    try:
+        conn.execute('UPDATE races SET odds_json = ? WHERE id = ?', (json.dumps(odds_cache), race_id))
+        conn.commit()
+    except Exception as e:
+        print(f"[DB ERROR] _sync_save_odds: {e}")
+    finally:
+        conn.close()
+
+
 # ─────────────────────────── Race APIs ──────────────────────────────────────
 
-@app.get("/api/racers/{toban}")
-def api_get_racer(toban: str):
-    return fetch_racer_profile(toban)
+# 選手統計情報用のインメモリキャッシュは上部で定義済み
 
 
 @app.get("/api/races/{race_id}/options")
-def api_get_race_live_data(race_id: int):
+def api_get_race_live_data(race_id: int, bet_type: str = Query(default="3t")):
     conn = get_db_connection()
     race = conn.execute(
-        'SELECT place_code, race_number, race_date, is_finished, result_json FROM races WHERE id = ?', (race_id,)
+        'SELECT place_code, race_number, race_date, is_finished, result_json, odds_json, scheduled_time, '
+        'weather, wind_direction, wind_speed, wave_height FROM races WHERE id = ?', (race_id,)
     ).fetchone()
+
     conn.close()
     if not race:
         raise HTTPException(status_code=404, detail="Race not found")
     
-    # すでに終了して結果が保存されていればそれを返す
+    date_str = race["race_date"].replace("-", "")
+    
+    # すでに終了して結果が保存されていればそれを優先的に取得するが、オッズ取得も並行して試行する
+    result = None
     if race["is_finished"] and race["result_json"]:
         try:
             result = json.loads(race["result_json"])
-            return {"result": result, "odds": None}
         except:
             pass
 
-    date_str = race["race_date"].replace("-", "")
-    result = fetch_match_result(race["place_code"], race["race_number"], date_str)
-    
-    if result and result.get("finished"):
-        conn = get_db_connection()
-        try:
-            ranking_str = result.get("ranking_str", "")
-            result_json = json.dumps(result)
-            conn.execute('UPDATE races SET is_finished = 1, ranking_str = ?, result_json = ? WHERE id = ?', 
-                         (ranking_str, result_json, race_id))
-            conn.commit()
-        finally:
-            conn.close()
+    # 結果が未保存、または終了していても結果詳細がない場合は再取得
+    if not result:
+        # 同期的に取得を試みる (ユーザーがこのレースを見ているため優先)
+        result = fetch_match_result(race["place_code"], race["race_number"], date_str)
+        if result and result.get("finished"):
+            _sync_save_result(race_id, result)
+        elif not result:
+            result = {"finished": False, "error": "No result available yet"}
+
+    # オッズ取得 (bet_type 対応。終了していても最終オッズとして取得を試みる)
+    # 日本語の券種名が来た場合の補正
+    type_map = { '3連単': '3t', '3連複': '3f', '2連単': '2t', '2連複': '2f', '単勝': '1t', '複勝': '1f' }
+    bt_code = type_map.get(bet_type, bet_type.lower())
 
     odds = None
-    if not result or "error" in result or not result.get("finished"):
-        odds = fetch_live_odds(race["place_code"], race_number=race["race_number"], date_str=date_str)
+    odds_cache = {}
+    if race["odds_json"]:
+        try:
+            odds_cache = json.loads(race["odds_json"])
+            if bt_code in odds_cache:
+                odds = odds_cache[bt_code]
+        except Exception as e:
+            print(f"Error parsing odds_cache for race {race_id}: {e}")
     
-    return {"result": result, "odds": odds}
+    if not odds:
+        print(f"Fetching odds from web for race {race_id} ({bt_code})...")
+        odds = fetch_all_odds(race["place_code"], race["race_number"], date_str, bt_code)
+        # 終了している場合は永続化
+        if race["is_finished"] and odds and "error" not in odds:
+            odds_cache[bt_code] = odds
+            _sync_save_odds(race_id, odds_cache)
+    
+    return {
+        "result": result, 
+        "odds": odds, 
+        "debug_bt": bt_code,
+        "weather": race["weather"],
+        "wind_direction": race["wind_direction"],
+        "wind_speed": race["wind_speed"],
+        "wave_height": race["wave_height"]
+    }
+
 
 
 def is_hit(pattern: str, result_text: str) -> bool:
@@ -791,6 +1327,16 @@ def is_hit(pattern: str, result_text: str) -> bool:
 
 @app.post("/api/daily_hits")
 def get_daily_hits(req: PredictRequest, date: str = Query(...)):
+    now = time.time()
+    s_hash = compute_settings_hash(req.weights, req.settings)
+    cache_key = f"{date}_{s_hash}"
+    
+    # キャッシュ確認
+    if cache_key in DAILY_HITS_CACHE:
+        entry = DAILY_HITS_CACHE[cache_key]
+        if now - entry["ts"] < DAILY_HITS_CACHE_TTL:
+            return entry["data"]
+
     conn = get_db_connection()
     try:
         races = conn.execute(
@@ -801,6 +1347,8 @@ def get_daily_hits(req: PredictRequest, date: str = Query(...)):
             return {}
         
         race_ids = [r['id'] for r in races]
+        if not race_ids:
+            return {}
         placeholders = ','.join('?' for _ in race_ids)
         entries = conn.execute(
             f'SELECT * FROM entries WHERE race_id IN ({placeholders}) ORDER BY race_id, boat_number',
@@ -825,12 +1373,41 @@ def get_daily_hits(req: PredictRequest, date: str = Query(...)):
         _, preds = calculate_predictions(rdict, players, req.weights, req.settings)
         
         ranking = rdict.get("ranking_str", "")
-        hit = any(is_hit(p["pattern"], ranking) for p in preds["rule_focus"])
-        if not hit:
-            hit = any(is_hit(p["pattern"], ranking) for p in preds["ai_focus"])
-            
-        hits[rid] = hit
+        hit = False
+        ht = req.settings.hit_type
         
+        if ht == "custom":
+            hit = any(is_hit(p["pattern"], ranking) for p in preds["rule_focus"])
+        elif ht == "ai":
+            hit = any(is_hit(p["pattern"], ranking) for p in preds["ai_focus"])
+        else: # "both" or "buy" (backend treats "buy" as "both" since it doesn't know the cart)
+            hit = any(is_hit(p["pattern"], ranking) for p in preds["rule_focus"]) or \
+                  any(is_hit(p["pattern"], ranking) for p in preds["ai_focus"])
+            
+        # 払戻金の抽出
+        payout = 0
+        if hit and rdict.get("result_json"):
+            try:
+                res_obj = json.loads(rdict["result_json"])
+                payouts = res_obj.get("payouts", [])
+                target_type = req.settings.bet_type # 例: "3連単"
+                for p in payouts:
+                    if p.get("type") == target_type:
+                        p_str = p.get("payout", "0").replace(",", "").replace("円", "")
+                        p_int = int(p_str)
+                        payout = p_int
+                        break
+            except:
+                pass
+
+        hits[rid] = {
+            "hit": hit,
+            "payout": payout,
+            "ranking": ranking,
+            "place": rdict.get("place_name")
+        }
+        
+    DAILY_HITS_CACHE[cache_key] = {"data": hits, "ts": now}
     return hits
 
 @app.get("/api/races/{race_id}/odds")
@@ -838,13 +1415,36 @@ def api_get_race_odds(race_id: int, bet_type: str = Query(default="3t")):
     """指定賭式オッズ取得。bet_type: 3t/3f/2t/2f/1t"""
     conn = get_db_connection()
     race = conn.execute(
-        'SELECT place_code, race_number, race_date FROM races WHERE id = ?', (race_id,)
+        'SELECT place_code, race_number, race_date, is_finished, odds_json FROM races WHERE id = ?', (race_id,)
     ).fetchone()
     conn.close()
     if not race:
         raise HTTPException(status_code=404, detail="Race not found")
     date_str = race["race_date"].replace("-", "")
-    return fetch_all_odds(race["place_code"], race["race_number"], date_str, bet_type)
+    
+    # DBキャッシュ確認
+    odds = None
+    odds_cache = {}
+    if race["odds_json"]:
+        try:
+            odds_cache = json.loads(race["odds_json"])
+            if bet_type in odds_cache:
+                odds = odds_cache[bet_type]
+        except:
+            pass
+            
+    if not odds:
+        odds = fetch_all_odds(race["place_code"], race["race_number"], date_str, bet_type)
+        if race["is_finished"] and odds and "error" not in odds:
+            odds_cache[bet_type] = odds
+            conn = get_db_connection()
+            try:
+                conn.execute('UPDATE races SET odds_json = ? WHERE id = ?', (json.dumps(odds_cache), race_id))
+                conn.commit()
+            finally:
+                conn.close()
+                
+    return odds
 
 
 @app.get("/api/races/{race_id}/weather")
@@ -915,8 +1515,62 @@ def get_custom_predict(race_id: int, req: PredictRequest):
 
         race_dict = dict(race)
         
-        # Overrides 適用
+        # レース終了済みにも関わらず結果が不完全（"--" や 3着分揃っていない等）な場合は再取得を試行
+        ranking_str = race_dict.get("ranking_str") or ""
+        is_incomplete = not ranking_str or ranking_str == "--" or ranking_str.count("-") < 2
+        
+        # 保存済みの結果データを精査し、選手名に金額や不要な文字列が混じっている場合も再取得対象にする
+        if not is_incomplete and race_dict.get("result_json"):
+            try:
+                import json
+                res_data = json.loads(race_dict["result_json"])
+                rank_list = res_data.get("ranking", [])
+                for r in rank_list:
+                    nm = str(r.get("name", ""))
+                    # 金額記号や「単勝」「複勝」などの文字列が含まれていれば異常と判定
+                    if "¥" in nm or "￥" in nm or "円" in nm or "単勝" in nm or "複勝" in nm:
+                        is_incomplete = True
+                        break
+                # また、着順リストが異常に多い（10行以上など）場合も異常
+                if len(rank_list) > 9:
+                    is_incomplete = True
+            except:
+                pass
+        
+        if race_dict.get("is_finished") and is_incomplete:
+            print(f"[REPAIR] Incomplete result for finished race {race_id} ('{ranking_str}'). Updating...")
+            try:
+                dt_obj = datetime.strptime(race_dict["race_date"], '%Y-%m-%d').replace(tzinfo=JST)
+                scraper.update_result(race_dict["place_code"], race_dict["race_number"], dt_obj)
+                # 最新の状態を再取得
+                race = conn.execute('SELECT * FROM races WHERE id = ?', (race_id,)).fetchone()
+                race_dict = dict(race)
+            except Exception as e:
+                print(f"[REPAIR ERROR] Failed to repair race {race_id}: {e}")
+        
+        # 優先読み込み: 出走表データ（entries）がない場合は即時取得
+        if not players:
+            print(f"[PRIORITY] Missing entries for race {race_id}. Scraping now...")
+            scraper.scrape_race_syusso(race_dict["place_code"], race_dict["race_number"], 
+                                      datetime.strptime(race_dict["race_date"], '%Y-%m-%d').replace(tzinfo=JST))
+            # 再取得
+            players = conn.execute(
+                'SELECT * FROM entries WHERE race_id = ? ORDER BY boat_number', (race_id,)
+            ).fetchall()
+        
+        race_dict = dict(race)
+        
+        # Overrides or Defaults 適用
         scored_players_raw = [dict(p) for p in players]
+        
+        if req.ignore_exhibition:
+            for p in scored_players_raw:
+                p["entry_course"] = p["boat_number"]
+                p["exhibition_time"] = None 
+                p["start_timing"] = None
+                p["tilt"] = 0.0
+                # 欠場情報もリマインドに基づきリセット
+                p["is_absent"] = 0
         if req.overrides:
             for ov in req.overrides:
                 for p in scored_players_raw:
@@ -931,17 +1585,29 @@ def get_custom_predict(race_id: int, req: PredictRequest):
                         p["calc_ex"] = p["exhibition_time"]
                         p["calc_st"] = p["start_timing"]
 
+        # 現時点の選手データ・レース条件 + 重み設定からハッシュを計算
+        scored_players_raw = [dict(p) for p in players]
+        p_hash = compute_players_hash(race_dict, scored_players_raw, req.weights, req.settings)
+
         ai_cache = None
         # overrides があっても recalculate_ai が False なら、
-        # もしDBにキャッシュがあればそれを利用する（表示用）
+        # もしDBにキャッシュがあり、かつハッシュが一致すればそれを利用する（表示用）
         if race_dict.get("ai_predictions_json") and not req.recalculate_ai:
             try:
                 temp_cache = json.loads(race_dict["ai_predictions_json"])
-                # 通常は展示完了フラグが一致する場合のみ。
-                # ただし overrides がある場合は、ユーザーが意図的に数値をいじっているので、
-                # 計算済みAIデータをそのまま「参考」として出すことを許容する
-                ai_cache = temp_cache
+                # ハッシュチェック: データが古い、または会場・選手構成が変わった場合は無効化
+                stored_hash = temp_cache.get("hash")
+                
+                # 展示データが新たに更新された場合も無効化
+                ex_done_now = race_dict.get("is_exhibition_done")
+                ex_done_stored = temp_cache.get("is_exhibition_done")
+
+                if stored_hash != p_hash or (ex_done_now and not ex_done_stored):
+                    ai_cache = None  # ハッシュ不一致または展示後に再計算
+                else:
+                    ai_cache = temp_cache
             except Exception as e:
+                print(f"[CACHE DEBUG] Cache parse error: {e}")
                 pass
 
         scored_players, predictions = calculate_predictions(race_dict, scored_players_raw, req.weights, req.settings, ai_cache=ai_cache)
@@ -949,6 +1615,7 @@ def get_custom_predict(race_id: int, req: PredictRequest):
         # 新しく計算した場合（キャッシュがなかった、または無効だった場合）はDBに保存
         if not ai_cache:
             new_ai_cache = {
+                "hash": p_hash,
                 "is_exhibition_done": race_dict.get("is_exhibition_done"),
                 "ai_player_data": {
                     str(p["boat_number"]): {
@@ -958,8 +1625,8 @@ def get_custom_predict(race_id: int, req: PredictRequest):
                     } for p in scored_players
                 },
                 "ai_win_probs": predictions["ai_win_probs"],
-                "ai_pattern_counts": predictions.get("_ai_pattern_counts_list", []),
-                "num_sims": predictions.get("_num_sims", 10000),
+                "ai_pattern_counts_list": predictions.get("ai_pattern_counts_list", []),
+                "num_sims": predictions.get("num_sims", 10000),
                 "scenarios": predictions.get("scenarios", [])
             }
             try:
@@ -1018,9 +1685,15 @@ def scrape_exhibition(race_id: int):
                 (weather_info.get("weather"), weather_info.get("wind_direction"),
                  weather_info.get("wind_speed"), weather_info.get("wave_height"), race_id)
             )
+        # 展示データ更新時はAIキャッシュを無効化して再計算させる
+        conn.execute('UPDATE races SET ai_predictions_json = NULL WHERE id = ?', (race_id,))
         conn.commit()
     finally:
         conn.close()
+
+    # インメモリキャッシュもクリア
+    if race_id in AI_RESULT_CACHE:
+        del AI_RESULT_CACHE[race_id]
 
     race_data = get_race_detail(race_id)
     race_data["scraped_exhibition"] = exhibition
@@ -1056,6 +1729,226 @@ def update_exhibition(race_id: int, updates: List[ExhibitionUpdate]):
     finally:
         conn.close()
     return get_race_detail(race_id)
+
+
+
+@app.get("/api/search/racers")
+def search_racers(q: str):
+    """選手名または登番で選手を検索し、出場予定レースを返す"""
+    conn = get_db_connection()
+    try:
+        # 1. 選手を検索
+        if q.isdigit():
+            # 登番で検索
+            racer_rows = conn.execute(
+                "SELECT DISTINCT racer_id as toban, racer_name as name FROM entries WHERE racer_id = ? "
+                "UNION "
+                "SELECT DISTINCT racer_id as toban, '' as name FROM racer_results WHERE racer_id = ? LIMIT 10",
+                (q, q)
+            ).fetchall()
+        else:
+            # 名前（カタカナまたは漢字）で検索
+            racer_rows = conn.execute(
+                "SELECT DISTINCT racer_id as toban, racer_name as name FROM entries WHERE racer_name LIKE ? LIMIT 20",
+                (f"%{q}%",)
+            ).fetchall()
+        
+        results = []
+        now_jst = datetime.now(JST)
+        today_iso = now_jst.strftime('%Y-%m-%d')
+        tomorrow_iso = (now_jst + timedelta(days=1)).strftime('%Y-%m-%d')
+        
+        for r in racer_rows:
+            toban = r["toban"]
+            name = r["name"]
+            
+            if not toban: continue
+
+            # お気に入り状態の確認
+            is_fav = conn.execute("SELECT 1 FROM favorite_racers WHERE toban = ?", (toban,)).fetchone() is not None
+
+            # 名前の補完（entriesにない場合racer_results等から探す）
+            if not name:
+                name_row = conn.execute("SELECT racer_name FROM entries WHERE racer_id = ? AND racer_name != '' LIMIT 1", (toban,)).fetchone()
+                if name_row:
+                    name = name_row["racer_name"]
+                else:
+                    name = "不明"
+            
+            # 出場予定レースを検索
+            scheduled_rows = conn.execute(
+                "SELECT r.id, r.race_date, r.place_name, r.race_number, e.boat_number "
+                "FROM entries e JOIN races r ON e.race_id = r.id "
+                "WHERE e.racer_id = ? AND r.race_date IN (?, ?) "
+                "ORDER BY r.race_date, r.race_number",
+                (toban, today_iso, tomorrow_iso)
+            ).fetchall()
+            
+            scheduled_races = []
+            for sr in scheduled_rows:
+                scheduled_races.append({
+                    "race_id": sr["id"],
+                    "date": sr["race_date"],
+                    "place": sr["place_name"],
+                    "race_no": sr["race_number"],
+                    "boat_no": sr["boat_number"]
+                })
+            
+            # 同一選手が複数行出るのを防ぐ（UNIONでもnameが違うと別行になるため）
+            if not any(x["toban"] == toban for x in results):
+                results.append({
+                    "toban": toban,
+                    "name": name,
+                    "is_favorite": is_fav,
+                    "scheduled_races": scheduled_races
+                })
+            
+        return results
+    finally:
+        conn.close()
+
+@app.get("/api/search/high_expectation")
+def search_high_expectation():
+    """AI予想に基づき、1号艇の勝率が高いなどの『期待値の高いレース』を抽出する"""
+    conn = get_db_connection()
+    try:
+        today_iso = datetime.now(JST).strftime('%Y-%m-%d')
+        # 本日の全レースをスキャン
+        rows = conn.execute(
+            "SELECT id, place_name, race_number, ai_predictions_json, is_finished "
+            "FROM races WHERE race_date = ?",
+            (today_iso,)
+        ).fetchall()
+        
+        picked = []
+        for r in rows:
+            ai_data_str = r["ai_predictions_json"]
+            if not ai_data_str:
+                continue
+            
+            try:
+                ai_data = json.loads(ai_data_str)
+                win_probs = ai_data.get("ai_win_probs", {})
+                
+                # 1号艇の勝率が 70% 以上のものをピックアップ
+                prob_1 = win_probs.get("1", 0)
+                if prob_1 >= 70:
+                    picked.append({
+                        "id": r["id"],
+                        "place": r["place_name"],
+                        "race_no": r["race_number"],
+                        "reason": f"1号勝率 {prob_1:.0f}%",
+                        "prob": prob_1,
+                        "is_finished": bool(r["is_finished"])
+                    })
+            except:
+                continue
+        
+        # 勝率順にソートして上限件数を返す
+        picked.sort(key=lambda x: x["prob"], reverse=True)
+        return picked[:15]
+    finally:
+        conn.close()
+
+@app.get("/api/favorites")
+def get_favorites():
+    """お気に入り選手の一覧と近日出場予定を返す"""
+    conn = get_db_connection()
+    try:
+        fav_rows = conn.execute("SELECT toban, name FROM favorite_racers ORDER BY created_at DESC").fetchall()
+        
+        results = []
+        now_jst = datetime.now(JST)
+        today_iso = now_jst.strftime('%Y-%m-%d')
+        tomorrow_iso = (now_jst + timedelta(days=1)).strftime('%Y-%m-%d')
+        
+        for f in fav_rows:
+            toban = f["toban"]
+            name = f["name"]
+            
+            # 出場予定レースを検索
+            scheduled_rows = conn.execute(
+                "SELECT r.id, r.race_date, r.place_name, r.race_number, e.boat_number "
+                "FROM entries e JOIN races r ON e.race_id = r.id "
+                "WHERE e.racer_id = ? AND r.race_date IN (?, ?) "
+                "ORDER BY r.race_date, r.race_number",
+                (toban, today_iso, tomorrow_iso)
+            ).fetchall()
+            
+            scheduled_races = []
+            for sr in scheduled_rows:
+                scheduled_races.append({
+                    "race_id": sr["id"],
+                    "date": sr["race_date"],
+                    "place": sr["place_name"],
+                    "race_no": sr["race_number"],
+                    "boat_no": sr["boat_number"]
+                })
+            
+            results.append({
+                "toban": toban,
+                "name": name,
+                "scheduled_races": scheduled_races
+            })
+            
+        return results
+    finally:
+        conn.close()
+
+@app.post("/api/favorites/toggle")
+def toggle_favorite(toban: str = Body(...), name: str = Body(...), active: bool = Body(...)):
+    """お気に入り登録・解除。解除時は Supabase からも削除を試みる。"""
+    conn = get_db_connection()
+    try:
+        now_str = datetime.now(JST).isoformat()
+        if active:
+            conn.execute(
+                "INSERT OR REPLACE INTO favorite_racers (toban, name, created_at) VALUES (?, ?, ?)",
+                (toban, name, now_str)
+            )
+            from supabase_client import upsert_favorites
+            upsert_favorites([{"toban": toban, "name": name, "created_at": now_str}])
+        else:
+            conn.execute("DELETE FROM favorite_racers WHERE toban = ?", (toban,))
+            # Supabase削除 (オプション：完全に同期させたい場合)
+            try:
+                from supabase_client import get_supabase_client
+                get_supabase_client().table("favorite_racers").delete().eq("toban", toban).execute()
+            except: pass
+            
+        conn.commit()
+        return {"success": True, "toban": toban, "active": active}
+    finally:
+        conn.close()
+
+def _sync_racer_profile_to_db(toban: str, data: dict):
+    """選手プロフィール情報を SQLite / Supabase に保存・同期する"""
+    if not data or "error" in data: return
+    
+    conn = get_db_connection()
+    try:
+        now_str = datetime.now(JST).isoformat()
+        name = data.get("name", "")
+        stats_json = json.dumps(data.get("course_stats", []))
+        
+        conn.execute(
+            "INSERT OR REPLACE INTO racer_profiles (toban, name, course_stats_json, updated_at) VALUES (?, ?, ?, ?)",
+            (toban, name, stats_json, now_str)
+        )
+        conn.commit()
+        
+        # Supabase同期
+        from supabase_client import upsert_racer_profiles
+        upsert_racer_profiles([{
+            "toban": toban,
+            "name": name,
+            "course_stats": data.get("course_stats", []),
+            "updated_at": now_str
+        }])
+    except Exception as e:
+        print(f"[SYNC ERROR] _sync_racer_profile_to_db: {e}")
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":
