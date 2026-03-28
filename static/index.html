@@ -4657,15 +4657,28 @@ window.addEventListener('unhandledrejection', function(event) {
             html += '<div class="bg-amber-900/20 border border-amber-700/50 p-4 rounded-2xl text-xs text-amber-200 leading-relaxed shadow-inner">AI解析済みのレースから、1号艇の勝率（70%以上）が特に高いレースをピックアップしています。</div>';
             html += '<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">';
             races.forEach(r => {
+                const hitData = (window.dailyHitsCache && r.is_finished) ? window.dailyHitsCache[r.id] : null;
+                const hitBadge = (hitData && hitData.hit) ? `<span class="ml-1 text-[10px] bg-amber-500 px-2 py-1 rounded-lg text-white font-bold">🎯的中</span>` : '';
+                const payoutHtml = (hitData && hitData.hit && hitData.payout > 0) 
+                    ? `<div class="text-[10px] font-bold text-emerald-400 mt-1 flex items-center gap-1">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        払戻金: ¥${hitData.payout.toLocaleString()}
+                       </div>` 
+                    : '';
+
                 html += `
                 <button onclick="closeSearchModal(); goToRace('${r.place}', ${r.id}, '${getTargetDateStr(0)}')" 
                     class="flex flex-col items-start bg-slate-800/80 hover:bg-amber-900/30 p-5 rounded-2xl border border-slate-700 transition-all text-left relative overflow-hidden group shadow-lg">
                     <div class="flex justify-between w-full items-center mb-2">
                         <span class="font-black text-xl text-white group-hover:text-amber-300">${r.place} ${r.race_no}R</span>
-                        ${r.is_finished ? '<span class="text-[10px] bg-slate-600 px-2 py-1 rounded-lg text-white font-bold">終了</span>' : ''}
+                        <div class="flex items-center">
+                            ${r.is_finished ? '<span class="text-[10px] bg-slate-600 px-2 py-1 rounded-lg text-white font-bold">終了</span>' : ''}
+                            ${hitBadge}
+                        </div>
                     </div>
-                    <div class="text-sm font-bold text-amber-500 mb-1">勝率 ${r.reason.replace('AI勝率', '')}</div>
-                    <div class="text-[10px] text-slate-400">大本命・イン逃げ推奨</div>
+                    <div class="text-sm font-bold text-amber-500 mb-0.5">勝率 ${r.reason.replace('AI勝率', '')}</div>
+                    <div class="text-[10px] text-slate-400 mb-1">大本命・イン逃げ推奨</div>
+                    ${payoutHtml}
                     <div class="absolute right-[-10px] bottom-[-10px] opacity-10 group-hover:opacity-20 transition-all group-hover:scale-110">
                         <svg class="w-20 h-20 text-amber-500" fill="currentColor" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
                     </div>
@@ -4676,6 +4689,7 @@ window.addEventListener('unhandledrejection', function(event) {
         }
 
         async function goToRace(placeName, raceId, targetDate = null) {
+            console.log(`[Navigation] Navigating to ${placeName} #${raceId} (${targetDate || 'today'})`);
             if (targetDate) {
                 const today = getTargetDateStr(0);
                 const tomorrow = getTargetDateStr(1);
@@ -4686,26 +4700,35 @@ window.addEventListener('unhandledrejection', function(event) {
                 }
             }
             
-            // 1. 場を選択してレースリストを表示
+            // 1. 場を選択してレースリストを表示 (async/await で読み込み完了を待つ)
             await loadRaces(placeName);
             
-            // 2. レース詳細をロード
+            // 2. レース詳細をロード (非同期)
             loadRaceDetail(raceId);
             
-            // 3. サイドバーのボタンを選択状態にする
-            setTimeout(() => {
-                document.querySelectorAll('[id^="race-btn-"]').forEach(b => b.classList.remove('ring-2', 'ring-blue-400'));
+            // 3. サイドバーのボタンを選択状態にする (レンダリング完了を待つためにリトライを導入)
+            let attempts = 0;
+            const maxAttempts = 30; // 最大3秒間リトライ
+            const findBtnInterval = setInterval(() => {
                 const btn = document.getElementById(`race-btn-${raceId}`);
                 if (btn) {
+                    clearInterval(findBtnInterval);
+                    document.querySelectorAll('[id^="race-btn-"]').forEach(b => b.classList.remove('ring-2', 'ring-blue-400'));
                     btn.classList.add('ring-2', 'ring-blue-400');
                     btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } else if (attempts >= maxAttempts) {
+                    clearInterval(findBtnInterval);
+                    console.warn(`[Navigation] Could not find race-btn-${raceId} after ${maxAttempts} attempts.`);
                 }
-            }, 600);
+                attempts++;
+            }, 100);
             
             // モバイルならドロワーを閉じる
             if (window.innerWidth < 768) {
-                document.getElementById('drawer').classList.remove('drawer-open');
-                document.getElementById('drawer-overlay').classList.add('hidden');
+                const dr = document.getElementById('drawer');
+                const ov = document.getElementById('drawer-overlay');
+                if (dr) dr.classList.remove('drawer-open');
+                if (ov) ov.classList.add('hidden');
             }
         }
 
