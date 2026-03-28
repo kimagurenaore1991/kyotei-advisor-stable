@@ -1967,7 +1967,8 @@ window.addEventListener('unhandledrejection', function(event) {
                 } else {
                     isHitFlag = !!data.hit;
                     payout = data.payout || 0;
-                    invest = betAmountPerRace;
+                    // AI&カスタムの両方を選択している場合は投資額を2倍（各800円ずつ等）として計算
+                    invest = (hitType === 'both') ? (betAmountPerRace * 2) : betAmountPerRace;
                 }
 
                 if (invest > 0 || isHitFlag || payout > 0) {
