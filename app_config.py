@@ -13,7 +13,7 @@ DB_NAME = os.environ.get("DATABASE_PATH", str(BASE_DIR / "kyotei.db"))
 REQUEST_TIMEOUT = 15
 # Supabase configuration
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://rngzcwztmshadaevaxqz.supabase.co")
-SUPABASE_KEY = "sb_secret_5GjbcjKwfEZBVpgMnmk2oQ_5aMGDqMA"
+SUPABASE_KEY = "sb_publishable_6huF1R37Wdmbr6sGESBs_Q_6ky2OXqz"
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
