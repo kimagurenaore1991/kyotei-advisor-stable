@@ -5130,10 +5130,16 @@ window.addEventListener('unhandledrejection', function(event) {
                 const trialEnd = new Date(data.trial_started_at);
                 trialEnd.setDate(trialEnd.getDate() + 3);
                 
+                // サーバー側で計算された premium_until を取得
+                const premiumUntil = data.premium_until ? new Date(data.premium_until) : null;
+                const now = new Date();
+                
                 userProfileStatus = {
-                    is_premium: data.is_premium,
-                    is_in_trial: new Date() < trialEnd,
-                    trial_end: trialEnd
+                    is_premium: data.is_premium || (premiumUntil && now < premiumUntil),
+                    is_in_trial: now < trialEnd,
+                    trial_end: trialEnd,
+                    premium_until: premiumUntil,
+                    payment_name: data.payment_name
                 };
                 
                 updateProfileUI();
@@ -5148,7 +5154,9 @@ window.addEventListener('unhandledrejection', function(event) {
             const cta = document.getElementById('subscription-cta');
             
             if (userProfileStatus.is_premium) {
-                badge.textContent = 'プレミアム会員 👑';
+                const untilStr = userProfileStatus.premium_until ? 
+                    ` (期限: ${userProfileStatus.premium_until.toLocaleDateString()})` : "";
+                badge.textContent = 'プレミアム会員 👑' + untilStr;
                 badge.className = 'text-[9px] text-amber-400 font-bold';
                 countdown.classList.add('hidden');
                 cta.classList.add('hidden');
@@ -5172,7 +5180,14 @@ window.addEventListener('unhandledrejection', function(event) {
         }
 
         function openSubscriptionModal() {
-            document.getElementById('subscription-modal').classList.remove('hidden');
+            const modal = document.getElementById('subscription-modal');
+            modal.classList.remove('hidden');
+            
+            // 登録済みの名前があれば表示
+            const nameInput = document.getElementById('payment-name-input');
+            if (nameInput && userProfileStatus.payment_name) {
+                nameInput.value = userProfileStatus.payment_name;
+            }
         }
         function closeSubscriptionModal() {
             document.getElementById('subscription-modal').classList.add('hidden');
@@ -5248,6 +5263,33 @@ window.addEventListener('unhandledrejection', function(event) {
         }
         async function handleSignOut() {
             if (supabaseClient) await supabaseClient.auth.signOut();
+        }
+
+        async function registerPaymentName() {
+            const name = document.getElementById('payment-name-input').value.trim();
+            if (!name) {
+                showToast('お振込み名義を入力してください', 'error');
+                return;
+            }
+            
+            try {
+                const res = await authFetch(`${API_BASE}/user/payment_registration`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ payment_name: name })
+                });
+                
+                if (res.ok) {
+                    showToast('振込名義を登録しました。入金を確認次第反映されます。', 'success');
+                    userProfileStatus.payment_name = name;
+                    // 保存後に詳細エリアを表示しやすくする
+                    document.getElementById('payment-details-area').classList.remove('hidden');
+                } else {
+                    throw new Error('登録に失敗しました');
+                }
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
         }
 
         // Initialize Authentication
@@ -5486,34 +5528,44 @@ window.addEventListener('unhandledrejection', function(event) {
                 
                 <div class="space-y-4 mb-8">
                     <div class="bg-slate-900/50 p-4 rounded-2xl border border-slate-700 text-left">
-                        <h4 class="text-xs font-bold text-slate-500 mb-3 tracking-widest uppercase">お支払い方法</h4>
-                        
-                        <!-- PayPay Option -->
-                        <div class="flex items-center justify-between p-3 bg-slate-800 rounded-xl border border-slate-700 mb-2">
-                            <div class="flex items-center gap-3">
-                                <span class="text-2xl">📱</span>
-                                <div>
-                                    <p class="text-sm font-bold text-slate-200">PayPay</p>
-                                    <p class="text-[10px] text-slate-500">自動承認・即時反映</p>
-                                </div>
-                            </div>
-                            <button onclick="showToast('PayPay決済画面へ移動します（準備中）', 'info')" class="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-black rounded-full transition-all">
-                                支払う
+                        <h4 class="text-xs font-bold text-slate-500 mb-3 tracking-widest uppercase">1. 振込名義の登録 (必須)</h4>
+                        <div class="flex gap-2 mb-4">
+                            <input id="payment-name-input" type="text" placeholder="例: ヤマダ タロウ" 
+                                class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-blue-500">
+                            <button onclick="registerPaymentName()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all">
+                                登録
                             </button>
                         </div>
 
-                        <!-- Bank Transfer Option -->
-                        <div class="flex items-center justify-between p-3 bg-slate-800 rounded-xl border border-slate-700">
-                            <div class="flex items-center gap-3">
-                                <span class="text-2xl">🏦</span>
-                                <div>
-                                    <p class="text-sm font-bold text-slate-200">銀行振込</p>
-                                    <p class="text-[10px] text-slate-500">GMOあおぞらネット銀行</p>
+                        <div id="payment-details-area" class="space-y-3 pt-2 border-t border-slate-800">
+                            <h4 class="text-xs font-bold text-slate-500 mb-1 tracking-widest uppercase">2. お支払い</h4>
+                            
+                            <!-- SMBC Option -->
+                            <div class="p-3 bg-slate-800 rounded-xl border border-slate-700">
+                                <div class="flex items-center gap-3 mb-2">
+                                    <span class="text-xl">🏦</span>
+                                    <p class="text-xs font-bold text-slate-200">三井住友銀行 (SMBC)</p>
+                                </div>
+                                <div class="pl-7 text-[11px] text-slate-400 space-y-1">
+                                    <p>オリーブＤＩＬＬ支店（店番: 236）</p>
+                                    <p>普通 2361008</p>
+                                    <p class="text-amber-400">金額: 500円(30日) / 1200円(90日)</p>
                                 </div>
                             </div>
-                            <button onclick="showToast('振込先情報を表示します（準備中）', 'info')" class="px-4 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-full transition-all">
-                                詳細
-                            </button>
+
+                            <!-- PayPay Option -->
+                            <div class="p-3 bg-slate-800 rounded-xl border border-slate-700">
+                                <div class="flex items-center gap-3 mb-2">
+                                    <span class="text-xl">📱</span>
+                                    <p class="text-xs font-bold text-slate-200">PayPayで送金</p>
+                                </div>
+                                <div class="pl-7">
+                                    <a href="https://qr.paypay.ne.jp/p2p01_0qVbjhYqfPcDjczN" target="_blank" 
+                                       class="inline-block px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white text-[10px] font-black rounded-full transition-all">
+                                        PayPayアプリを開く
+                                    </a>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
