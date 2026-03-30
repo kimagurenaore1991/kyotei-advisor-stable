@@ -42,12 +42,11 @@ DAILY_HITS_CACHE_TTL = 300 # 5分 (結果が更新される可能性があるた
 
 from supabase_client import get_supabase_client
 
-async def get_current_user_status(authorization: str = Header(None)) -> Dict:
+async def get_current_user(authorization: str = Header(None)) -> Dict:
     """
-    SupabaseのJWTを検証し、3日間のトライアル期間内か、または課金済み（is_premium）かを確認する。
+    SupabaseのJWTを検証し、ユーザー情報を取得する（アクセス制限は行わない）。
     """
     if not authorization or not authorization.startswith("Bearer "):
-        # 認証情報がない場合は401を返してフロントエンドでログインを促す
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required"
@@ -57,7 +56,6 @@ async def get_current_user_status(authorization: str = Header(None)) -> Dict:
     supabase = get_supabase_client()
     
     try:
-        # JWTの検証とユーザー情報の取得
         user_res = supabase.auth.get_user(token)
         if not user_res or not user_res.user:
             raise HTTPException(
@@ -66,12 +64,9 @@ async def get_current_user_status(authorization: str = Header(None)) -> Dict:
             )
         
         user_id = user_res.user.id
-        
-        # profilesテーブルからトライアル・課金状態を取得
         profile_res = supabase.table("profiles").select("*").eq("id", user_id).execute()
         
         if not profile_res.data:
-            # プロフィールがない（通常はトリガーで作成されるはず）
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User profile not initialized"
@@ -79,14 +74,11 @@ async def get_current_user_status(authorization: str = Header(None)) -> Dict:
         
         profile = profile_res.data[0]
         is_premium_active = profile.get("is_premium", False)
-        
-        # 期限（premium_until）による判定を優先
         premium_until_str = profile.get("premium_until")
         now_utc = datetime.now(timezone.utc)
         
         if premium_until_str:
             try:
-                # タイムゾーン付きでパース
                 ts_until = premium_until_str.replace("Z", "+00:00")
                 premium_until = datetime.fromisoformat(ts_until)
                 if now_utc < premium_until:
@@ -96,7 +88,6 @@ async def get_current_user_status(authorization: str = Header(None)) -> Dict:
         else:
             premium_until = None
             
-        # トライアル判定 (3日間 = 72時間)
         trial_started_at_str = profile.get("trial_started_at")
         if trial_started_at_str:
             try:
@@ -110,13 +101,6 @@ async def get_current_user_status(authorization: str = Header(None)) -> Dict:
         trial_end = trial_started_at + timedelta(days=3)
         is_in_trial = now_utc < trial_end
         
-        # 権限チェック: 課金期間内 もしくは トライアル中 であること
-        if not is_premium_active and not is_in_trial:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Trial period expired. Subscription required to view details."
-            )
-            
         return {
             "user_id": user_id,
             "is_premium": is_premium_active,
@@ -135,6 +119,18 @@ async def get_current_user_status(authorization: str = Header(None)) -> Dict:
             detail=f"Auth error: {str(e)}"
         )
 
+async def require_access(user: Dict = Depends(get_current_user)) -> Dict:
+    """
+    プレミアム機能へのアクセス制限を行う依存関係。
+    """
+    if not user["is_premium"] and not user["is_in_trial"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Trial period expired. Subscription required to view details."
+        )
+    return user
+
+
 # --- Payment Webhook (Email Detect & Manual Registration) ---
 
 class PaymentRegistration(BaseModel):
@@ -143,7 +139,7 @@ class PaymentRegistration(BaseModel):
 @app.post("/api/user/payment_registration")
 async def register_payment_name(
     reg: PaymentRegistration, 
-    user: Dict = Depends(get_current_user_status),
+    user: Dict = Depends(get_current_user),
     authorization: str = Header(None)
 ):
     """ユーザーの振込名義を登録する"""
@@ -1557,7 +1553,7 @@ def get_daily_hits(req: PredictRequest, date: str = Query(...)):
     return hits
 
 @app.get("/api/races/{race_id}/odds")
-def api_get_race_odds(race_id: int, bet_type: str = Query(default="3t"), user_status: dict = Depends(get_current_user_status)):
+def api_get_race_odds(race_id: int, bet_type: str = Query(default="3t"), user_status: dict = Depends(require_access)):
     """指定賭式オッズ取得。bet_type: 3t/3f/2t/2f/1t"""
     conn = get_db_connection()
     race = conn.execute(
@@ -1594,7 +1590,7 @@ def api_get_race_odds(race_id: int, bet_type: str = Query(default="3t"), user_st
 
 
 @app.get("/api/races/{race_id}/weather")
-def api_get_race_weather(race_id: int, user_status: dict = Depends(get_current_user_status)):
+def api_get_race_weather(race_id: int, user_status: dict = Depends(require_access)):
     """展示情報ページから最新の気象・チルト情報を取得"""
     conn = get_db_connection()
     race = conn.execute(
@@ -1649,7 +1645,7 @@ def get_race_detail(race_id: int, user_status: dict = Depends(get_current_user_s
 
 
 @app.post("/api/races/{race_id}/predict")
-def get_custom_predict(race_id: int, req: PredictRequest, user_status: dict = Depends(get_current_user_status)):
+def get_custom_predict(race_id: int, req: PredictRequest, user_status: dict = Depends(require_access)):
     conn = get_db_connection()
     try:
         race = conn.execute('SELECT * FROM races WHERE id = ?', (race_id,)).fetchone()
@@ -1879,7 +1875,7 @@ def update_exhibition(race_id: int, updates: List[ExhibitionUpdate], user_status
 
 
 @app.get("/api/search/racers")
-def search_racers(q: str, user_status: dict = Depends(get_current_user_status)):
+def search_racers(q: str, user_status: dict = Depends(get_current_user)):
     """選手名または登番で選手を検索し、出場予定レースを返す"""
     conn = get_db_connection()
     try:
@@ -1954,7 +1950,7 @@ def search_racers(q: str, user_status: dict = Depends(get_current_user_status)):
         conn.close()
 
 @app.get("/api/search/high_expectation")
-def search_high_expectation(user_status: dict = Depends(get_current_user_status)):
+def search_high_expectation(user_status: dict = Depends(require_access)):
     """AI予想に基づき、1号艇の勝率が高いなどの『期待値の高いレース』を抽出する"""
     conn = get_db_connection()
     try:
@@ -1997,7 +1993,7 @@ def search_high_expectation(user_status: dict = Depends(get_current_user_status)
         conn.close()
 
 @app.get("/api/favorites")
-def get_favorites(user_status: dict = Depends(get_current_user_status)):
+def get_favorites(user_status: dict = Depends(get_current_user)):
     """お気に入り選手の一覧と近日出場予定を返す"""
     conn = get_db_connection()
     try:
@@ -2042,7 +2038,7 @@ def get_favorites(user_status: dict = Depends(get_current_user_status)):
         conn.close()
 
 @app.post("/api/favorites/toggle")
-def toggle_favorite(toban: str = Body(...), name: str = Body(...), active: bool = Body(...), user_status: dict = Depends(get_current_user_status)):
+def toggle_favorite(toban: str = Body(...), name: str = Body(...), active: bool = Body(...), user_status: dict = Depends(get_current_user)):
     """お気に入り登録・解除。解除時は Supabase からも削除を試みる。"""
     conn = get_db_connection()
     try:
