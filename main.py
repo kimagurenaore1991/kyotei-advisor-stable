@@ -1,14 +1,13 @@
-import math
-import itertools
-from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List, Optional, Dict
 from pydantic import BaseModel
 import random
 import os
 import json
+import math
+import itertools
 import concurrent.futures
 import hashlib
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Body
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Body, Depends, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from live_scraper import (
@@ -37,6 +36,104 @@ RACER_CACHE_TTL = 3600 # 1時間
 # { "date_settings_hash": { "data": results, "ts": timestamp } }
 DAILY_HITS_CACHE = {}
 DAILY_HITS_CACHE_TTL = 300 # 5分 (結果が更新される可能性があるため短め)
+
+# --- Authentication & Access Control ---
+
+from supabase_client import get_supabase_client
+
+async def get_current_user_status(authorization: str = Header(None)) -> Dict:
+    """
+    SupabaseのJWTを検証し、3日間のトライアル期間内か、または課金済み（is_premium）かを確認する。
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        # 認証情報がない場合は401を返してフロントエンドでログインを促す
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required"
+        )
+    
+    token = authorization.split(" ")[1]
+    supabase = get_supabase_client()
+    
+    try:
+        # JWTの検証とユーザー情報の取得
+        user_res = supabase.auth.get_user(token)
+        if not user_res or not user_res.user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token"
+            )
+        
+        user_id = user_res.user.id
+        
+        # profilesテーブルからトライアル・課金状態を取得
+        profile_res = supabase.table("profiles").select("*").eq("id", user_id).execute()
+        
+        if not profile_res.data:
+            # プロフィールがない（通常はトリガーで作成されるはず）
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User profile not initialized"
+            )
+        
+        profile = profile_res.data[0]
+        is_premium = profile.get("is_premium", False)
+        
+        # トライアル判定 (3日間 = 72時間)
+        trial_started_at_str = profile.get("trial_started_at")
+        if trial_started_at_str:
+            # ISO形式 (2026-03-30T05:39:36.123+00:00 等) をパース
+            from datetime import timezone
+            try:
+                # タイムゾーン付きでパース (Z 抜き対応)
+                ts = trial_started_at_str.replace("Z", "+00:00")
+                trial_started_at = datetime.fromisoformat(ts)
+            except:
+                # 失敗した場合は現在時刻を仮定
+                trial_started_at = datetime.now(timezone.utc)
+        else:
+            trial_started_at = datetime.now(timezone.utc)
+
+        trial_end = trial_started_at + timedelta(days=3)
+        now_utc = datetime.now(timezone.utc)
+        is_in_trial = now_utc < trial_end
+        
+        # 権限チェック: 課金済み もしくは トライアル中 であること
+        if not is_premium and not is_in_trial:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Trial period expired. Subscription required to view details."
+            )
+            
+        return {
+            "user_id": user_id,
+            "is_premium": is_premium,
+            "is_in_trial": is_in_trial,
+            "trial_end": trial_end,
+            "remaining_trial": str(trial_end - now_utc) if is_in_trial else "Expired"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[AUTH ERROR] {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Auth error: {str(e)}"
+        )
+
+# --- Payment Webhook (Placeholder) ---
+
+@app.post("/api/webhooks/payment")
+async def payment_webhook(data: dict):
+    """
+    PayPayや銀行振込完了通知を受け取るエンドポイント（プレースホルダ）。
+    本当は署名検証などが必要。
+    """
+    # 例: { "user_id": "...", "status": "success", "secret": "..." }
+    # ここで profiles テーブルの is_premium を True に更新する
+    print(f"[WEBHOOK] Received payment notification: {data}")
+    return {"status": "ok"}
 
 @app.on_event("startup")
 async def startup_event():
@@ -1416,7 +1513,7 @@ def get_daily_hits(req: PredictRequest, date: str = Query(...)):
     return hits
 
 @app.get("/api/races/{race_id}/odds")
-def api_get_race_odds(race_id: int, bet_type: str = Query(default="3t")):
+def api_get_race_odds(race_id: int, bet_type: str = Query(default="3t"), user_status: dict = Depends(get_current_user_status)):
     """指定賭式オッズ取得。bet_type: 3t/3f/2t/2f/1t"""
     conn = get_db_connection()
     race = conn.execute(
@@ -1453,7 +1550,7 @@ def api_get_race_odds(race_id: int, bet_type: str = Query(default="3t")):
 
 
 @app.get("/api/races/{race_id}/weather")
-def api_get_race_weather(race_id: int):
+def api_get_race_weather(race_id: int, user_status: dict = Depends(get_current_user_status)):
     """展示情報ページから最新の気象・チルト情報を取得"""
     conn = get_db_connection()
     race = conn.execute(
@@ -1503,12 +1600,12 @@ def _get_tilt_info(race_id: int) -> dict:
 
 
 @app.get("/api/races/{race_id}")
-def get_race_detail(race_id: int):
+def get_race_detail(race_id: int, user_status: dict = Depends(get_current_user_status)):
     return get_custom_predict(race_id, PredictRequest(weights=CustomWeights(), settings=PredictSettings()))
 
 
 @app.post("/api/races/{race_id}/predict")
-def get_custom_predict(race_id: int, req: PredictRequest):
+def get_custom_predict(race_id: int, req: PredictRequest, user_status: dict = Depends(get_current_user_status)):
     conn = get_db_connection()
     try:
         race = conn.execute('SELECT * FROM races WHERE id = ?', (race_id,)).fetchone()
@@ -1655,7 +1752,7 @@ def get_custom_predict(race_id: int, req: PredictRequest):
 
 
 @app.get("/api/races/{race_id}/exhibition/scrape")
-def scrape_exhibition(race_id: int):
+def scrape_exhibition(race_id: int, user_status: dict = Depends(get_current_user_status)):
     """公式サイトから展示情報・気象を自動取得しDBに保存"""
     conn = get_db_connection()
     race = conn.execute(
@@ -1708,7 +1805,7 @@ def scrape_exhibition(race_id: int):
 
 
 @app.post("/api/races/{race_id}/exhibition")
-def update_exhibition(race_id: int, updates: List[ExhibitionUpdate]):
+def update_exhibition(race_id: int, updates: List[ExhibitionUpdate], user_status: dict = Depends(get_current_user_status)):
     """展示情報を手動更新（チルト含む）し再計算"""
     conn = get_db_connection()
     try:
@@ -1738,7 +1835,7 @@ def update_exhibition(race_id: int, updates: List[ExhibitionUpdate]):
 
 
 @app.get("/api/search/racers")
-def search_racers(q: str):
+def search_racers(q: str, user_status: dict = Depends(get_current_user_status)):
     """選手名または登番で選手を検索し、出場予定レースを返す"""
     conn = get_db_connection()
     try:
@@ -1813,7 +1910,7 @@ def search_racers(q: str):
         conn.close()
 
 @app.get("/api/search/high_expectation")
-def search_high_expectation():
+def search_high_expectation(user_status: dict = Depends(get_current_user_status)):
     """AI予想に基づき、1号艇の勝率が高いなどの『期待値の高いレース』を抽出する"""
     conn = get_db_connection()
     try:
@@ -1856,7 +1953,7 @@ def search_high_expectation():
         conn.close()
 
 @app.get("/api/favorites")
-def get_favorites():
+def get_favorites(user_status: dict = Depends(get_current_user_status)):
     """お気に入り選手の一覧と近日出場予定を返す"""
     conn = get_db_connection()
     try:
@@ -1901,7 +1998,7 @@ def get_favorites():
         conn.close()
 
 @app.post("/api/favorites/toggle")
-def toggle_favorite(toban: str = Body(...), name: str = Body(...), active: bool = Body(...)):
+def toggle_favorite(toban: str = Body(...), name: str = Body(...), active: bool = Body(...), user_status: dict = Depends(get_current_user_status)):
     """お気に入り登録・解除。解除時は Supabase からも削除を試みる。"""
     conn = get_db_connection()
     try:
