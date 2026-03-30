@@ -18,7 +18,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -449,18 +448,11 @@ window.addEventListener('unhandledrejection', function(event) {
             <img src="./logo.png" alt="Logo" class="h-8 w-auto">
             <h1 class="text-lg font-black tracking-tight">Kyotei Advisor</h1>
         </div>
-        <div class="flex items-center gap-2">
-            <button onclick="openHelpModal()" class="p-2 text-slate-400 hover:text-white">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-            </button>
-            <button id="menu-btn" class="focus:outline-none p-1">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-            </button>
-        </div>
+        <button id="menu-btn" class="focus:outline-none p-1">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+        </button>
     </div>
 
     <!-- Left Sidebar -->
@@ -475,59 +467,16 @@ window.addEventListener('unhandledrejection', function(event) {
                     <p class="text-xs text-slate-400 mt-0.5">Data Analysis & AI Prediction</p>
                 </div>
             </div>
-            <div class="flex items-center gap-2">
-                <button onclick="openHelpModal()"
-                    class="text-slate-400 hover:text-white transition-colors p-1" title="ヘルプ・規約">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                </button>
-                <button onclick="document.getElementById('settings-modal').classList.remove('hidden')"
-                    class="text-slate-400 hover:text-white transition-colors p-1" title="全体設定">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
-                        </path>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                    </svg>
-                </button>
-            </div>
-        </div>
-
-        <!-- Account Section -->
-        <div id="account-section" class="mx-3 mt-4 mb-2 p-3 bg-slate-900/50 rounded-xl border border-slate-700/50">
-            <div id="user-info-anonymous">
-                <button onclick="openAuthModal()" 
-                    class="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-3 py-2.5 rounded-lg text-sm font-bold transition-all shadow-lg active:scale-95">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                    </svg>
-                    ログイン / 会員登録
-                </button>
-                <p class="text-[9px] text-slate-500 text-center mt-2 px-1">詳細分析を見るにはログインが必要です</p>
-            </div>
-            <div id="user-info-logged-in" class="hidden">
-                <div class="flex items-center gap-2 mb-1">
-                    <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold" id="user-avatar-char">U</div>
-                    <div class="min-w-0 flex-1">
-                        <p class="text-[10px] text-slate-400 truncate" id="user-email-display">user@example.com</p>
-                        <div class="flex items-center gap-1.5">
-                            <p class="text-[9px] text-emerald-400 font-bold" id="user-status-badge">ロード中...</p>
-                            <span id="trial-countdown" class="text-[9px] text-amber-400 font-medium hidden"></span>
-                        </div>
-                    </div>
-                </div>
-                <div id="subscription-cta" class="hidden mb-2">
-                    <button onclick="openSubscriptionModal()" class="w-full text-[9px] bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/30 py-1 rounded font-bold transition-all">
-                        👑 プレミアムにアップグレード
-                    </button>
-                </div>
-                <button onclick="handleSignOut()" 
-                    class="w-full text-[10px] text-slate-400 hover:text-slate-200 border border-slate-700 hover:bg-slate-700 py-1.5 rounded transition-colors">
-                    ログアウト
-                </button>
-            </div>
+            <button onclick="document.getElementById('settings-modal').classList.remove('hidden')"
+                class="text-slate-400 hover:text-white transition-colors" title="全体設定">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
+                    </path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+            </button>
         </div>
 
 
@@ -765,10 +714,7 @@ window.addEventListener('unhandledrejection', function(event) {
                 <div class="bg-gradient-to-br from-slate-800 to-blue-900/40 p-4 rounded-xl border border-blue-800/50">
                     <div class="flex justify-between items-center mb-2 pb-2 border-b border-blue-800/50">
                         <h3 class="font-bold text-blue-300 text-sm">カスタム予想</h3>
-                        <div class="flex gap-1">
-                            <button id="add-all-custom" onclick="addAllToCart('rule-focus')" class="hidden text-[10px] bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded font-bold transition-all">一括追加 🛒</button>
-                            <button id="direct-vote-custom" onclick="directVote('rule-focus')" class="hidden text-[10px] bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded font-bold transition-all">ダイレクト投票 🎫</button>
-                        </div>
+                        <button id="add-all-custom" onclick="addAllToCart('rule-focus')" class="hidden text-[10px] bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded font-bold transition-all">一括追加 🛒</button>
                     </div>
                     <div id="rule-focus" class="space-y-1 my-2"></div>
                     <p class="text-[10px] text-blue-500 text-center mt-1">設定に応じてリアルタイム変動</p>
@@ -777,10 +723,7 @@ window.addEventListener('unhandledrejection', function(event) {
                 <div class="bg-gradient-to-br from-slate-800 to-slate-900 p-4 rounded-xl border border-slate-600">
                     <div class="flex justify-between items-center mb-2 pb-2 border-b border-slate-600">
                         <h3 class="font-bold text-slate-300 text-sm">AI解析予想</h3>
-                        <div class="flex gap-1">
-                            <button id="add-all-ai" onclick="addAllToCart('ai-focus')" class="hidden text-[10px] bg-slate-600 hover:bg-slate-500 text-white px-2 py-1 rounded font-bold transition-all">一括追加 🛒</button>
-                            <button id="direct-vote-ai" onclick="directVote('ai-focus')" class="hidden text-[10px] bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded font-bold transition-all">ダイレクト投票 🎫</button>
-                        </div>
+                        <button id="add-all-ai" onclick="addAllToCart('ai-focus')" class="hidden text-[10px] bg-slate-600 hover:bg-slate-500 text-white px-2 py-1 rounded font-bold transition-all">一括追加 🛒</button>
                     </div>
                     <div class="text-[10px] text-slate-400 mb-1">シミュレーション1着率</div>
                     <div id="ai-win-probs" class="flex gap-1 mb-3"></div>
@@ -1217,86 +1160,9 @@ window.addEventListener('unhandledrejection', function(event) {
         </div>
     </div>
 
-    <!-- Auth Modal -->
-    <div id="auth-modal"
-        class="fixed inset-0 z-[120] hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-        <div
-            class="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col animate-in zoom-in-95 duration-200">
-            <div class="p-6 border-b border-slate-700 flex justify-between items-center bg-slate-800/90 rounded-t-2xl">
-                <h3 id="auth-modal-title" class="font-bold text-slate-200 text-lg">ログイン</h3>
-                <button onclick="closeAuthModal()" class="text-slate-400 hover:text-white p-2">✕</button>
-            </div>
-            <div class="p-6">
-                <!-- Login Section -->
-                <form id="auth-login-section" onsubmit="handleSignIn(event)" class="space-y-4">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">メールアドレス</label>
-                        <input type="email" id="login-email" required placeholder="example@mail.com"
-                            class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-slate-100 outline-none focus:border-blue-500 transition-all">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">パスワード</label>
-                        <input type="password" id="login-password" required placeholder="••••••••"
-                            class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-slate-100 outline-none focus:border-blue-500 transition-all">
-                    </div>
-                    <button type="submit"
-                        class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg active:scale-95">ログイン</button>
-                    <div class="text-center mt-4">
-                        <button type="button" onclick="switchAuthMode('register')" class="text-xs text-blue-400 hover:underline">アカウントをお持ちでない方はこちら</button>
-                    </div>
-                </form>
-
-                <!-- Register Section -->
-                <form id="auth-register-section" onsubmit="handleSignUp(event)" class="hidden space-y-4">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">メールアドレス</label>
-                        <input type="email" id="register-email" required placeholder="example@mail.com"
-                            class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-slate-100 outline-none focus:border-blue-500 transition-all">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">パスワード</label>
-                        <input type="password" id="register-password" required placeholder="8文字以上"
-                            class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-slate-100 outline-none focus:border-blue-500 transition-all">
-                    </div>
-                    <button type="submit"
-                        class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg active:scale-95">新規登録</button>
-                    <div class="text-center mt-4">
-                        <button type="button" onclick="switchAuthMode('login')" class="text-xs text-blue-400 hover:underline">既にアカウントをお持ちの方はこちら</button>
-                    </div>
-                </form>
-
-                <!-- Social Login Divider -->
-                <div class="relative my-6">
-                    <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-slate-700"></div></div>
-                    <div class="relative flex justify-center text-xs uppercase"><span class="bg-slate-800 px-3 text-slate-500">または</span></div>
-                </div>
-
-                <!-- Google Login -->
-                <button onclick="handleSocialLogin('google')" 
-                    class="w-full bg-white hover:bg-slate-100 text-slate-900 font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-3 shadow-md active:scale-95">
-                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5 h-5" alt="Google">
-                    Googleでログイン
-                </button>
-            </div>
-        </div>
-    </div>
-
     <script>
-        const APP_VERSION = '1.1.0';
+        const APP_VERSION = '1.0.9';
         const API_BASE = '/api';
-
-        // ─── Supabase 初期設定 ──────────────────
-        // バックエンドと同じ URL と Anonキーを設定します
-        const SUPABASE_URL = "https://rngzcwztmshadaevaxqz.supabase.co";
-        const SUPABASE_ANON_KEY = "sb_publishable_6huF1R37Wdmbr6sGESBs_Q_6ky2OXqz";
-        
-        let supabaseClient;
-        try {
-            supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            console.log('[Auth] Supabase client initialized.');
-        } catch (e) {
-            console.error('[Auth] Failed to initialize Supabase client:', e);
-        }
 
         const places_dict = {
             "01": "桐生", "02": "戸田", "03": "江戸川", "04": "平和島", "05": "多摩川", "06": "浜名湖",
@@ -1430,53 +1296,6 @@ window.addEventListener('unhandledrejection', function(event) {
         }
         const CACHE_PREFIX = `kyotei_v1_${getTodayStr()}_`;
         const APP_PREFIX = 'kyotei_v1_';
-        
-        let userProfileStatus = { is_premium: false, is_in_trial: false, trial_end: null };
-        let selectedPaymentMethod = null;
-
-        // ─── 認証付きFetchラッパー ──────────────────
-        async function authFetch(url, options = {}) {
-            let token = null;
-            try {
-                if (supabaseClient) {
-                    const { data: { session } } = await supabaseClient.auth.getSession();
-                    token = session?.access_token;
-                }
-            } catch (e) { console.warn('[Auth] Session retrieval failed', e); }
-            
-            const headers = {
-                ...options.headers,
-                'Authorization': token ? `Bearer ${token}` : ''
-            };
-
-            // Timeout implementation (10 seconds)
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-            try {
-                const response = await fetch(url, { ...options, headers, signal: controller.signal });
-                clearTimeout(timeoutId);
-                
-                if (response.status === 403) {
-                    const modal = document.getElementById('subscription-modal');
-                    if (modal && modal.classList.contains('hidden')) {
-                        openSubscriptionModal();
-                    }
-                    throw new Error('Subscription required');
-                }
-                
-                if (response.status === 401) {
-                    openAuthModal('login');
-                    throw new Error('Authentication required');
-                }
-                
-                return response;
-            } catch (e) {
-                clearTimeout(timeoutId);
-                if (e.name === 'AbortError') throw new Error('リクエストがタイムアウトしました。通信環境を確認してください。');
-                throw e;
-            }
-        }
 
         // 過去2日分以外のローカルストレージキャッシュをクリア（設定は除く）
         try {
@@ -1937,19 +1756,6 @@ window.addEventListener('unhandledrejection', function(event) {
                 if (isHitFlag) div.classList.add('border', 'border-yellow-400', 'bg-yellow-900/30');
                 el.appendChild(div);
             });
-
-            // 一括追加・ダイレクト投票ボタンの表示制御
-            const btnId = isAi ? 'add-all-ai' : 'add-all-custom';
-            const dvId = isAi ? 'direct-vote-ai' : 'direct-vote-custom';
-            const btn = document.getElementById(btnId);
-            const dv = document.getElementById(dvId);
-            if (list.length > 0) {
-                btn?.classList.remove('hidden');
-                dv?.classList.remove('hidden');
-            } else {
-                btn?.classList.add('hidden');
-                dv?.classList.add('hidden');
-            }
         }
 
         // ─── Drawer ────────────────────────────────────────────────────────────
@@ -2013,7 +1819,7 @@ window.addEventListener('unhandledrejection', function(event) {
 
                 if (hits) window.dailyHitsCache = hits;
 
-                if (places) {
+                if (places && places.some(p => p.is_active)) {
                     const text = JSON.stringify(places);
                     const cacheKey = `places_${dateStr}`;
                     localStorage.setItem(APP_PREFIX + cacheKey, text);
@@ -2028,16 +1834,23 @@ window.addEventListener('unhandledrejection', function(event) {
                     }
                     
                     // 成功したら隣接日の先読みを開始（初回のみ）
-                    if (relativeDate === 0 && !isRetry && places.length > 0) {
+                    if (relativeDate === 0 && !isRetry) {
                         setTimeout(() => prefetchAdjacentDates(), 2000);
                     }
                 } else {
-                    // 他の取得手段やエラー表示
-                    const list = document.getElementById('place-list');
-                    if (list && list.innerHTML.includes('読み込み中')) {
-                        list.innerHTML = `<li class="px-3 py-3 text-xs text-slate-500 text-center">開催情報はありません (${dateStr})</li>`;
+                    // データがない場合は「同期中」の可能性があるため、3回までリトライ
+                    const retryCount = parseInt(sessionStorage.getItem(`retry_${dateStr}`) || '0');
+                    if (retryCount < 3) {
+                        sessionStorage.setItem(`retry_${dateStr}`, retryCount + 1);
+                        console.log(`[Network] Data missing, retrying... (${retryCount + 1}/3)`);
+                        setTimeout(() => loadPlaces(true), 3000);
+                    } else if (!isRetry) {
+                        // 初回かつリトライ上限に達した
+                        const list = document.getElementById('place-list');
+                        if (list) list.innerHTML = `<li class="px-4 py-8 text-center text-slate-500 text-xs">データがまだ準備できていないようです。<br>「データ一括取得」を試すか、しばらくお待ちください。</li>`;
                     }
                 }
+
                 return places;
             } catch (e) { 
                 clearTimeout(timeoutId);
@@ -2477,13 +2290,6 @@ window.addEventListener('unhandledrejection', function(event) {
 
         // ─── Race Detail ──────────────────────────────────────────────────────
         async function loadRaceDetail(raceId) {
-            // Feature Gating: Check if user is logged in
-            if (!currentUser) {
-                openAuthModal();
-                showToast('詳細分析を見るにはログインが必要です', 'warning');
-                return;
-            }
-
             currentRaceId = raceId;
             originalPlayersSnapshot = [];
             currentPlayersData = [];
@@ -2782,7 +2588,7 @@ window.addEventListener('unhandledrejection', function(event) {
                 // ローカル保存されている上書き情報の取得
                 const overrides = currentRaceId ? (JSON.parse(localStorage.getItem(`kyotei_override_${currentRaceId}`)) || null) : null;
 
-                const res = await authFetch(`${API_BASE}/races/${currentRaceId}/predict`, {
+                const res = await fetch(`${API_BASE}/races/${currentRaceId}/predict`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -3206,7 +3012,7 @@ window.addEventListener('unhandledrejection', function(event) {
             }
             try {
                 // オッズ取得時に現在の bet_type を指定する
-                const res = await authFetch(`${API_BASE}/races/${currentRaceId}/options?bet_type=${currentOddsBetType}`);
+                const res = await fetch(`${API_BASE}/races/${currentRaceId}/options?bet_type=${currentOddsBetType}`);
                 if (!res.ok) { document.getElementById('odds-content').innerHTML = '<p class="text-sm text-red-400 text-center py-10">オッズAPIエラー</p>'; return; }
                 const data = await res.json();
 
@@ -3494,7 +3300,7 @@ window.addEventListener('unhandledrejection', function(event) {
             const origHTML = btn.innerHTML;
             btn.disabled = true; btn.textContent = '取得中...';
             try {
-                const res = await authFetch(`${API_BASE}/races/${currentRaceId}/exhibition/scrape`);
+                const res = await fetch(`${API_BASE}/races/${currentRaceId}/exhibition/scrape`);
                 if (!res.ok) {
                     let msg = '展示情報がまだありません。\n展示タイムはレース開始約10~15分前に公開されます。';
                     try { const err = await res.json(); if (err.detail) msg = err.detail; } catch (_) { }
@@ -3575,16 +3381,6 @@ window.addEventListener('unhandledrejection', function(event) {
 
                 // 固定設定などのリセット
                 activeFixedHead = 0;
-
-                // 全体重み設定のリセット (win, memo, ex, st, course, wind)
-                const weights = { 'win': 1.0, 'moto': 1.0, 'ex': 1.0, 'st': 1.0, 'course': 1.0, 'wind': 0.0 };
-                for (const [key, val] of Object.entries(weights)) {
-                    const input = document.getElementById(`w-${key}`);
-                    if (input) input.value = val.toFixed(1);
-                    const label = document.getElementById(`val-${key}`);
-                    if (label) label.textContent = val.toFixed(1);
-                }
-                saveUserSettings();
 
                 showToast('数値をデフォルトに初期化中...', 'ok');
 
@@ -3698,7 +3494,7 @@ window.addEventListener('unhandledrejection', function(event) {
                 const placeName = openContainer ? openContainer.id.replace('races-container-', '') : '';
                 const placeCode = Object.keys(places_dict).find(key => places_dict[key] === placeName) || '';
 
-                const res = await authFetch(`${API_BASE}/racers/${toban}?place_code=${placeCode}`);
+                const res = await fetch(`${API_BASE}/racers/${toban}?place_code=${placeCode}`);
                 const data = await res.json();
                 if (data.error) { content.innerHTML = `<p class="text-red-400 text-center py-6">${data.error}</p>`; return; }
 
@@ -4216,46 +4012,6 @@ window.addEventListener('unhandledrejection', function(event) {
                 } else {
                     window.open(url, "_blank", "noopener,noreferrer");
                 }
-            });
-        }
-
-        function directVote(elemId) {
-            // elemId: 'rule-focus' or 'ai-focus'
-            const list = lastPredictions ? (elemId === 'rule-focus' ? lastPredictions.rule_focus : lastPredictions.ai_focus) : null;
-            if (!list || list.length === 0) {
-                alert("データがありません。");
-                return;
-            }
-
-            const maxItems = parseInt(document.getElementById('setting-max-items')?.value || '8');
-            const targetList = list.slice(0, maxItems);
-
-            const amount = prompt("1点あたりの投資金額(円)を入力してください", "100");
-            if (amount === null) return;
-            const amt = parseInt(amount);
-            if (isNaN(amt) || amt <= 0) {
-                alert("金額が正しくありません。");
-                return;
-            }
-
-            let text = "■ 買い目メモ (ダイレクト投票)\n";
-            let total = 0;
-            targetList.forEach(item => {
-                text += `${item.pattern} : ${amt}円\n`;
-                total += amt;
-            });
-            text += `----------\n合計: ${total.toLocaleString()}円`;
-
-            navigator.clipboard.writeText(text).then(() => {
-                alert(`上位${targetList.length}点をコピーしました！\nテレボートを開きます。`);
-            }).catch(e => {
-                alert("コピーに失敗しました。手動でメモしてください。\n\n" + text);
-            }).finally(() => {
-                const ua = navigator.userAgent.toLowerCase();
-                const isSP = /iphone|ipad|ipod|android/.test(ua);
-                const url = isSP ? "https://spweb.brtb.jp/" : "https://ib.mbrace.or.jp/";
-                if (isSP) window.location.href = url;
-                else window.open(url, "_blank");
             });
         }
 
@@ -4828,7 +4584,7 @@ window.addEventListener('unhandledrejection', function(event) {
             container.innerHTML = '<div class="text-center py-12"><div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mb-2"></div><p class="text-slate-400 text-xs">検索中...</p></div>';
             
             try {
-                const res = await authFetch(`${API_BASE}/search/racers?q=${encodeURIComponent(q)}`);
+                const res = await fetch(`${API_BASE}/search/racers?q=${encodeURIComponent(q)}`);
                 const data = await res.json();
                 renderSearchResults(data);
             } catch (e) {
@@ -4890,7 +4646,7 @@ window.addEventListener('unhandledrejection', function(event) {
             container.innerHTML = '<div class="text-center py-12"><div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-amber-500 mb-2"></div><p class="text-slate-400 text-xs">的中期待値を解析中...</p></div>';
             
             try {
-                const res = await authFetch(`${API_BASE}/search/high_expectation`);
+                const res = await fetch(`${API_BASE}/search/high_expectation`);
                 const data = await res.json();
                 renderExpectationResults(data);
             } catch (e) {
@@ -5026,9 +4782,6 @@ window.addEventListener('unhandledrejection', function(event) {
 
             // お気に入り初期化
             initFavorites();
-
-            // 会員認証初期化
-            initAuth();
         });
 
         // --- Favorite Racers Features ---
@@ -5036,7 +4789,7 @@ window.addEventListener('unhandledrejection', function(event) {
 
         async function initFavorites() {
             try {
-                const res = await authFetch(`${API_BASE}/favorites`);
+                const res = await fetch(`${API_BASE}/favorites`);
                 if (res.ok) {
                     const favs = await res.json();
                     favoriteRacersSet = new Set(favs.map(f => f.toban));
@@ -5057,7 +4810,7 @@ window.addEventListener('unhandledrejection', function(event) {
             else favoriteRacersSet.delete(toban);
 
             try {
-                const res = await authFetch(`${API_BASE}/favorites/toggle`, {
+                const res = await fetch(`${API_BASE}/favorites/toggle`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ toban, name, active: nextActive })
@@ -5099,284 +4852,63 @@ window.addEventListener('unhandledrejection', function(event) {
         }
 
         async function refreshFavorites() {
-            // ... (rest of function)
-        }
-
-        // --- Authentication Actions ---
-        let currentUser = null;
-
-        async function initAuth() {
-            if (!supabaseClient) {
-                console.warn('[Auth] supabaseClient not initialized');
-                return;
-            }
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            updateAuthState(session?.user || null);
-            supabaseClient.auth.onAuthStateChange(async (event, session) => {
-                updateAuthState(session?.user || null);
-                if (event === 'SIGNED_IN') {
-                    closeAuthModal();
-                    showToast('ログインしました', 'info');
-                    await fetchUserProfile();
-                }
-                if (event === 'SIGNED_OUT') {
-                    showToast('ログアウトしました', 'info');
-                    userProfileStatus = { is_premium: false, is_in_trial: false, trial_end: null };
-                    resetMainView();
-                }
-            });
-            if (session?.user) await fetchUserProfile();
-        }
-
-        async function fetchUserProfile() {
-            if (!currentUser) return;
-            try {
-                const { data, error } = await supabaseClient
-                    .from('profiles')
-                    .select('*')
-                    .eq('id', currentUser.id)
-                    .single();
-                
-                if (error) throw error;
-                
-                const trialEnd = new Date(data.trial_started_at);
-                trialEnd.setDate(trialEnd.getDate() + 3);
-                
-                // サーバー側で計算された premium_until を取得
-                const premiumUntil = data.premium_until ? new Date(data.premium_until) : null;
-                const now = new Date();
-                
-                userProfileStatus = {
-                    is_premium: data.is_premium || (premiumUntil && now < premiumUntil),
-                    is_in_trial: now < trialEnd,
-                    trial_end: trialEnd,
-                    premium_until: premiumUntil,
-                    payment_name: data.payment_name
-                };
-                
-                updateProfileUI();
-            } catch (e) {
-                console.error('Profile fetch error:', e);
-            }
-        }
-
-        function updateProfileUI() {
-            const badge = document.getElementById('user-status-badge');
-            const countdown = document.getElementById('trial-countdown');
-            const cta = document.getElementById('subscription-cta');
-            
-            if (userProfileStatus.is_premium) {
-                const untilStr = userProfileStatus.premium_until ? 
-                    ` (期限: ${userProfileStatus.premium_until.toLocaleDateString()})` : "";
-                badge.textContent = 'プレミアム会員 👑' + untilStr;
-                badge.className = 'text-[9px] text-amber-400 font-bold';
-                countdown.classList.add('hidden');
-                cta.classList.add('hidden');
-            } else if (userProfileStatus.is_in_trial) {
-                badge.textContent = 'トライアル期間中';
-                badge.className = 'text-[9px] text-blue-400 font-bold';
-                
-                const diff = userProfileStatus.trial_end - new Date();
-                const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-                const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                
-                countdown.textContent = `残り ${days}日${hours}時間`;
-                countdown.classList.remove('hidden');
-                cta.classList.remove('hidden');
-            } else {
-                badge.textContent = 'トライアル終了';
-                badge.className = 'text-[9px] text-slate-500 font-bold';
-                countdown.classList.add('hidden');
-                cta.classList.remove('hidden');
-            }
-        }
-
-        function openSubscriptionModal() {
-            const modal = document.getElementById('subscription-modal');
-            modal.classList.remove('hidden');
-            
-            // 登録済みの名前があれば表示し、詳細エリアも表示する
-            const nameInput = document.getElementById('payment-name-input');
-            const detailsArea = document.getElementById('payment-details-area');
-            if (userProfileStatus.payment_name) {
-                if (nameInput) nameInput.value = userProfileStatus.payment_name;
-                if (detailsArea) detailsArea.classList.remove('hidden');
-            } else {
-                if (detailsArea) detailsArea.classList.add('hidden');
-            }
-        }
-        function closeSubscriptionModal() {
-            document.getElementById('subscription-modal').classList.add('hidden');
-        }
-        function updateAuthState(user) {
-            currentUser = user;
-            const anon = document.getElementById('user-info-anonymous');
-            const logged = document.getElementById('user-info-logged-in');
-            if (user) {
-                if (anon) anon.classList.add('hidden');
-                if (logged) logged.classList.remove('hidden');
-                const display = document.getElementById('user-email-display');
-                const avatar = document.getElementById('user-avatar-char');
-                if (display) display.textContent = user.email;
-                if (avatar) avatar.textContent = (user.email || 'U').charAt(0).toUpperCase();
-            } else {
-                if (anon) anon.classList.remove('hidden');
-                if (logged) logged.classList.add('hidden');
-            }
-        }
-        function openAuthModal(mode = 'login') {
-            const modal = document.getElementById('auth-modal');
-            if (modal) modal.classList.remove('hidden');
-            switchAuthMode(mode);
-        }
-        function closeAuthModal() {
-            const modal = document.getElementById('auth-modal');
-            if (modal) modal.classList.add('hidden');
-        }
-        function openHelpModal() {
-            const modal = document.getElementById('help-modal');
-            if (modal) modal.classList.remove('hidden');
-        }
-        function closeHelpModal() {
-            const modal = document.getElementById('help-modal');
-            if (modal) modal.classList.add('hidden');
-        }
-        function switchAuthMode(mode) {
-            const login = document.getElementById('auth-login-section');
-            const reg = document.getElementById('auth-register-section');
-            const title = document.getElementById('auth-modal-title');
-            if (mode === 'login') {
-                if (login) login.classList.remove('hidden');
-                if (reg) reg.classList.add('hidden');
-                if (title) title.textContent = 'ログイン';
-            } else {
-                if (login) login.classList.add('hidden');
-                if (reg) reg.classList.remove('hidden');
-                if (title) title.textContent = '新規会員登録';
-            }
-        }
-        async function handleSignIn(e) {
-            e.preventDefault();
-            const email = document.getElementById('login-email').value;
-            const password = document.getElementById('login-password').value;
-            const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-            if (error) showToast('エラー: ' + error.message, 'error');
-        }
-        async function handleSignUp(e) {
-            e.preventDefault();
-            const email = document.getElementById('register-email').value;
-            const password = document.getElementById('register-password').value;
-            const { error } = await supabaseClient.auth.signUp({ email, password });
-            if (error) showToast('エラー: ' + error.message, 'error');
-            else showToast('登録完了！確認メールを確認後にログインしてください', 'success');
-        }
-        async function handleSocialLogin(provider) {
-            const { error } = await supabaseClient.auth.signInWithOAuth({
-                provider: provider,
-                options: { redirectTo: window.location.origin + '/static/index.html' }
-            });
-            if (error) showToast('エラー: ' + error.message, 'error');
-        }
-        async function handleSignOut() {
-            if (supabaseClient) await supabaseClient.auth.signOut();
-        }
-
-
-        function openSubscriptionModal() {
-            const modal = document.getElementById('subscription-modal');
-            if (modal) {
-                modal.classList.remove('hidden');
-                resetSubscriptionFlow();
-            }
-        }
-
-        function resetSubscriptionFlow() {
-            selectedPaymentMethod = null;
-            document.getElementById('sub-step-1-select').classList.remove('hidden');
-            document.getElementById('sub-step-2-name').classList.add('hidden');
-            document.getElementById('sub-step-3-details').classList.add('hidden');
-            
-            // 入力欄をクリア
-            const nameInput = document.getElementById('payment-name-input');
-            if (nameInput) nameInput.value = userProfileStatus.payment_name || '';
-        }
-
-        function goBackToSelect() {
-            document.getElementById('sub-step-1-select').classList.remove('hidden');
-            document.getElementById('sub-step-2-name').classList.add('hidden');
-            document.getElementById('sub-step-3-details').classList.add('hidden');
-        }
-
-        function closeSubscriptionModal() {
-            const modal = document.getElementById('subscription-modal');
-            if (modal) modal.classList.add('hidden');
-        }
-
-        function selectPaymentMethod(method) {
-            selectedPaymentMethod = method;
-            document.getElementById('sub-step-1-select').classList.add('hidden');
-            document.getElementById('sub-step-2-name').classList.remove('hidden');
-            
-            const title = document.getElementById('step-2-title');
-            if (method === 'smbc') {
-                title.textContent = '1. 振込名義の登録 (銀行振込)';
-            } else {
-                title.textContent = '1. 送金人名の登録 (PayPay)';
-            }
-        }
-
-        async function registerPaymentName() {
-            const name = document.getElementById('payment-name-input').value.trim();
-            const btn = document.getElementById('payment-register-btn');
-            if (!name) {
-                showToast('お名前を入力してください', 'error');
-                return;
-            }
-            
-            const origText = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = '<span class="inline-block animate-spin mr-1">⌛</span> 処理中...';
+            const container = document.getElementById('favorite-list-area');
+            container.innerHTML = '<div class="text-center py-10"><div class="inline-block animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500 mb-2"></div><p class="text-slate-500 text-[10px]">読み込み中...</p></div>';
             
             try {
-                console.log('[Subscription] Registering name:', name);
-                const res = await authFetch(`${API_BASE}/user/payment_registration`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ payment_name: name })
+                const res = await fetch(`${API_BASE}/favorites`);
+                const favs = await res.json();
+                
+                if (favs.length === 0) {
+                    container.innerHTML = '<p class="text-center text-slate-500 text-xs py-10">お気に入りに登録された選手はいません。<br>★マークを押して登録してください。</p>';
+                    return;
+                }
+                
+                let html = '<div class="grid grid-cols-1 gap-3 pb-4">';
+                favs.forEach(f => {
+                    html += `
+                    <div class="bg-slate-900/50 border border-slate-700 rounded-2xl p-4 shadow-xl">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="flex items-center gap-2">
+                                <div>
+                                    <span class="text-[10px] font-bold text-slate-500 bg-slate-800 px-2 py-0.5 rounded">#${f.toban}</span>
+                                    <h4 class="text-xl font-black text-white mt-1">${f.name}</h4>
+                                </div>
+                                <button onclick="toggleFavorite('${f.toban}', '${f.name.replace(/'/g, "\\'")}', event).then(refreshFavorites)" 
+                                    class="w-10 h-10 flex items-center justify-center rounded-full transition-all text-yellow-400 bg-yellow-400/10 border-yellow-400/50 border">
+                                    <span class="text-xl">★</span>
+                                </button>
+                            </div>
+                            <button onclick="closeSearchModal(); openPlayerModal('${f.toban}', '${f.name.replace(/'/g, "\\'")}')" 
+                                class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-4 py-2 rounded-xl font-bold transition-all shadow border border-slate-600">
+                                詳細データ
+                            </button>
+                        </div>
+                        <div class="space-y-2">
+                            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                <span class="w-1 h-3 bg-emerald-500 rounded-full"></span>近日出場予定
+                            </p>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            ${f.scheduled_races.length > 0 ? 
+                                f.scheduled_races.map(sr => `
+                                <button onclick="closeSearchModal(); goToRace('${sr.place}', ${sr.race_id}, '${sr.date}')" 
+                                    class="flex justify-between items-center bg-slate-800 hover:bg-emerald-900/40 p-3 rounded-xl border border-slate-700 transition-all text-xs group">
+                                    <span class="font-bold text-slate-300 group-hover:text-emerald-300">${sr.date.split('-').slice(1).join('/')} ${sr.place} ${sr.race_no}R</span>
+                                    <span class="bg-slate-700 px-2 py-1 rounded-lg text-slate-400 text-[10px]">${sr.boat_no}号艇</span>
+                                </button>
+                                `).join('') : 
+                                '<p class="text-xs text-slate-600 col-span-2 py-2">※本日・明日の出場予定はありません</p>'
+                            }
+                            </div>
+                        </div>
+                    </div>`;
                 });
-                
-                if (res.ok) {
-                    showToast('お名前を登録しました。', 'ok');
-                    userProfileStatus.payment_name = name;
-                    
-                    // ステップ3へ移動
-                    document.getElementById('sub-step-2-name').classList.add('hidden');
-                    document.getElementById('sub-step-3-details').classList.remove('hidden');
-                    
-                    // 選択した方のみ表示
-                    if (selectedPaymentMethod === 'smbc') {
-                        document.getElementById('smbc-details').classList.remove('hidden');
-                        document.getElementById('paypay-details').classList.add('hidden');
-                    } else {
-                        document.getElementById('paypay-details').classList.remove('hidden');
-                        document.getElementById('smbc-details').classList.add('hidden');
-                    }
-                } else {
-                    const err = await res.json().catch(() => ({ detail: '登録に失敗しました' }));
-                    throw new Error(err.detail || '登録に失敗しました');
-                }
+                html += '</div>';
+                container.innerHTML = html;
             } catch (e) {
-                console.error('[Subscription] Registration error:', e);
-                showToast(e.message, 'error');
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = origText;
+                container.innerHTML = '<p class="text-red-400 text-center py-10 text-xs">データ取得に失敗しました</p>';
             }
         }
-
-
-        // Initialize Authentication
-        initAuth();
     </script>
 
 
@@ -5476,230 +5008,6 @@ window.addEventListener('unhandledrejection', function(event) {
                     </div>
                     <button onclick="fetchExpectationRaces()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-sm transition-all shadow-lg active:scale-95">期待値レースを抽出</button>
                     <div id="high-expectation-results" class="space-y-2 max-h-[350px] overflow-y-auto pt-2"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <!-- Help & Terms Modal -->
-    <div id="help-modal" class="fixed inset-0 z-[150] hidden bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
-        <div class="bg-slate-800 border border-slate-700 rounded-3xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
-            <!-- Modal Header -->
-            <div class="px-6 py-5 border-b border-slate-700 flex justify-between items-center bg-slate-900/50 rounded-t-3xl sticky top-0 z-10">
-                <div>
-                    <h3 class="text-xl font-black text-white flex items-center gap-2">
-                        <span class="text-2xl">📖</span> ヘルプ / 利用規定
-                    </h3>
-                </div>
-                <button onclick="closeHelpModal()" class="p-2 hover:bg-slate-700 rounded-full transition-colors text-slate-400">✕</button>
-            </div>
-
-            <!-- Modal Content -->
-            <div class="p-6 md:p-8 overflow-y-auto custom-scrollbar space-y-10 text-slate-300 leading-relaxed">
-                
-                <!-- Operation Description -->
-                <section>
-                    <h4 class="text-lg font-black text-white mb-4 flex items-center gap-2 pb-2 border-b border-slate-700">
-                        <span class="text-blue-500">▶</span> 操作説明
-                    </h4>
-                    <div class="space-y-6">
-                        <div class="bg-slate-900/40 p-4 rounded-xl border border-slate-700/50">
-                            <h5 class="font-bold text-slate-100 mb-2">1. レースの選択</h5>
-                            <p class="text-sm">左側のメニューから、本日開催されている「会場」を選択し、表示されるレース番号（R）をクリックしてください。メインパネルに詳細情報が表示されます。</p>
-                        </div>
-                        <div class="bg-slate-900/40 p-4 rounded-xl border border-slate-700/50">
-                            <h5 class="font-bold text-slate-100 mb-2">2. AI解析予想とカスタム予想</h5>
-                            <p class="text-sm">中央のパネルに表示される「AI解析予想」は、過去の膨大なデータから導き出された推論です。「カスタム予想」は、右上の設定（⚙️）から自分の好みに合わせてウェイト（勝率、展示タイム、STなど）を調整した結果がリアルタイムに反映されます。</p>
-                        </div>
-                        <div class="bg-slate-900/40 p-4 rounded-xl border border-slate-700/50">
-                            <h5 class="font-bold text-slate-100 mb-2">3. 投票カートと資金配分</h5>
-                            <p class="text-sm">気に入った予想は「🛒」ボタンでカートに追加できます。カート内の「資金配分」ボタンを使うと、設定した総予算に合わせて「トリガミ」を防ぐための最適な金額配分を自動計算し、テレボートへのコピーも可能です。</p>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Usage Terms -->
-                <section>
-                    <h4 class="text-lg font-black text-white mb-4 flex items-center gap-2 pb-2 border-b border-slate-700">
-                        <span class="text-blue-500">▶</span> 使用にあたって
-                    </h4>
-                    <div class="space-y-2 text-sm">
-                        <p>本ソフトウェアは、データの分析と予想の補助を行うためのツールです。舟券の購入はユーザー様ご自身の責任において行ってください。本アプリの使用によって生じたいかなる損害についても、開発者は責任を負いかねます。</p>
-                    </div>
-                </section>
-
-                <!-- Operation Environment -->
-                <section>
-                    <h4 class="text-lg font-black text-white mb-4 flex items-center gap-2 pb-2 border-b border-slate-700">
-                        <span class="text-blue-500">▶</span> 動作環境
-                    </h4>
-                    <div class="text-sm">
-                        <p>最新のモダンブラウザ（Google Chrome, Apple Safari, Microsoft Edge 等）での利用を推奨します。スマートフォン、PCの双方に対応しています。</p>
-                    </div>
-                </section>
-
-                <!-- Publication and Redistribution -->
-                <section>
-                    <h4 class="text-lg font-black text-white mb-4 flex items-center gap-2 pb-2 border-b border-slate-700">
-                        <span class="text-blue-500">▶</span> 掲載・転載について
-                    </h4>
-                    <div class="space-y-4 text-sm bg-slate-900/40 p-5 rounded-2xl border border-slate-700">
-                        <div class="space-y-2">
-                            <h5 class="font-bold text-blue-400">ソフトウェアの掲載について</h5>
-                            <p>本ソフトウェアを雑誌、書籍およびウェブサイト等の媒体に収録または掲載される場合は、必ず事前にご連絡くださるようお願いいたします。お問い合わせは下記のサポートメールにて承ります。</p>
-                        </div>
-                        <div class="space-y-2 border-t border-slate-700 pt-4">
-                            <h5 class="font-bold text-blue-400">データの転載について</h5>
-                            <p>本アプリが出力する予想や集計、分析結果等のデータは、下記の事項を守って頂ける場合に限り、メディアに転載して頂いて構いません。</p>
-                            <ul class="list-disc list-inside space-y-1 ml-2 text-slate-400">
-                                <li>「Kyotei Advisor を使用している」旨を明記してください。</li>
-                                <li>本アプリのURLを載せて頂けると幸いです。</li>
-                            </ul>
-                        </div>
-                        <div class="space-y-2 bg-red-900/20 p-3 rounded-lg border border-red-900/50">
-                            <h5 class="font-bold text-red-400">🚫 禁止事項</h5>
-                            <ul class="list-disc list-inside space-y-1 ml-2 text-xs text-red-300/80">
-                                <li>出力されたデータを許可なく販売等の営利目的に使用すること。</li>
-                                <li>レース予想を無断で転載、転用および二次利用すること（独自のカスタマイズ予想を除く）。</li>
-                            </ul>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Copyright -->
-                <section>
-                    <h4 class="text-lg font-black text-white mb-4 flex items-center gap-2 pb-2 border-b border-slate-700">
-                        <span class="text-blue-500">▶</span> 著作権
-                    </h4>
-                    <div class="bg-slate-900/60 p-5 rounded-2xl border border-slate-700 border-dashed">
-                        <p class="text-sm mb-4 leading-relaxed">
-                            Kyotei Advisor の本体プログラム、およびドキュメント等を含む関連するファイルの著作権は、開発者である<br>
-                            <span class="text-slate-100 font-bold block mt-2 text-base">山井　寛幸 氏</span>が所有しています。<br>
-                            ただし、ソフトウェアに含まれている一部のコンポーネントは、その開発者または供給者に著作権が帰属しています。
-                        </p>
-                        <div class="text-xs text-slate-500 font-mono text-center border-t border-slate-800 pt-4 mt-4">
-                            Copyright © kyoutei Adviser. All rights reserved.
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Support -->
-                <section class="bg-blue-600/10 p-6 rounded-3xl border border-blue-600/30">
-                    <h4 class="text-lg font-black text-blue-400 mb-2 flex items-center gap-2">
-                        📧 サポート窓口
-                    </h4>
-                    <p class="text-sm text-slate-400 mb-2">不具合報告、ご要望、掲載許可等は下記メールアドレスまでお願いいたします。</p>
-                    <a href="mailto:kimagurenaore@gmail.com" class="text-lg font-bold text-blue-400 hover:text-blue-300 transition-colors underline decoration-blue-800 underline-offset-4">kimagurenaore@gmail.com</a>
-                </section>
-
-            </div>
-
-            <!-- Modal Footer -->
-            <div class="p-4 border-t border-slate-700 bg-slate-900/50 rounded-b-3xl">
-                <button onclick="closeHelpModal()" class="w-full py-4 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-2xl transition-all active:scale-95 text-sm">閉じる</button>
-            </div>
-        </div>
-    </div>
-    <!-- Subscription Modal -->
-    <div id="subscription-modal" class="fixed inset-0 z-[200] hidden bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-        <div class="bg-slate-800 border border-slate-700 rounded-3xl shadow-2xl w-full max-w-md flex flex-col animate-in zoom-in-95 duration-200">
-            <div class="p-6 text-center">
-                <div class="w-20 h-20 bg-amber-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <span class="text-4xl text-amber-500">👑</span>
-                </div>
-                <h3 class="text-2xl font-black text-white mb-2">プレミアムプラン</h3>
-                <p class="text-slate-400 text-sm mb-6">トライアル期間が終了しました。<br>全てのレース分析・AI予想を見るには、プレミアム会員への登録が必要です。</p>
-                
-                <div class="space-y-4 mb-8 text-left">
-                    <!-- Step 1: Selection -->
-                    <div id="sub-step-1-select" class="space-y-4">
-                        <h4 class="text-xs font-bold text-slate-500 tracking-widest uppercase">1. お支払い方法を選択</h4>
-                        <div class="grid grid-cols-2 gap-3">
-                            <button onclick="selectPaymentMethod('smbc')" class="p-5 bg-slate-900/50 border border-slate-700 rounded-2xl hover:bg-blue-600/10 hover:border-blue-500 transition-all flex flex-col items-center gap-2 group">
-                                <span class="text-3xl group-hover:scale-110 transition-transform">🏦</span>
-                                <span class="text-sm font-bold text-slate-200">銀行振込</span>
-                            </button>
-                            <button onclick="selectPaymentMethod('paypay')" class="p-5 bg-slate-900/50 border border-slate-700 rounded-2xl hover:bg-red-600/10 hover:border-red-500 transition-all flex flex-col items-center gap-2 group">
-                                <span class="text-3xl group-hover:scale-110 transition-transform">📱</span>
-                                <span class="text-sm font-bold text-slate-200">PayPay</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Step 2: Name Input -->
-                    <div id="sub-step-2-name" class="hidden space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
-                        <div class="flex items-center justify-between">
-                            <h4 id="step-2-title" class="text-xs font-bold text-slate-500 tracking-widest uppercase">1. 名義登録</h4>
-                            <button onclick="goBackToSelect()" class="text-[10px] text-blue-400 hover:underline">← 変更する</button>
-                        </div>
-                        <div class="bg-slate-900/50 p-4 rounded-2xl border border-slate-700">
-                            <div class="flex gap-2 mb-2">
-                                <input id="payment-name-input" type="text" placeholder="例: ヤマダ タロウ" 
-                                    class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-blue-500">
-                                <button id="payment-register-btn" onclick="registerPaymentName()" 
-                                    class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all flex items-center">
-                                    次へ
-                                </button>
-                            </div>
-                            <p class="text-[9px] text-slate-500">※入金確認のため、振込/送金時に使用するお名前を入力してください。</p>
-                        </div>
-                    </div>
-
-                    <!-- Step 3: Details -->
-                    <div id="sub-step-3-details" class="hidden space-y-4 animate-in fade-in zoom-in-95 duration-300">
-                        <div class="flex items-center justify-between">
-                            <h4 class="text-xs font-bold text-slate-500 tracking-widest uppercase">2. お支払い</h4>
-                            <span class="text-[10px] text-green-500 flex items-center gap-1">✓ 名義登録済み</span>
-                        </div>
-
-                        <!-- SMBC Details -->
-                        <div id="smbc-details" class="hidden p-4 bg-slate-800 rounded-2xl border border-slate-700">
-                            <div class="flex items-center gap-2 mb-3">
-                                <span class="p-1.5 bg-blue-500/20 rounded-lg text-blue-500">🏦</span>
-                                <p class="text-xs font-bold text-slate-200">三井住友銀行 (SMBC)</p>
-                            </div>
-                            <div class="text-[11px] text-slate-400 space-y-2">
-                                <div class="flex justify-between items-center bg-slate-900/50 p-2 rounded-lg">
-                                    <span>店名</span>
-                                    <span class="text-slate-200 font-mono">オリーブＤＩＬＬ支店 (236)</span>
-                                </div>
-                                <div class="flex justify-between items-center bg-slate-900/50 p-2 rounded-lg">
-                                    <span>口座</span>
-                                    <span class="text-slate-200 font-mono">普通 2361008</span>
-                                </div>
-                                <p class="text-amber-400 font-bold bg-amber-500/10 p-2 rounded-lg text-center">
-                                    500円(30日) / 1200円(90日)
-                                </p>
-                            </div>
-                        </div>
-
-                        <!-- PayPay Details -->
-                        <div id="paypay-details" class="hidden p-4 bg-slate-800 rounded-2xl border border-slate-700">
-                            <div class="flex items-center gap-2 mb-3">
-                                <span class="p-1.5 bg-red-500/20 rounded-lg text-red-500">📱</span>
-                                <p class="text-xs font-bold text-slate-200">PayPayで送金</p>
-                            </div>
-                            <div class="flex flex-col items-center gap-3">
-                                <p class="text-[10px] text-slate-400 text-center">下記のボタンから送金してください。</p>
-                                <a href="https://qr.paypay.ne.jp/p2p01_0qVbjhYqfPcDjczN" target="_blank" 
-                                    class="w-full text-center px-4 py-3 bg-red-500 hover:bg-red-600 text-white text-xs font-black rounded-xl transition-all shadow-lg">
-                                    PayPayアプリを開く
-                                </a>
-                                <p class="text-amber-400 font-bold bg-amber-500/10 p-2 rounded-lg w-full text-center text-[11px]">
-                                    500円(30日) / 1200円(90日)
-                                </p>
-                            </div>
-                        </div>
-                        <p class="text-[9px] text-slate-500 text-center">※入金確認後、最大5分以内に自動的に反映されます。</p>
-                    </div>
-                </div>
-
-                <div class="flex gap-2">
-                    <button onclick="closeSubscriptionModal()" class="flex-1 py-4 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-2xl transition-all active:scale-95 text-sm font-bold">
-                        戻る
-                    </button>
-                    <button onclick="location.reload()" class="flex-1 py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-2xl transition-all active:scale-95 text-sm font-bold">
-                        更新して再確認
-                    </button>
                 </div>
             </div>
         </div>
