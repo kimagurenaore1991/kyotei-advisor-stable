@@ -20,3 +20,18 @@ USER_AGENT = (
     "AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/123.0.0.0 Safari/537.36"
 )
+
+# --- Payment Configuration ---
+PAYMENT_EMAIL = "kimagurenaore@gmail.com"
+PAYMENT_PASS = "konoyarou0209"
+PAYMENT_IMAP_SERVER = "imap.gmail.com"
+
+# Payment Destination Info
+SMBC_INFO = {
+    "bank_name": "三井住友銀行",
+    "branch_name": "オリーブＤＩＬＬ支店",
+    "account_type": "普通",
+    "account_number": "2361008"
+}
+PAYPAY_LINK = "https://qr.paypay.ne.jp/p2p01_0qVbjhYqfPcDjczN"
+

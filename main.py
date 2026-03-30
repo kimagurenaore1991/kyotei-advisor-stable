@@ -78,29 +78,40 @@ async def get_current_user_status(authorization: str = Header(None)) -> Dict:
             )
         
         profile = profile_res.data[0]
-        is_premium = profile.get("is_premium", False)
+        is_premium_active = profile.get("is_premium", False)
         
+        # 期限（premium_until）による判定を優先
+        premium_until_str = profile.get("premium_until")
+        now_utc = datetime.now(timezone.utc)
+        
+        if premium_until_str:
+            try:
+                # タイムゾーン付きでパース
+                ts_until = premium_until_str.replace("Z", "+00:00")
+                premium_until = datetime.fromisoformat(ts_until)
+                if now_utc < premium_until:
+                    is_premium_active = True
+            except:
+                premium_until = None
+        else:
+            premium_until = None
+            
         # トライアル判定 (3日間 = 72時間)
         trial_started_at_str = profile.get("trial_started_at")
         if trial_started_at_str:
-            # ISO形式 (2026-03-30T05:39:36.123+00:00 等) をパース
-            from datetime import timezone
             try:
-                # タイムゾーン付きでパース (Z 抜き対応)
-                ts = trial_started_at_str.replace("Z", "+00:00")
-                trial_started_at = datetime.fromisoformat(ts)
+                ts_trial = trial_started_at_str.replace("Z", "+00:00")
+                trial_started_at = datetime.fromisoformat(ts_trial)
             except:
-                # 失敗した場合は現在時刻を仮定
                 trial_started_at = datetime.now(timezone.utc)
         else:
             trial_started_at = datetime.now(timezone.utc)
 
         trial_end = trial_started_at + timedelta(days=3)
-        now_utc = datetime.now(timezone.utc)
         is_in_trial = now_utc < trial_end
         
-        # 権限チェック: 課金済み もしくは トライアル中 であること
-        if not is_premium and not is_in_trial:
+        # 権限チェック: 課金期間内 もしくは トライアル中 であること
+        if not is_premium_active and not is_in_trial:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Trial period expired. Subscription required to view details."
@@ -108,9 +119,10 @@ async def get_current_user_status(authorization: str = Header(None)) -> Dict:
             
         return {
             "user_id": user_id,
-            "is_premium": is_premium,
+            "is_premium": is_premium_active,
             "is_in_trial": is_in_trial,
             "trial_end": trial_end,
+            "premium_until": premium_until_str,
             "remaining_trial": str(trial_end - now_utc) if is_in_trial else "Expired"
         }
         
@@ -123,16 +135,38 @@ async def get_current_user_status(authorization: str = Header(None)) -> Dict:
             detail=f"Auth error: {str(e)}"
         )
 
-# --- Payment Webhook (Placeholder) ---
+# --- Payment Webhook (Email Detect & Manual Registration) ---
+
+class PaymentRegistration(BaseModel):
+    payment_name: str
+
+@app.post("/api/user/payment_registration")
+async def register_payment_name(
+    reg: PaymentRegistration, 
+    user: Dict = Depends(get_current_user_status),
+    authorization: str = Header(None)
+):
+    """ユーザーの振込名義を登録する"""
+    user_id = user["user_id"]
+    supabase = get_supabase_client()
+    
+    try:
+        res = supabase.table("profiles").update({
+            "payment_name": reg.payment_name
+        }).eq("id", user_id).execute()
+        
+        if not res.data:
+            raise HTTPException(status_code=500, detail="Failed to update profile")
+            
+        return {"status": "ok", "payment_name": reg.payment_name}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/webhooks/payment")
 async def payment_webhook(data: dict):
     """
     PayPayや銀行振込完了通知を受け取るエンドポイント（プレースホルダ）。
-    本当は署名検証などが必要。
     """
-    # 例: { "user_id": "...", "status": "success", "secret": "..." }
-    # ここで profiles テーブルの is_premium を True に更新する
     print(f"[WEBHOOK] Received payment notification: {data}")
     return {"status": "ok"}
 
@@ -200,6 +234,15 @@ async def startup_event():
     
     # バックグラウンドワーカーの起動
     asyncio.create_task(background_worker())
+    
+    # 支払監視ワーカーの起動 (Email Monitor)
+    try:
+        from payment_monitor import payment_monitor_loop
+        asyncio.create_task(payment_monitor_loop())
+    except ImportError:
+        print("[MONITOR] payment_monitor.py not found. Skipping...")
+    except Exception as e:
+        print(f"[MONITOR ERROR] Failed to start: {e}")
 
 async def initial_fetch_if_empty():
     """起動時にデータが不足している場合にのみウェブから取得する"""
