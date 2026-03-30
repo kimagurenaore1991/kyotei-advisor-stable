@@ -40,7 +40,9 @@ DAILY_HITS_CACHE_TTL = 300 # 5分 (結果が更新される可能性があるた
 
 # --- Authentication & Access Control ---
 
-from supabase_client import get_supabase_client
+from app_config import SUPABASE_URL, SUPABASE_KEY
+from supabase import create_client
+from supabase_client import get_supabase_client, get_supabase_admin_client
 
 async def get_current_user(authorization: str = Header(None)) -> Dict:
     """
@@ -64,15 +66,55 @@ async def get_current_user(authorization: str = Header(None)) -> Dict:
             )
         
         user_id = user_res.user.id
-        profile_res = supabase.table("profiles").select("*").eq("id", user_id).execute()
+        
+        # まずは読み取り。読み取りは通常のクライアントで可能（RLS設定によるが通常は自分の分は見れる）
+        # ただしより確実にadminで行う
+        admin_supabase = get_supabase_admin_client()
+        profile_res = admin_supabase.table("profiles").select("*").eq("id", user_id).execute()
         
         if not profile_res.data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User profile not initialized"
-            )
+            # プロフィールが見つからない場合は自動作成を試みる（新規ユーザー対応）
+            print(f"[AUTH] Initializing new profile for user {user_id}")
+            try:
+                # デフォルト値で作成（トライアル開始日を現在に設定）
+                new_profile_data = {
+                    "id": user_id,
+                    "is_premium": False,
+                    "trial_started_at": datetime.now(timezone.utc).isoformat(),
+                    "email": user_res.user.email # メールアドレスも保存しておくと後の管理が楽
+                }
+                
+                # adminクライアント（Service Role）で実行することでRLSをバイパスする
+                res = admin_supabase.table("profiles").insert(new_profile_data).execute()
+                
+                if not res.data:
+                    # adminでも失敗した場合はトークン付きで試行（ユーザー自身が許可されている場合）
+                    print("[AUTH] Admin insert failed, trying with user token...")
+                    user_supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+                    user_supabase.postgrest.auth(token)
+                    res = user_supabase.table("profiles").insert(new_profile_data).execute()
+
+                # 作成後に再度取得
+                re_profile_res = admin_supabase.table("profiles").select("*").eq("id", user_id).execute()
+                if not re_profile_res.data:
+                    raise Exception("Created profile could not be retrieved even after insertion effort.")
+                profile = re_profile_res.data[0]
+            except Exception as e:
+                print(f"[AUTH ERROR] Failed to auto-initialize profile: {e}")
+                # RLSエラーの場合は具体的なヒントを出す
+                err_msg = str(e)
+                if "row-level security policy" in err_msg.lower():
+                    detail = "Backend lacks permission (SERVICE_ROLE_KEY missing or RLS blocking). Please contact support/admin."
+                else:
+                    detail = f"Profile initialization failed: {err_msg}"
+                
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=detail
+                )
+        else:
+            profile = profile_res.data[0]
         
-        profile = profile_res.data[0]
         is_premium_active = profile.get("is_premium", False)
         premium_until_str = profile.get("premium_until")
         now_utc = datetime.now(timezone.utc)
@@ -144,6 +186,7 @@ async def register_payment_name(
 ):
     """ユーザーの振込名義を登録する"""
     user_id = user["user_id"]
+    print(f"[SUBSCRIPTION] Registration request for user {user_id}: {reg.payment_name}")
     supabase = get_supabase_client()
     
     try:
@@ -178,6 +221,10 @@ async def startup_event():
             last_scrape_date = LAST_SCRAPE_FILE.read_text(encoding="utf-8").strip()
         except:
             pass
+    
+    # Pre-initialize Supabase clients in the main thread (with event loop)
+    get_supabase_client()
+    get_supabase_admin_client()
     
     loop = asyncio.get_event_loop()
     
@@ -221,7 +268,7 @@ async def startup_event():
     # SSEコールバックをスクレイパーに登録
     def _sync_sse_push(event_type: str, data: dict):
         try:
-            loop = asyncio.get_event_loop()
+            # Use the loop from the closure (main thread loop)
             asyncio.run_coroutine_threadsafe(sse_push(event_type, data), loop)
         except Exception as e:
             print(f"[SSE BRIDGE ERROR] {e}")
