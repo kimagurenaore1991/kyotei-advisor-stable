@@ -1,32 +1,30 @@
 import os
 import json
-from datetime import datetime, timezone
-from supabase import create_client
-
-# Load config
+from supabase import create_client, Client
 from app_config import SUPABASE_URL, SUPABASE_KEY
 
-def test_insert_profile():
-    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-    
-    # Mock user_id (needs to be a valid UUID or existing auth user ID if RLS is strict)
-    # But here we just want to see the error message from Supabase
-    test_user_id = "00000000-0000-0000-0000-000000000000" 
-    
-    new_profile_data = {
-        "id": test_user_id,
-        "is_premium": False,
-        "trial_started_at": datetime.now(timezone.utc).isoformat()
-    }
-    
-    print(f"Attempting to insert into profiles with URL: {SUPABASE_URL}")
+def test_supabase():
+    print(f"Testing Supabase connection to: {SUPABASE_URL}")
     try:
-        res = supabase.table("profiles").insert(new_profile_data).execute()
-        print("Success!")
-        print(res.data)
+        supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        
+        # Test 1: Fetch from races
+        print("Testing: Fetching from 'races' table...")
+        res = supabase.table("races").select("count", count="exact").limit(1).execute()
+        print(f"Success! Exact count of races: {res.count}")
+        
+        # Test 2: Fetch recent races
+        print("Testing: Fetching recent 3 races...")
+        res_data = supabase.table("races").select("*").order("race_date", desc=True).limit(3).execute()
+        print(f"Fetched {len(res_data.data)} recent races.")
+        for r in res_data.data:
+            print(f" - {r.get('race_date')} {r.get('place_name')} {r.get('race_number')}R")
+            
+        if not res_data.data:
+            print("WARNING: 'races' table is EMPTY on Supabase.")
+            
     except Exception as e:
-        print("Failed!")
-        print(f"Error: {e}")
+        print(f"FAILED to connect or query Supabase: {e}")
 
 if __name__ == "__main__":
-    test_insert_profile()
+    test_supabase()
