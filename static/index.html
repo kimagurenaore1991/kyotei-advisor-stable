@@ -1452,7 +1452,10 @@ window.addEventListener('unhandledrejection', function(event) {
             
             // 403 Forbidden: トライアル切れ または 課金が必要
             if (response.status === 403) {
-                openSubscriptionModal();
+                const modal = document.getElementById('subscription-modal');
+                if (modal && modal.classList.contains('hidden')) {
+                    openSubscriptionModal();
+                }
                 throw new Error('Subscription required');
             }
             
@@ -5271,12 +5274,18 @@ window.addEventListener('unhandledrejection', function(event) {
 
         async function registerPaymentName() {
             const name = document.getElementById('payment-name-input').value.trim();
+            const btn = document.getElementById('payment-register-btn');
             if (!name) {
                 showToast('お振込み名義を入力してください', 'error');
                 return;
             }
             
+            const origText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="inline-block animate-spin mr-1">⌛</span> 処理中...';
+            
             try {
+                console.log('[Subscription] Registering payment name:', name);
                 const res = await authFetch(`${API_BASE}/user/payment_registration`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -5284,20 +5293,24 @@ window.addEventListener('unhandledrejection', function(event) {
                 });
                 
                 if (res.ok) {
-                    showToast('振込名義を登録しました。入金を確認次第反映されます。', 'success');
+                    showToast('振込名義を登録しました。入金を確認次第反映されます。', 'ok');
                     userProfileStatus.payment_name = name;
-                    // 保存後に詳細エリアを表示しやすくする
                     document.getElementById('payment-details-area').classList.remove('hidden');
                 } else {
-                    throw new Error('登録に失敗しました');
+                    const err = await res.json().catch(() => ({ detail: '登録に失敗しました' }));
+                    throw new Error(err.detail || '登録に失敗しました');
                 }
             } catch (e) {
+                console.error('[Subscription] Registration error:', e);
                 showToast(e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = origText;
             }
         }
 
-        // Initialize Authentication
-        initAuth();
+        // Initialize Authentication (Redundant call removed, handled in DOMContentLoaded)
+        // initAuth();
     </script>
 
 
@@ -5536,7 +5549,8 @@ window.addEventListener('unhandledrejection', function(event) {
                         <div class="flex gap-2 mb-4">
                             <input id="payment-name-input" type="text" placeholder="例: ヤマダ タロウ" 
                                 class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-blue-500">
-                            <button onclick="registerPaymentName()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all">
+                            <button id="payment-register-btn" onclick="registerPaymentName()" 
+                                class="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-400 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-all flex items-center">
                                 登録
                             </button>
                         </div>
