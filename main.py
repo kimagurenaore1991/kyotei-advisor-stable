@@ -1,14 +1,14 @@
-from datetime import datetime, timedelta, timezone
-from typing import List, Optional, Dict
+import math
+import itertools
+from datetime import datetime, timedelta
+from typing import List, Optional
 from pydantic import BaseModel
 import random
 import os
 import json
-import math
-import itertools
 import concurrent.futures
 import hashlib
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Body, Depends, Header, status
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from live_scraper import (
@@ -38,177 +38,6 @@ RACER_CACHE_TTL = 3600 # 1時間
 DAILY_HITS_CACHE = {}
 DAILY_HITS_CACHE_TTL = 300 # 5分 (結果が更新される可能性があるため短め)
 
-# --- Authentication & Access Control ---
-
-from app_config import SUPABASE_URL, SUPABASE_KEY
-from supabase import create_client
-from supabase_client import get_supabase_client, get_supabase_admin_client
-
-async def get_current_user(authorization: str = Header(None)) -> Dict:
-    """
-    SupabaseのJWTを検証し、ユーザー情報を取得する（アクセス制限は行わない）。
-    """
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required"
-        )
-    
-    token = authorization.split(" ")[1]
-    supabase = get_supabase_client()
-    
-    try:
-        user_res = supabase.auth.get_user(token)
-        if not user_res or not user_res.user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired token"
-            )
-        
-        user_id = user_res.user.id
-        
-        # まずは読み取り。読み取りは通常のクライアントで可能（RLS設定によるが通常は自分の分は見れる）
-        # ただしより確実にadminで行う
-        admin_supabase = get_supabase_admin_client()
-        profile_res = admin_supabase.table("profiles").select("*").eq("id", user_id).execute()
-        
-        if not profile_res.data:
-            # プロフィールが見つからない場合は自動作成を試みる（新規ユーザー対応）
-            print(f"[AUTH] Initializing new profile for user {user_id}")
-            try:
-                # デフォルト値で作成（トライアル開始日を現在に設定）
-                new_profile_data = {
-                    "id": user_id,
-                    "is_premium": False,
-                    "trial_started_at": datetime.now(timezone.utc).isoformat(),
-                    "email": user_res.user.email # メールアドレスも保存しておくと後の管理が楽
-                }
-                
-                # adminクライアント（Service Role）で実行することでRLSをバイパスする
-                res = admin_supabase.table("profiles").insert(new_profile_data).execute()
-                
-                if not res.data:
-                    # adminでも失敗した場合はトークン付きで試行（ユーザー自身が許可されている場合）
-                    print("[AUTH] Admin insert failed, trying with user token...")
-                    user_supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-                    user_supabase.postgrest.auth(token)
-                    res = user_supabase.table("profiles").insert(new_profile_data).execute()
-
-                # 作成後に再度取得
-                re_profile_res = admin_supabase.table("profiles").select("*").eq("id", user_id).execute()
-                if not re_profile_res.data:
-                    raise Exception("Created profile could not be retrieved even after insertion effort.")
-                profile = re_profile_res.data[0]
-            except Exception as e:
-                print(f"[AUTH ERROR] Failed to auto-initialize profile: {e}")
-                # RLSエラーの場合は具体的なヒントを出す
-                err_msg = str(e)
-                if "row-level security policy" in err_msg.lower():
-                    detail = "Backend lacks permission (SERVICE_ROLE_KEY missing or RLS blocking). Please contact support/admin."
-                else:
-                    detail = f"Profile initialization failed: {err_msg}"
-                
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=detail
-                )
-        else:
-            profile = profile_res.data[0]
-        
-        is_premium_active = profile.get("is_premium", False)
-        premium_until_str = profile.get("premium_until")
-        now_utc = datetime.now(timezone.utc)
-        
-        if premium_until_str:
-            try:
-                ts_until = premium_until_str.replace("Z", "+00:00")
-                premium_until = datetime.fromisoformat(ts_until)
-                if now_utc < premium_until:
-                    is_premium_active = True
-            except:
-                premium_until = None
-        else:
-            premium_until = None
-            
-        trial_started_at_str = profile.get("trial_started_at")
-        if trial_started_at_str:
-            try:
-                ts_trial = trial_started_at_str.replace("Z", "+00:00")
-                trial_started_at = datetime.fromisoformat(ts_trial)
-            except:
-                trial_started_at = datetime.now(timezone.utc)
-        else:
-            trial_started_at = datetime.now(timezone.utc)
-
-        trial_end = trial_started_at + timedelta(days=3)
-        is_in_trial = now_utc < trial_end
-        
-        return {
-            "user_id": user_id,
-            "is_premium": is_premium_active,
-            "is_in_trial": is_in_trial,
-            "trial_end": trial_end,
-            "premium_until": premium_until_str,
-            "remaining_trial": str(trial_end - now_utc) if is_in_trial else "Expired"
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"[AUTH ERROR] {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Auth error: {str(e)}"
-        )
-
-async def require_access(user: Dict = Depends(get_current_user)) -> Dict:
-    """
-    プレミアム機能へのアクセス制限を行う依存関係。
-    """
-    if not user["is_premium"] and not user["is_in_trial"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Trial period expired. Subscription required to view details."
-        )
-    return user
-
-
-# --- Payment Webhook (Email Detect & Manual Registration) ---
-
-class PaymentRegistration(BaseModel):
-    payment_name: str
-
-@app.post("/api/user/payment_registration")
-async def register_payment_name(
-    reg: PaymentRegistration, 
-    user: Dict = Depends(get_current_user),
-    authorization: str = Header(None)
-):
-    """ユーザーの振込名義を登録する"""
-    user_id = user["user_id"]
-    print(f"[SUBSCRIPTION] Registration request for user {user_id}: {reg.payment_name}")
-    supabase = get_supabase_client()
-    
-    try:
-        res = supabase.table("profiles").update({
-            "payment_name": reg.payment_name
-        }).eq("id", user_id).execute()
-        
-        if not res.data:
-            raise HTTPException(status_code=500, detail="Failed to update profile")
-            
-        return {"status": "ok", "payment_name": reg.payment_name}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/webhooks/payment")
-async def payment_webhook(data: dict):
-    """
-    PayPayや銀行振込完了通知を受け取るエンドポイント（プレースホルダ）。
-    """
-    print(f"[WEBHOOK] Received payment notification: {data}")
-    return {"status": "ok"}
-
 @app.on_event("startup")
 async def startup_event():
     # 起動時のデータ収集戦略の決定
@@ -221,10 +50,6 @@ async def startup_event():
             last_scrape_date = LAST_SCRAPE_FILE.read_text(encoding="utf-8").strip()
         except:
             pass
-    
-    # Pre-initialize Supabase clients in the main thread (with event loop)
-    get_supabase_client()
-    get_supabase_admin_client()
     
     loop = asyncio.get_event_loop()
     
@@ -268,7 +93,7 @@ async def startup_event():
     # SSEコールバックをスクレイパーに登録
     def _sync_sse_push(event_type: str, data: dict):
         try:
-            # Use the loop from the closure (main thread loop)
+            loop = asyncio.get_event_loop()
             asyncio.run_coroutine_threadsafe(sse_push(event_type, data), loop)
         except Exception as e:
             print(f"[SSE BRIDGE ERROR] {e}")
@@ -277,15 +102,6 @@ async def startup_event():
     
     # バックグラウンドワーカーの起動
     asyncio.create_task(background_worker())
-    
-    # 支払監視ワーカーの起動 (Email Monitor)
-    try:
-        from payment_monitor import payment_monitor_loop
-        asyncio.create_task(payment_monitor_loop())
-    except ImportError:
-        print("[MONITOR] payment_monitor.py not found. Skipping...")
-    except Exception as e:
-        print(f"[MONITOR ERROR] Failed to start: {e}")
 
 async def initial_fetch_if_empty():
     """起動時にデータが不足している場合にのみウェブから取得する"""
@@ -1600,7 +1416,7 @@ def get_daily_hits(req: PredictRequest, date: str = Query(...)):
     return hits
 
 @app.get("/api/races/{race_id}/odds")
-def api_get_race_odds(race_id: int, bet_type: str = Query(default="3t"), user_status: dict = Depends(require_access)):
+def api_get_race_odds(race_id: int, bet_type: str = Query(default="3t")):
     """指定賭式オッズ取得。bet_type: 3t/3f/2t/2f/1t"""
     conn = get_db_connection()
     race = conn.execute(
@@ -1637,7 +1453,7 @@ def api_get_race_odds(race_id: int, bet_type: str = Query(default="3t"), user_st
 
 
 @app.get("/api/races/{race_id}/weather")
-def api_get_race_weather(race_id: int, user_status: dict = Depends(require_access)):
+def api_get_race_weather(race_id: int):
     """展示情報ページから最新の気象・チルト情報を取得"""
     conn = get_db_connection()
     race = conn.execute(
@@ -1687,12 +1503,12 @@ def _get_tilt_info(race_id: int) -> dict:
 
 
 @app.get("/api/races/{race_id}")
-def get_race_detail(race_id: int, user_status: dict = Depends(require_access)):
+def get_race_detail(race_id: int):
     return get_custom_predict(race_id, PredictRequest(weights=CustomWeights(), settings=PredictSettings()))
 
 
 @app.post("/api/races/{race_id}/predict")
-def get_custom_predict(race_id: int, req: PredictRequest, user_status: dict = Depends(require_access)):
+def get_custom_predict(race_id: int, req: PredictRequest):
     conn = get_db_connection()
     try:
         race = conn.execute('SELECT * FROM races WHERE id = ?', (race_id,)).fetchone()
@@ -1839,7 +1655,7 @@ def get_custom_predict(race_id: int, req: PredictRequest, user_status: dict = De
 
 
 @app.get("/api/races/{race_id}/exhibition/scrape")
-def scrape_exhibition(race_id: int, user_status: dict = Depends(require_access)):
+def scrape_exhibition(race_id: int):
     """公式サイトから展示情報・気象を自動取得しDBに保存"""
     conn = get_db_connection()
     race = conn.execute(
@@ -1892,7 +1708,7 @@ def scrape_exhibition(race_id: int, user_status: dict = Depends(require_access))
 
 
 @app.post("/api/races/{race_id}/exhibition")
-def update_exhibition(race_id: int, updates: List[ExhibitionUpdate], user_status: dict = Depends(require_access)):
+def update_exhibition(race_id: int, updates: List[ExhibitionUpdate]):
     """展示情報を手動更新（チルト含む）し再計算"""
     conn = get_db_connection()
     try:
@@ -1922,7 +1738,7 @@ def update_exhibition(race_id: int, updates: List[ExhibitionUpdate], user_status
 
 
 @app.get("/api/search/racers")
-def search_racers(q: str, user_status: dict = Depends(get_current_user)):
+def search_racers(q: str):
     """選手名または登番で選手を検索し、出場予定レースを返す"""
     conn = get_db_connection()
     try:
@@ -1997,7 +1813,7 @@ def search_racers(q: str, user_status: dict = Depends(get_current_user)):
         conn.close()
 
 @app.get("/api/search/high_expectation")
-def search_high_expectation(user_status: dict = Depends(require_access)):
+def search_high_expectation():
     """AI予想に基づき、1号艇の勝率が高いなどの『期待値の高いレース』を抽出する"""
     conn = get_db_connection()
     try:
@@ -2040,7 +1856,7 @@ def search_high_expectation(user_status: dict = Depends(require_access)):
         conn.close()
 
 @app.get("/api/favorites")
-def get_favorites(user_status: dict = Depends(get_current_user)):
+def get_favorites():
     """お気に入り選手の一覧と近日出場予定を返す"""
     conn = get_db_connection()
     try:
@@ -2085,7 +1901,7 @@ def get_favorites(user_status: dict = Depends(get_current_user)):
         conn.close()
 
 @app.post("/api/favorites/toggle")
-def toggle_favorite(toban: str = Body(...), name: str = Body(...), active: bool = Body(...), user_status: dict = Depends(get_current_user)):
+def toggle_favorite(toban: str = Body(...), name: str = Body(...), active: bool = Body(...)):
     """お気に入り登録・解除。解除時は Supabase からも削除を試みる。"""
     conn = get_db_connection()
     try:

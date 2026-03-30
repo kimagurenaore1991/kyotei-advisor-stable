@@ -1,27 +1,13 @@
 from supabase import create_client, Client
-from app_config import SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_ROLE_KEY
+from app_config import SUPABASE_URL, SUPABASE_KEY
 
 _client = None
-_admin_client = None
 
 def get_supabase_client() -> Client:
     global _client
     if _client is None:
         _client = create_client(SUPABASE_URL, SUPABASE_KEY)
     return _client
-
-def get_supabase_admin_client() -> Client:
-    """
-    Returns a client with SERVICE_ROLE_KEY if available (to bypass RLS).
-    Falls back to normal client if not available.
-    """
-    global _admin_client
-    if _admin_client is None:
-        key = SUPABASE_SERVICE_ROLE_KEY if SUPABASE_SERVICE_ROLE_KEY else SUPABASE_KEY
-        if key == SUPABASE_KEY:
-            print("[WARNING] SUPABASE_SERVICE_ROLE_KEY not set. Backend operations may fail RLS checks.")
-        _admin_client = create_client(SUPABASE_URL, key)
-    return _admin_client
 
 def upsert_races(races_data: list[dict]):
     if not races_data: return
