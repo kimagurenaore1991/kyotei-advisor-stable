@@ -1640,7 +1640,7 @@ def _get_tilt_info(race_id: int) -> dict:
 
 
 @app.get("/api/races/{race_id}")
-def get_race_detail(race_id: int, user_status: dict = Depends(get_current_user_status)):
+def get_race_detail(race_id: int, user_status: dict = Depends(require_access)):
     return get_custom_predict(race_id, PredictRequest(weights=CustomWeights(), settings=PredictSettings()))
 
 
@@ -1792,7 +1792,7 @@ def get_custom_predict(race_id: int, req: PredictRequest, user_status: dict = De
 
 
 @app.get("/api/races/{race_id}/exhibition/scrape")
-def scrape_exhibition(race_id: int, user_status: dict = Depends(get_current_user_status)):
+def scrape_exhibition(race_id: int, user_status: dict = Depends(require_access)):
     """公式サイトから展示情報・気象を自動取得しDBに保存"""
     conn = get_db_connection()
     race = conn.execute(
@@ -1845,7 +1845,7 @@ def scrape_exhibition(race_id: int, user_status: dict = Depends(get_current_user
 
 
 @app.post("/api/races/{race_id}/exhibition")
-def update_exhibition(race_id: int, updates: List[ExhibitionUpdate], user_status: dict = Depends(get_current_user_status)):
+def update_exhibition(race_id: int, updates: List[ExhibitionUpdate], user_status: dict = Depends(require_access)):
     """展示情報を手動更新（チルト含む）し再計算"""
     conn = get_db_connection()
     try:
