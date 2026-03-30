@@ -5183,10 +5183,14 @@ window.addEventListener('unhandledrejection', function(event) {
             const modal = document.getElementById('subscription-modal');
             modal.classList.remove('hidden');
             
-            // 登録済みの名前があれば表示
+            // 登録済みの名前があれば表示し、詳細エリアも表示する
             const nameInput = document.getElementById('payment-name-input');
-            if (nameInput && userProfileStatus.payment_name) {
-                nameInput.value = userProfileStatus.payment_name;
+            const detailsArea = document.getElementById('payment-details-area');
+            if (userProfileStatus.payment_name) {
+                if (nameInput) nameInput.value = userProfileStatus.payment_name;
+                if (detailsArea) detailsArea.classList.remove('hidden');
+            } else {
+                if (detailsArea) detailsArea.classList.add('hidden');
             }
         }
         function closeSubscriptionModal() {
@@ -5537,7 +5541,7 @@ window.addEventListener('unhandledrejection', function(event) {
                             </button>
                         </div>
 
-                        <div id="payment-details-area" class="space-y-3 pt-2 border-t border-slate-800">
+                        <div id="payment-details-area" class="hidden space-y-3 pt-2 border-t border-slate-800">
                             <h4 class="text-xs font-bold text-slate-500 mb-1 tracking-widest uppercase">2. お支払い</h4>
                             
                             <!-- SMBC Option -->
