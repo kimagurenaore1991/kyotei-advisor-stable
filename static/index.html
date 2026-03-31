@@ -437,6 +437,31 @@ window.addEventListener('unhandledrejection', function(event) {
     window.onerror(event.reason, null, 0, 0, event.reason);
 });
 </script>
+    <!-- Light Mode Overrides -->
+    <style id="light-mode-styles">
+        html.light-mode body {
+            background-color: #f8fafc !important;
+            color: #1e293b !important;
+        }
+        html.light-mode .bg-slate-900 { background-color: #f1f5f9 !important; }
+        html.light-mode .bg-slate-800, html.light-mode .bg-slate-800\/80 { background-color: #ffffff !important; }
+        html.light-mode .bg-slate-750 { background-color: #f8fafc !important; }
+        html.light-mode .bg-slate-700, html.light-mode .bg-slate-700\/50 { background-color: #e2e8f0 !important; }
+        html.light-mode .border-slate-700, html.light-mode .border-slate-600 { border-color: #cbd5e1 !important; }
+        html.light-mode .text-slate-200, html.light-mode .text-slate-300, html.light-mode .text-white { color: #0f172a !important; }
+        html.light-mode .text-slate-400, html.light-mode .text-slate-500 { color: #475569 !important; }
+        html.light-mode .bg-gradient-to-br { background: #ffffff !important; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        
+        /* Tooltip */
+        .help-tooltip-icon {
+            display: inline-flex; justify-content: center; align-items: center;
+            width: 14px; height: 14px; border-radius: 50%;
+            background-color: #cbd5e1; color: #0f172a;
+            font-size: 10px; font-weight: bold; cursor: pointer; margin-left: 4px;
+            vertical-align: middle;
+        }
+        html.light-mode .help-tooltip-icon { background-color: #94a3b8; color: #fff; }
+    </style>
 </head>
 
 <body class="bg-slate-900 h-screen flex overflow-hidden text-slate-200">
@@ -467,6 +492,12 @@ window.addEventListener('unhandledrejection', function(event) {
                     <p class="text-xs text-slate-400 mt-0.5">Data Analysis & AI Prediction</p>
                 </div>
             </div>
+            <button onclick="toggleTheme()" id="theme-toggle-btn"
+                class="text-slate-400 hover:text-white transition-colors" title="テーマ切替">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                </svg>
+            </button>
             <button onclick="document.getElementById('settings-modal').classList.remove('hidden')"
                 class="text-slate-400 hover:text-white transition-colors" title="全体設定">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -710,10 +741,21 @@ window.addEventListener('unhandledrejection', function(event) {
             <!-- [2] 各予想 (2カラム) — mobile:order-2 / desktop:col-span-3 row-2 -->
             <div id="predict-section"
                 class="order-2 lg:col-span-3 lg:row-start-2 grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 scroll-mt-20">
+                
+                <!-- イチオシ推奨買い目 (Beginner Top Pick) -->
+                <div id="top-pick-box" class="hidden lg:col-span-2 bg-gradient-to-r from-blue-900 to-indigo-900 border border-blue-500/50 rounded-xl p-4 shadow-[0_0_15px_rgba(59,130,246,0.2)]">
+                    <h3 class="font-black text-blue-200 text-sm flex items-center gap-2 mb-2">
+                        <span class="text-xl">🎯</span> 迷ったらコレ！（本日のおすすめ買い目）
+                    </h3>
+                    <div id="top-pick-content" class="flex flex-wrap items-center gap-3">
+                        <!-- JS injected -->
+                    </div>
+                </div>
+
                 <!-- Custom -->
                 <div class="bg-gradient-to-br from-slate-800 to-blue-900/40 p-4 rounded-xl border border-blue-800/50">
                     <div class="flex justify-between items-center mb-2 pb-2 border-b border-blue-800/50">
-                        <h3 class="font-bold text-blue-300 text-sm">カスタム予想</h3>
+                        <h3 class="font-bold text-blue-300 text-sm flex items-center">カスタム予想 <span onclick="showHelpModal('custom')" class="help-tooltip-icon">?</span></h3>
                         <button id="add-all-custom" onclick="addAllToCart('rule-focus')" class="hidden text-[10px] bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded font-bold transition-all">一括追加 🛒</button>
                     </div>
                     <div id="rule-focus" class="space-y-1 my-2"></div>
@@ -722,10 +764,10 @@ window.addEventListener('unhandledrejection', function(event) {
                 <!-- AI -->
                 <div class="bg-gradient-to-br from-slate-800 to-slate-900 p-4 rounded-xl border border-slate-600">
                     <div class="flex justify-between items-center mb-2 pb-2 border-b border-slate-600">
-                        <h3 class="font-bold text-slate-300 text-sm">AI解析予想</h3>
+                        <h3 class="font-bold text-slate-300 text-sm flex items-center">AI解析予想 <span onclick="showHelpModal('solid')" class="help-tooltip-icon">?</span></h3>
                         <button id="add-all-ai" onclick="addAllToCart('ai-focus')" class="hidden text-[10px] bg-slate-600 hover:bg-slate-500 text-white px-2 py-1 rounded font-bold transition-all">一括追加 🛒</button>
                     </div>
-                    <div class="text-[10px] text-slate-400 mb-1">シミュレーション1着率</div>
+                    <div class="text-[10px] text-slate-400 mb-1 flex items-center">シミュレーション1着率 <span onclick="showHelpModal('solid')" class="help-tooltip-icon">?</span></div>
                     <div id="ai-win-probs" class="flex gap-1 mb-3"></div>
                     <div id="ai-focus" class="space-y-1 my-2"></div>
                     <p class="text-[10px] text-slate-500 text-center mt-1">非線形特徴量からの学習推論</p>
@@ -1112,10 +1154,19 @@ window.addEventListener('unhandledrejection', function(event) {
     </div>
 
     <!-- Welcome Screen -->
-    <div id="welcome-screen" class="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-900">
-        <img src="./logo.png" alt="Logo" class="w-32 h-32 mb-6 mx-auto drop-shadow-lg">
-        <h2 class="text-2xl font-black text-slate-200 mb-2">Kyotei Advisor</h2>
-        <p class="text-sm text-slate-500 max-w-xs">左メニューから本日開催場を選択し、レース番号をクリックしてください</p>
+    <div id="welcome-screen" class="flex-1 flex flex-col items-center justify-center p-6 text-center bg-slate-900 overflow-y-auto">
+        <img src="./logo.png" alt="Logo" class="w-24 h-24 mb-6 opacity-80 mt-10">
+        <h2 class="text-2xl font-black text-slate-200 mb-2">Kyotei Advisor Dashboard</h2>
+        <p class="text-sm text-slate-500 max-w-xs mb-8">左メニューから本日開催場を選択し、<br>レース番号をクリックしてください</p>
+
+        <div class="bg-slate-800/80 border border-slate-700 p-4 rounded-xl text-left w-full max-w-sm mb-8">
+            <p class="font-bold flex items-center gap-2 mb-2 text-slate-200"><svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> まずはここから始めよう</p>
+            <ol class="list-decimal list-inside space-y-1.5 ml-1 text-sm text-slate-400">
+                <li>メニューから開催場を選ぶ</li>
+                <li>レースを選び「迷ったらコレ！（イチオシ買い目）」をチェック</li>
+                <li>オッズと期待値を見極めて舟券を購入</li>
+            </ol>
+        </div>
     </div>
 
     <!-- Mobile Bottom Tab Bar -->
@@ -1989,9 +2040,12 @@ window.addEventListener('unhandledrejection', function(event) {
             if (totalRaces > 0) {
                 summaryEl.classList.remove('hidden');
                 document.getElementById('total-race-count').textContent = totalRaces;
-                document.getElementById('total-hit-rate').textContent = ((totalHits / totalRaces) * 100).toFixed(1) + '%';
-                const returnRate = totalInvestment > 0 ? ((totalPayout / totalInvestment) * 100).toFixed(1) : '0.0';
-                document.getElementById('total-return-rate').textContent = returnRate + '%';
+                
+                const hrStr = ((totalHits / totalRaces) * 100).toFixed(1) + '%';
+                const rrStr = totalInvestment > 0 ? ((totalPayout / totalInvestment) * 100).toFixed(1) + '%' : '0.0%';
+                
+                document.getElementById('total-hit-rate').textContent = hrStr;
+                document.getElementById('total-return-rate').textContent = rrStr;
             } else {
                 summaryEl.classList.add('hidden');
             }
@@ -2690,7 +2744,7 @@ window.addEventListener('unhandledrejection', function(event) {
             document.getElementById('weather-info').innerHTML = `<span class="font-semibold text-slate-200">${wEmoji} ${w}</span> ${wv}<br>${wd} ${ws}`;
 
             // Phase 1 Features: Sidebar / Countdown / Live Link
-            if (typeof updateTrackAdvisory === 'function' && race.place_name) updateTrackAdvisory(race.place_name);
+            if (typeof updateTrackAdvisory === 'function' && race.place_name) updateTrackAdvisory(race.place_name, race);
             if (typeof updateLiveLink === 'function' && race.place_code && race.race_number) updateLiveLink(race.place_code, race.race_number);
             if (typeof startCountdown === 'function' && race.scheduled_time && !race.is_finished) {
                 startCountdown(race.scheduled_time, race.place_code, race.race_number);
@@ -2701,6 +2755,27 @@ window.addEventListener('unhandledrejection', function(event) {
             // Predictions（グローバルの renderList / isHit を使用）
             renderList('rule-focus', predictions.rule_focus, false);
             renderList('ai-focus', predictions.ai_focus, true);
+
+            // イチオシ推奨買い目抽出
+            const topPickBox = document.getElementById('top-pick-box');
+            const topPickContent = document.getElementById('top-pick-content');
+            if (predictions.ai_focus && predictions.ai_focus.length > 0) {
+                const top3t = predictions.ai_focus.find(x => x.type === '3t' || x.type === '3連単' || typeof x === 'string');
+                if (top3t) {
+                    const pattern = top3t.pattern || top3t;
+                    const exLbl = top3t.exLabel || (top3t.expectation ? Math.round(top3t.expectation)+ '%' : null);
+                    topPickContent.innerHTML = `<button onclick="quickAddToCart('${pattern}')" class="px-5 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-400 hover:to-indigo-400 text-white font-black text-lg rounded-xl shadow-[0_0_10px_rgba(59,130,246,0.5)] transform transition-all active:scale-95 flex items-center gap-2 border border-blue-400/50">
+                        ${pattern} <span class="text-xs font-normal border-l border-white/30 pl-2">カートへ 🛒</span>
+                    </button>
+                    ${exLbl ? `<span class="bg-blue-900/60 text-blue-300 font-bold px-3 py-1.5 rounded-lg text-sm border border-blue-700/50 flex flex-col items-center"><span class="text-[10px]">期待値</span><span class="text-white leading-none">${exLbl}</span></span>` : ''}
+                    <p class="text-xs text-blue-200 mt-2 w-full lg:w-auto flex-1 font-bold">※迷った時はこの買い目から！少額でAIの実力を体感してみてください。</p>`;
+                    topPickBox.classList.remove('hidden');
+                } else {
+                    topPickBox.classList.add('hidden');
+                }
+            } else {
+                topPickBox.classList.add('hidden');
+            }
 
 
             // Render AI Win Probs
@@ -4240,13 +4315,32 @@ window.addEventListener('unhandledrejection', function(event) {
             '大村': '大村は1コース勝率が全場最高峰。ほぼ鉄板のインコース。まくり差しの警戒は薄くてよい。'
         };
 
-        function updateTrackAdvisory(placeName) {
+        function updateTrackAdvisory(placeName, raceData = null) {
             const adv = document.getElementById('track-advisory');
             const advText = document.getElementById('track-advisory-text');
             if (!adv || !advText) return;
-            const msg = TRACK_ADVISORIES[placeName];
-            if (msg) {
-                advText.textContent = msg;
+            
+            let staticMsg = TRACK_ADVISORIES[placeName] || '';
+            let dynamicMsg = '';
+            
+            if (raceData) {
+                const wp = raceData.wind_speed || 0;
+                const wd = raceData.wind_direction || '';
+                if (wp >= 5) {
+                    if (wd.includes('向かい風') || wd.includes('逆風')) {
+                        dynamicMsg = `<span class="text-amber-300 ml-2">【強向かい風 ${wp}m】ダッシュの捲りに警戒！</span>`;
+                    } else if (wd.includes('追い風')) {
+                        dynamicMsg = `<span class="text-amber-300 ml-2">【強追い風 ${wp}m】イン有利だがターン流れ差し注意。</span>`;
+                    } else {
+                        dynamicMsg = `<span class="text-amber-300 ml-2">【強風注意 ${wp}m】波乱傾向が高まります。</span>`;
+                    }
+                } else if (raceData.wave_height >= 5) {
+                    dynamicMsg = `<span class="text-indigo-300 ml-2">【高波 ${raceData.wave_height}cm】展示タイム重視推奨。</span>`;
+                }
+            }
+
+            if (staticMsg || dynamicMsg) {
+                advText.innerHTML = staticMsg + dynamicMsg;
                 adv.classList.remove('hidden');
             } else {
                 adv.classList.add('hidden');
@@ -4973,6 +5067,175 @@ window.addEventListener('unhandledrejection', function(event) {
                 container.innerHTML = '<p class="text-red-400 text-center py-10 text-xs">データ取得に失敗しました</p>';
             }
         }
+        // ==========================================
+        //         UX Enhancements Methods
+        // ==========================================
+
+        function toggleTheme() {
+            const html = document.documentElement;
+            const isLight = html.classList.toggle('light-mode');
+            localStorage.setItem('theme', isLight ? 'light' : 'dark');
+            showToast(isLight ? '🌞 ライトモードにしました' : '🌙 ダークモードにしました', 'info');
+        }
+
+        function showHelpModal(key) {
+            const titleEl = document.getElementById('help-modal-title');
+            const bodyEl = document.getElementById('help-modal-body');
+            const dict = {
+                'expectation': { t: '期待値（回収率）とは？', d: '100円の舟券を買ったときに、平均していくら戻ってくるかを示すAIの予測値です。100%を超えれば「買う価値がある（儲かる確率が高い）」と判断できます。' },
+                'solid': { t: '鉄板（Solid）とは？', d: 'AIが分析した結果、1着、あるいは上位の組み合わせが非常に堅い（当たる確率が高い）と予想されるレースです。安定した的中を狙いたい初心者におすすめです。' },
+                'value': { t: '穴（Value）とは？', d: '勝率は少し下がりますが、オッズ（配当）が高く、当たった時のリターンが極めて大きいレースです。ハイリスク・ハイリターンを狙う際におすすめです。' },
+                'exhibition': { t: '展示タイムとは？', d: 'レース直前に行われる予行演習でのタイムです。このタイムが速いほど、モーターの直線スピードが出ている証拠となります。' },
+                'custom': { t: 'カスタム予想とは？', d: '右上の「設定ボタン」から、あなたが重視する要素（選手の勝率やモーター、展示タイムなど）の比重を自由に変更し、あなただけのAI予想を作り出せる機能です。' }
+            };
+            const info = dict[key] || { t: '解説', d: '詳細がありません' };
+            titleEl.innerHTML = `<span>💡 ${info.t}</span>`;
+            bodyEl.innerHTML = `<p>${info.d}</p><div class="mt-6 text-center"><button onclick="closeHelpModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-all shadow border border-slate-600">閉じる</button></div>`;
+            document.getElementById('help-modal').classList.remove('hidden');
+        }
+
+        function closeHelpModal() {
+            document.getElementById('help-modal').classList.add('hidden');
+        }
+
+        function showToast(msg, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bg = type === 'alert' ? 'bg-red-600' : type === 'success' ? 'bg-emerald-600' : 'bg-blue-600';
+            toast.className = `min-w-[250px] p-3 rounded-lg shadow-xl text-white text-sm font-bold flex items-center gap-2 transform transition-all translate-x-full opacity-0 ${bg}`;
+            toast.innerHTML = `<span>${type === 'alert' ? '🔔' : type === 'success' ? '✅' : 'ℹ️'}</span><span>${msg}</span>`;
+            container.appendChild(toast);
+            
+            // Animate in
+            setTimeout(() => { toast.classList.remove('translate-x-full', 'opacity-0'); }, 10);
+            
+            // Animate out
+            setTimeout(() => {
+                toast.classList.add('translate-x-full', 'opacity-0');
+                setTimeout(() => { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 300);
+            }, 3000);
+        }
+
+        function checkTutorial() {
+            if (!localStorage.getItem('tutorialDone')) {
+                document.getElementById('tutorial-overlay').classList.remove('hidden');
+                document.getElementById('tutorial-overlay').style.display = 'flex'; // override hidden utility
+            }
+        }
+
+        function finishTutorial() {
+            localStorage.setItem('tutorialDone', 'true');
+            document.getElementById('tutorial-overlay').classList.add('hidden');
+            document.getElementById('tutorial-overlay').style.display = 'none';
+        }
+
+        function setupOfflineHandlers() {
+            window.addEventListener('offline', () => {
+                document.getElementById('offline-modal').classList.remove('hidden');
+            });
+            window.addEventListener('online', () => {
+                document.getElementById('offline-modal').classList.add('hidden');
+                showToast('ネットワークが復旧しました。再読み込みします。', 'success');
+                setTimeout(() => window.location.reload(), 1500);
+            });
+            if (!navigator.onLine) {
+                document.getElementById('offline-modal').classList.remove('hidden');
+            }
+        }
+
+        function initUXFeatures() {
+            // Restore theme
+            if (localStorage.getItem('theme') === 'light') {
+                document.documentElement.classList.add('light-mode');
+            }
+            // Check tutorial
+            checkTutorial();
+            // Setup Offline logic
+            setupOfflineHandlers();
+            
+            // Auto Refresh Polling (Every 60s)
+            setInterval(async () => {
+                if (!currentVenueCode || !currentRaceId) return;
+                // Only auto-refresh if page is visible to save bandwidth
+                if (document.hidden) return;
+                
+                try {
+                    // Refresh data silently
+                    const res = await authFetch(`${API_BASE}/places/${currentVenueCode}/races`);
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    
+                    // Check if current race odds or status shifted
+                    const r = data.races.find(x => x.id === currentRaceId);
+                    if (r) {
+                        const sTxt = r.status || '';
+                        if (sTxt.includes('締切') || sTxt.includes('終了')) {
+                            // Fetch result
+                            await loadRaceOptions(true);
+                        } else if (r.time_left && parseInt(r.time_left) <= 10) {
+                            // Active approaching race, refresh options quietly
+                            await loadRaceOptions(true);
+                        }
+                    }
+                    silentRefreshRacesList(data.races);
+
+                    // 5-min alert checker for value races
+                    data.races.forEach(race => {
+                        if (race.time_left === 5 && !race.notified5min) {
+                            traceAlert5Min(race);
+                            race.notified5min = true; // Mark as notified in logical memory, handled loosely
+                        }
+                    });
+                } catch(e) { console.error('Auto refresh failed (offline?)'); }
+            }, 60000); // 1 min
+
+            // Also check for deadline locally every 30 seconds
+            setInterval(() => {
+                if (window.currentRacesData) {
+                    window.currentRacesData.forEach(r => {
+                        const diffMs = new Date(r.scheduled_time) - new Date();
+                        const diffMin = Math.floor(diffMs / 60000);
+                        if (r.status === 'open' && diffMin === 5 && !r._notified5) {
+                            traceAlert5Min(r);
+                            r._notified5 = true;
+                        }
+                    });
+                }
+            }, 30000);
+        }
+
+        function traceAlert5Min(r) {
+            // Determine if it's value or solid briefly
+            try {
+                const aiStr = r.ai_predictions_json;
+                if (!aiStr) return;
+                const ai = typeof aiStr === 'string' ? JSON.parse(aiStr) : aiStr;
+                const expectations = ai.expected_values || {};
+                
+                // If it has decent expectation, notify
+                const maxEx = Math.max(...Object.values(expectations).map(x=>parseFloat(x)||0));
+                if (maxEx > 130) {
+                    showToast(`🔔 ${r.place} ${r.race_no}R まもなく締切（5分前）！\n高期待値（Value）レースです🚀`, 'alert');
+                } else if (maxEx > 0) {
+                    // showToast(`🔔 ${r.place} ${r.race_no}R 締切5分前です`, 'info');
+                }
+            } catch(e) {}
+        }
+
+        function silentRefreshRacesList(racesData) {
+            // This just updates the sidebar silently without triggering re-select
+            // Keep the cache in sync
+            window.currentRacesData = racesData;
+        }
+
+        // Previous duplicate updateTrackAdvisory was here - removed.
+        
+        // Let's hook up initUXFeatures securely
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initUXFeatures);
+        } else {
+            initUXFeatures();
+        }
     </script>
 
 
@@ -5075,6 +5338,57 @@ window.addEventListener('unhandledrejection', function(event) {
                 </div>
             </div>
         </div>
+    <!-- Toast Notifications Container -->
+    <div id="toast-container" class="fixed top-4 right-4 z-[200] flex flex-col gap-2"></div>
+
+    <!-- Help Tooltip Modal -->
+    <div id="help-modal" class="fixed inset-0 z-[120] hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onclick="closeHelpModal()">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col animate-in zoom-in-95 duration-200" onclick="event.stopPropagation()">
+            <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/90 rounded-t-2xl">
+                <h3 class="font-bold text-slate-200 flex items-center gap-2" id="help-modal-title">
+                    <span>💡 用語解説</span>
+                </h3>
+                <button onclick="closeHelpModal()" class="text-slate-400 hover:text-white p-2">✕</button>
+            </div>
+            <div class="p-5 text-sm text-slate-300 leading-relaxed" id="help-modal-body">
+                <!-- Content goes here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Offline Modal -->
+    <div id="offline-modal" class="fixed inset-0 z-[150] hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-800 border-2 border-red-500/50 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col items-center p-6 text-center animate-in zoom-in-95 duration-200">
+            <svg class="w-16 h-16 text-red-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <h3 class="font-black text-xl text-white mb-2">通信エラー</h3>
+            <p class="text-sm text-slate-300 mb-6">電波状況が悪いか、オフラインです。<br>電波の良い場所で再読み込みしてください。</p>
+            <button onclick="window.location.reload()" class="w-full py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl shadow-lg transition-all active:scale-95">再読み込みする</button>
+        </div>
+    </div>
+
+    <!-- Tutorial Overlay -->
+    <div id="tutorial-overlay" class="fixed inset-0 z-[130] hidden bg-black/80 flex-col items-center justify-center p-4 text-center">
+        <img src="./logo.png" alt="Logo" class="w-20 h-20 mb-6 animate-bounce">
+        <h2 class="text-2xl font-black text-white mb-2 flex items-center gap-2">Kyotei Advisorへようこそ！</h2>
+        <p class="text-sm text-blue-200 mb-8 max-w-xs leading-relaxed">これさえ見ればOK！<br>AIが本日の「勝負レース」と「期待値買い目」をアドバイスします。</p>
+        
+        <div class="space-y-4 max-w-xs w-full text-left mb-8">
+            <div class="bg-slate-800/80 p-4 border border-slate-600 rounded-xl flex gap-3 items-center">
+                <div class="w-8 h-8 rounded-full bg-blue-600 font-black flex justify-center items-center text-white shrink-0">1</div>
+                <div class="text-sm text-slate-200">右側（スマホは左上）のメニューから今のレースを選ぶ</div>
+            </div>
+            <div class="bg-slate-800/80 p-4 border border-slate-600 rounded-xl flex gap-3 items-center">
+                <div class="w-8 h-8 rounded-full bg-blue-600 font-black flex justify-center items-center text-white shrink-0">2</div>
+                <div class="text-sm text-slate-200">「迷ったらコレ！（推奨買い目）」をチェック</div>
+            </div>
+            <div class="bg-slate-800/80 p-4 border border-slate-600 rounded-xl flex gap-3 items-center">
+                <div class="w-8 h-8 rounded-full bg-blue-600 font-black flex justify-center items-center text-white shrink-0">3</div>
+                <div class="text-sm text-slate-200">テレボートで舟券を購入！</div>
+            </div>
+        </div>
+        <button onclick="finishTutorial()" class="w-full max-w-xs py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl shadow-[0_0_15px_rgba(37,99,235,0.5)] transition-all active:scale-95 text-lg">
+            はじめる！
+        </button>
     </div>
 </body>
 
