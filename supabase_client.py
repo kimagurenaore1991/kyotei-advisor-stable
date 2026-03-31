@@ -1,16 +1,27 @@
 from supabase import create_client, Client
-from app_config import SUPABASE_URL, SUPABASE_KEY
+from app_config import SUPABASE_URL, SUPABASE_KEY, USE_SUPABASE
 
 _client = None
 
-def get_supabase_client() -> Client:
+def get_supabase_client() -> Client | None:
     global _client
+    if not USE_SUPABASE:
+        return None
     if _client is None:
-        _client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        if not SUPABASE_URL or not SUPABASE_KEY:
+            return None
+        try:
+            _client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        except Exception as e:
+            print(f"[SUPABASE ERROR] Initializing client: {e}")
+            return None
     return _client
 
+def is_supabase_enabled() -> bool:
+    return USE_SUPABASE and get_supabase_client() is not None
+
 def upsert_races(races_data: list[dict]):
-    if not races_data: return
+    if not is_supabase_enabled(): return
     supabase = get_supabase_client()
     try:
         return supabase.table("races").upsert(races_data, on_conflict="race_date,place_code,race_number").execute()
@@ -19,7 +30,7 @@ def upsert_races(races_data: list[dict]):
         return None
 
 def upsert_entries(entries_data: list[dict]):
-    if not entries_data: return
+    if not is_supabase_enabled(): return
     supabase = get_supabase_client()
     try:
         return supabase.table("entries").upsert(entries_data, on_conflict="race_date,place_code,race_number,boat_number").execute()
@@ -28,7 +39,7 @@ def upsert_entries(entries_data: list[dict]):
         return None
 
 def upsert_racer_results(results_data: list[dict]):
-    if not results_data: return
+    if not is_supabase_enabled(): return
     supabase = get_supabase_client()
     try:
         return supabase.table("racer_results").upsert(results_data, on_conflict="racer_id,place_code,race_date,race_no").execute()
@@ -37,7 +48,7 @@ def upsert_racer_results(results_data: list[dict]):
         return None
 
 def upsert_racer_profiles(profiles_data: list[dict]):
-    if not profiles_data: return
+    if not is_supabase_enabled(): return
     supabase = get_supabase_client()
     try:
         return supabase.table("racer_profiles").upsert(profiles_data, on_conflict="toban").execute()
@@ -46,7 +57,7 @@ def upsert_racer_profiles(profiles_data: list[dict]):
         return None
 
 def upsert_favorites(favorites_data: list[dict]):
-    if not favorites_data: return
+    if not is_supabase_enabled(): return
     supabase = get_supabase_client()
     try:
         return supabase.table("favorite_racers").upsert(favorites_data, on_conflict="toban").execute()
@@ -59,6 +70,7 @@ def cleanup_supabase_storage(threshold_date_iso: str):
     基準日より古いデータの重いカラム（JSONデータ）をNULL化して容量を節約する。
     行自体（出走表や選手情報）は残す。
     """
+    if not is_supabase_enabled(): return
     try:
         supabase = get_supabase_client()
         print(f"[SUPABASE] Thinning data older than {threshold_date_iso}...")
@@ -79,6 +91,7 @@ def delete_very_old_races(threshold_date_iso: str):
     """
     古いデータを完全に削除する。
     """
+    if not is_supabase_enabled(): return
     try:
         supabase = get_supabase_client()
         print(f"[SUPABASE] Deleting data before {threshold_date_iso}...")

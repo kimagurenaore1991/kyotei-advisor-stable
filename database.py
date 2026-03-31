@@ -2,7 +2,7 @@ import sqlite3
 import json
 from datetime import datetime, timedelta
 from app_config import DB_NAME, JST
-from supabase_client import get_supabase_client, upsert_races, upsert_entries, upsert_racer_results, cleanup_supabase_storage, delete_very_old_races
+from supabase_client import get_supabase_client, is_supabase_enabled, upsert_races, upsert_entries, upsert_racer_results, cleanup_supabase_storage, delete_very_old_races
 
 MIGRATIONS = [
     "ALTER TABLE races ADD COLUMN race_title TEXT DEFAULT ''",
@@ -189,6 +189,9 @@ def sync_specific_date_from_supabase(date_iso: str):
     try:
         from supabase_client import get_supabase_client
         supabase = get_supabase_client()
+        if not supabase:
+            print(f"[SUPABASE] Sync disabled or client not initialized for {date_iso}.")
+            return
         
         # 1. Racesの取得 (指定日のみ)
         races_res = supabase.table("races").select("*").eq("race_date", date_iso).execute()
@@ -268,6 +271,9 @@ def sync_from_supabase(days=1):
     """Supabaseから過去N日分のデータを取得し、ローカルSQLiteを更新する"""
     print(f"[SUPABASE] Syncing last {days} days from Supabase...")
     supabase = get_supabase_client()
+    if not supabase:
+        print("[SUPABASE] Sync disabled or client not initialized.")
+        return
     
     # 基準日の計算
     threshold_dt = datetime.now(JST) - timedelta(days=days)
@@ -360,7 +366,8 @@ def push_race_to_supabase(race_id_local: int):
                 except: pass
             else:
                 race_data[col] = None
-        upsert_races([race_data])
+        if is_supabase_enabled():
+            upsert_races([race_data])
         
         # Entries
         rows = cursor.execute("SELECT * FROM entries WHERE race_id = ?", (race_id_local,)).fetchall()
@@ -371,11 +378,17 @@ def push_race_to_supabase(race_id_local: int):
             e.pop('race_id', None)
             e['race_date'] = r['race_date']
             e['place_code'] = r['place_code']
-            e['race_number'] = r['race_number']
+            e['race_number'] = int(r['race_number'])
+            try: e['boat_number'] = int(e['boat_number'])
+            except: pass
+            try:
+                if e.get('arrival_order'):
+                    e['arrival_order'] = int(e['arrival_order'])
+            except: pass
             e['is_absent'] = bool(e.get('is_absent', False))
             entries_data.append(e)
         
-        if entries_data:
+        if entries_data and is_supabase_enabled():
             upsert_entries(entries_data)
         
         conn.close()
@@ -418,7 +431,8 @@ def save_racer_results(racer_id: str, results: list[dict]):
                 'race_title': r.get('race_title', ''),
                 'updated_at': now_str
             })
-        upsert_racer_results(supa_data)
+        if is_supabase_enabled():
+            upsert_racer_results(supa_data)
     except Exception as e:
         print(f"[DB ERROR] save_racer_results: {e}")
     finally:
