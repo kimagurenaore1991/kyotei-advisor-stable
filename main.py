@@ -1814,44 +1814,95 @@ def search_racers(q: str):
 
 @app.get("/api/search/high_expectation")
 def search_high_expectation():
-    """AI予想に基づき、1号艇の勝率が高いなどの『期待値の高いレース』を抽出する"""
+    """AI予想に基づき、1号艇の勝率が高い『的中率重視』と、他艇の勝率が高い『期待値重視』のレースを抽出する"""
     conn = get_db_connection()
     try:
         today_iso = datetime.now(JST).strftime('%Y-%m-%d')
         # 本日の全レースをスキャン
         rows = conn.execute(
-            "SELECT id, place_name, race_number, ai_predictions_json, is_finished "
+            "SELECT * "
             "FROM races WHERE race_date = ?",
             (today_iso,)
         ).fetchall()
         
-        picked = []
-        for r in rows:
-            ai_data_str = r["ai_predictions_json"]
-            if not ai_data_str:
-                continue
-            
-            try:
-                ai_data = json.loads(ai_data_str)
-                win_probs = ai_data.get("ai_win_probs", {})
-                
-                # 1号艇の勝率が 70% 以上のものをピックアップ
-                prob_1 = win_probs.get("1", 0)
-                if prob_1 >= 70:
-                    picked.append({
-                        "id": r["id"],
-                        "place": r["place_name"],
-                        "race_no": r["race_number"],
-                        "reason": f"1号勝率 {prob_1:.0f}%",
-                        "prob": prob_1,
-                        "is_finished": bool(r["is_finished"])
-                    })
-            except:
-                continue
+        # 選手のデータを取得
+        entries = conn.execute(
+            "SELECT * FROM entries WHERE race_id IN (SELECT id FROM races WHERE race_date = ?)",
+            (today_iso,)
+        ).fetchall()
         
-        # 勝率順にソートして上限件数を返す
-        picked.sort(key=lambda x: x["prob"], reverse=True)
-        return picked[:15]
+        entries_by_race = {}
+        for e in entries:
+            entries_by_race.setdefault(e['race_id'], []).append(dict(e))
+
+        default_weights = CustomWeights()
+        default_settings = PredictSettings()
+
+        solid_picked = []
+        value_picked = []
+        
+        for r in rows:
+            race_dict = dict(r)
+            ai_data_str = race_dict.get("ai_predictions_json")
+            win_probs = {}
+            if ai_data_str:
+                try:
+                    ai_data = json.loads(ai_data_str)
+                    win_probs = ai_data.get("ai_win_probs", {})
+                except:
+                    pass
+            else:
+                # 動的に計算 (出走データが揃っている場合のみ / 未終了でまだキャッシュがないケースを想定)
+                rid = race_dict['id']
+                race_entries = entries_by_race.get(rid, [])
+                if len(race_entries) >= 6:
+                    _, preds = calculate_predictions(race_dict, race_entries, default_weights, default_settings)
+                    win_probs = preds.get("ai_win_probs", {})
+            
+            if not win_probs:
+                continue
+
+            prob_1 = win_probs.get("1", 0)
+            is_finished = bool(race_dict["is_finished"])
+            
+            # 🎯 的中率重視 (Solid): 1号艇勝率70%以上
+            if prob_1 >= 70:
+                solid_picked.append({
+                    "id": race_dict["id"],
+                    "place": race_dict["place_name"],
+                    "race_no": race_dict["race_number"],
+                    "reason": f"1号勝率 {prob_1:.0f}%",
+                    "prob": prob_1,
+                    "is_finished": is_finished
+                })
+            # 💰 期待値重視 (Value): 1号艇勝率50%未満（本命が飛びやすい） & 2~6号のいずれかが20%以上
+            elif prob_1 < 50:
+                max_other_prob = 0
+                max_other_boat = ""
+                for b in ["2", "3", "4", "5", "6"]:
+                    p = win_probs.get(b, 0)
+                    if p > max_other_prob:
+                        max_other_prob = p
+                        max_other_boat = b
+                
+                if max_other_prob >= 20:
+                    value_picked.append({
+                        "id": race_dict["id"],
+                        "place": race_dict["place_name"],
+                        "race_no": race_dict["race_number"],
+                        "reason": f"{max_other_boat}号勝率 {max_other_prob:.0f}%",
+                        "prob": max_other_prob,
+                        "is_finished": is_finished
+                    })
+        
+        # ソート: 未終了(False)を上(0), 終了(True)を下(1)にする。その後確率順。
+        solid_picked.sort(key=lambda x: (x["is_finished"], -x["prob"]))
+        value_picked.sort(key=lambda x: (x["is_finished"], -x["prob"]))
+        
+        return {
+            "solid": solid_picked[:15],
+            "value": value_picked[:15]
+        }
     finally:
         conn.close()
 
