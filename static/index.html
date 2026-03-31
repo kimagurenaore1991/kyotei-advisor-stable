@@ -1285,6 +1285,8 @@ window.addEventListener('unhandledrejection', function(event) {
         }
 
         let currentRaceId = null;
+        let currentPlaceName = '';
+        let currentVenueCode = '';
         let aiPredictionMode = 0; // 0:本命, 1:中穴, 2:大穴
         let customPredictionMode = 0; // 0:本命, 1:中穴, 2:大穴
         let isFirstLoad = true;
@@ -2134,6 +2136,9 @@ window.addEventListener('unhandledrejection', function(event) {
 
         // ─── Load Races for a Place ────────────────────────────────────────────
         async function loadRaces(placeName, autoLoadFirst = false, retryCount = 0) {
+            currentPlaceName = placeName;
+            currentVenueCode = Object.keys(places_dict).find(key => places_dict[key] === placeName) || '';
+            
             // 他の場のコンテナを閉じる
             document.querySelectorAll('[id^="races-container-"]').forEach(el => {
                 if (el.id !== `races-container-${placeName}`) {
@@ -4866,6 +4871,8 @@ window.addEventListener('unhandledrejection', function(event) {
             }
             
             // 1. 場を選択してレースリストを表示 (async/await で読み込み完了を待つ)
+            currentPlaceName = placeName;
+            currentVenueCode = Object.keys(places_dict).find(key => places_dict[key] === placeName) || '';
             await loadRaces(placeName);
             
             // 2. レース詳細をロード (非同期)
@@ -5161,12 +5168,13 @@ window.addEventListener('unhandledrejection', function(event) {
                 
                 try {
                     // Refresh data silently
-                    const res = await authFetch(`${API_BASE}/places/${currentVenueCode}/races`);
+                    const dateStr = getTargetDateStr(relativeDate);
+                    const res = await fetch(`${API_BASE}/places/${encodeURIComponent(currentPlaceName)}/races?date=${dateStr}`);
                     if (!res.ok) return;
-                    const data = await res.json();
+                    const races = await res.json();
                     
                     // Check if current race odds or status shifted
-                    const r = data.races.find(x => x.id === currentRaceId);
+                    const r = races.find(x => x.id === currentRaceId);
                     if (r) {
                         const sTxt = r.status || '';
                         if (sTxt.includes('締切') || sTxt.includes('終了')) {
@@ -5177,10 +5185,10 @@ window.addEventListener('unhandledrejection', function(event) {
                             await loadRaceOptions(true);
                         }
                     }
-                    silentRefreshRacesList(data.races);
+                    silentRefreshRacesList(races);
 
                     // 5-min alert checker for value races
-                    data.races.forEach(race => {
+                    races.forEach(race => {
                         if (race.time_left === 5 && !race.notified5min) {
                             traceAlert5Min(race);
                             race.notified5min = true; // Mark as notified in logical memory, handled loosely
