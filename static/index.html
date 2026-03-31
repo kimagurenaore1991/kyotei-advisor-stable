@@ -4653,46 +4653,110 @@ window.addEventListener('unhandledrejection', function(event) {
                 container.innerHTML = '<p class="text-red-400 text-center py-12 text-sm">取得に失敗しました</p>';
             }
         }
-        function renderExpectationResults(races) {
+        function renderExpectationResults(data) {
             const container = document.getElementById('high-expectation-results');
-            if (races.length === 0) {
-                container.innerHTML = '<p class="text-slate-500 text-center py-16 text-sm">現在、条件に合うレースはありません（AI解析済みの本日レースが対象です）</p>';
+            const solidRaces = data.solid || [];
+            const valueRaces = data.value || [];
+
+            if (solidRaces.length === 0 && valueRaces.length === 0) {
+                container.innerHTML = '<p class="text-slate-500 text-center py-16 text-sm">現在、条件に合うレースはありません</p>';
                 return;
             }
             
-            let html = '<div class="space-y-4 pb-4">';
-            html += '<div class="bg-amber-900/20 border border-amber-700/50 p-4 rounded-2xl text-xs text-amber-200 leading-relaxed shadow-inner">AI解析済みのレースから、1号艇の勝率（70%以上）が特に高いレースをピックアップしています。</div>';
-            html += '<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">';
-            races.forEach(r => {
-                const hitData = (window.dailyHitsCache && r.is_finished) ? window.dailyHitsCache[r.id] : null;
-                const hitBadge = (hitData && hitData.hit) ? `<span class="ml-1 text-[10px] bg-amber-500 px-2 py-1 rounded-lg text-white font-bold">🎯的中</span>` : '';
-                const payoutHtml = (hitData && hitData.hit && hitData.payout > 0) 
-                    ? `<div class="text-[10px] font-bold text-emerald-400 mt-1 flex items-center gap-1">
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        払戻金: ¥${hitData.payout.toLocaleString()}
-                       </div>` 
-                    : '';
+            let html = `
+            <div class="flex p-1 bg-slate-900 rounded-lg border border-slate-700 mb-4">
+                <button id="subtab-solid" onclick="switchExpectationSubTab('solid')" class="flex-1 py-1.5 text-xs font-bold rounded-md bg-emerald-600 text-white shadow-sm flex items-center justify-center gap-1 transition-all">🎯 的中率重視</button>
+                <button id="subtab-value" onclick="switchExpectationSubTab('value')" class="flex-1 py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-slate-200 flex items-center justify-center gap-1 transition-all">💰 期待値重視</button>
+            </div>
+            `;
+            
+            // 🎯 的中率重視 (Solid) Container
+            html += `<div id="subcontent-solid" class="space-y-4 pb-4 animate-in fade-in duration-200">`;
+            if (solidRaces.length > 0) {
+                html += `<div class="bg-emerald-900/10 border border-emerald-900/30 p-3 rounded-xl text-emerald-400 text-xs shadow-inner">1号艇の勝率が非常に高い、イン逃げ鉄板のレースをピックアップしています。</div>`;
+                html += `<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">`;
+                solidRaces.forEach(r => html += createRaceCardHTML(r, 'solid', '大本命・イン逃げ推奨'));
+                html += `</div>`;
+            } else {
+                html += `<p class="text-slate-500 text-center py-10 text-xs">現在、条件に合う的中率重視レースはありません</p>`;
+            }
+            html += `</div>`;
 
-                html += `
-                <button onclick="closeSearchModal(); goToRace('${r.place}', ${r.id}, '${getTargetDateStr(0)}')" 
-                    class="flex flex-col items-start bg-slate-800/80 hover:bg-amber-900/30 p-5 rounded-2xl border border-slate-700 transition-all text-left relative overflow-hidden group shadow-lg">
-                    <div class="flex justify-between w-full items-center mb-2">
-                        <span class="font-black text-xl text-white group-hover:text-amber-300">${r.place} ${r.race_no}R</span>
-                        <div class="flex items-center">
-                            ${r.is_finished ? '<span class="text-[10px] bg-slate-600 px-2 py-1 rounded-lg text-white font-bold">終了</span>' : ''}
-                            ${hitBadge}
-                        </div>
-                    </div>
-                    <div class="text-sm font-bold text-amber-500 mb-0.5">勝率 ${r.reason.replace('AI勝率', '')}</div>
-                    <div class="text-[10px] text-slate-400 mb-1">大本命・イン逃げ推奨</div>
-                    ${payoutHtml}
-                    <div class="absolute right-[-10px] bottom-[-10px] opacity-10 group-hover:opacity-20 transition-all group-hover:scale-110">
-                        <svg class="w-20 h-20 text-amber-500" fill="currentColor" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-                    </div>
-                </button>`;
-            });
-            html += '</div></div>';
+            // 💰 期待値重視 (Value) Container
+            html += `<div id="subcontent-value" class="hidden space-y-4 pb-4 animate-in fade-in duration-200">`;
+            if (valueRaces.length > 0) {
+                html += `<div class="bg-amber-900/10 border border-amber-900/30 p-3 rounded-xl text-amber-400 text-xs shadow-inner">1号艇の勝率が低く、中穴〜大穴展開が望めるレースをピックアップしています。</div>`;
+                html += `<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">`;
+                valueRaces.forEach(r => html += createRaceCardHTML(r, 'value', '中穴・大穴展開推奨'));
+                html += `</div>`;
+            } else {
+                html += `<p class="text-slate-500 text-center py-10 text-xs">現在、条件に合う期待値重視レースはありません</p>`;
+            }
+            html += `</div>`;
+
             container.innerHTML = html;
+        }
+
+        window.switchExpectationSubTab = function(tab) {
+            const solidBtn = document.getElementById('subtab-solid');
+            const valueBtn = document.getElementById('subtab-value');
+            const solidContent = document.getElementById('subcontent-solid');
+            const valueContent = document.getElementById('subcontent-value');
+
+            if (!solidBtn || !valueBtn) return;
+
+            if (tab === 'solid') {
+                solidBtn.className = "flex-1 py-1.5 text-xs font-bold rounded-md bg-emerald-600 text-white shadow-sm flex items-center justify-center gap-1 transition-all";
+                valueBtn.className = "flex-1 py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-slate-200 flex items-center justify-center gap-1 transition-all";
+                solidContent.classList.remove('hidden');
+                valueContent.classList.add('hidden');
+            } else {
+                solidBtn.className = "flex-1 py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-slate-200 flex items-center justify-center gap-1 transition-all";
+                valueBtn.className = "flex-1 py-1.5 text-xs font-bold rounded-md bg-amber-600 text-white shadow-sm flex items-center justify-center gap-1 transition-all";
+                solidContent.classList.add('hidden');
+                valueContent.classList.remove('hidden');
+            }
+        };
+
+        function createRaceCardHTML(r, colorTheme, desc) {
+            const hitData = (window.dailyHitsCache && r.is_finished) ? window.dailyHitsCache[r.id] : null;
+            const hitBadge = (hitData && hitData.hit) ? `<span class="ml-1 text-[10px] bg-red-500 border border-red-400/50 px-2 py-0.5 rounded text-white font-bold animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]">🎯的中</span>` : '';
+            const payoutHtml = (hitData && hitData.hit && hitData.payout > 0) 
+                ? `<div class="text-[10px] font-bold text-emerald-400 mt-2.5 flex items-center gap-1.5 bg-emerald-900/40 border border-emerald-800/50 px-2.5 py-1.5 rounded w-full">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    払戻金: ¥${hitData.payout.toLocaleString()}
+                   </div>` 
+                : '';
+
+            const isSolid = colorTheme === 'solid';
+            const hoverBorderCls = isSolid ? 'hover:border-emerald-500/50' : 'hover:border-amber-500/50';
+            const textCls = isSolid ? 'text-emerald-400' : 'text-amber-400';
+            const svgIcon = isSolid ? 
+                `<svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>` : 
+                `<svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>`;
+
+            const badgeCls = r.is_finished ? 'bg-slate-700/80 text-slate-400 border border-slate-600/50' : 'bg-blue-600/20 text-blue-400 border border-blue-500/50 animate-pulse';
+            const badgeText = r.is_finished ? '終了' : '発売中';
+
+            return `
+            <button onclick="closeSearchModal(); goToRace('${r.place}', ${r.id}, '${getTargetDateStr(0)}')" 
+                class="flex flex-col items-start bg-slate-800/60 border border-slate-700/60 ${hoverBorderCls} hover:bg-slate-700/40 p-4 rounded-xl transition-all text-left relative overflow-hidden group shadow w-full">
+                
+                <div class="flex justify-between w-full items-center mb-2">
+                    <span class="font-black text-lg text-white group-hover:${textCls} transition-colors tracking-wide">${r.place} <span class="${textCls}">${r.race_no}R</span></span>
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-[10px] px-2 py-0.5 rounded shadow-sm font-bold ${badgeCls}">${badgeText}</span>
+                        ${hitBadge}
+                    </div>
+                </div>
+                
+                <div class="text-sm font-bold ${textCls} mb-1 flex items-center gap-1.5 bg-slate-900/60 shadow-inner px-2.5 py-1.5 rounded w-full">
+                    ${svgIcon}
+                    ${r.reason}
+                </div>
+                <div class="text-[10px] text-slate-400 font-medium px-1 mt-0.5 opacity-80">${desc}</div>
+                ${payoutHtml}
+            </button>`;
         }
 
         async function goToRace(placeName, raceId, targetDate = null) {
