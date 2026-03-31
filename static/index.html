@@ -630,6 +630,10 @@ window.addEventListener('unhandledrejection', function(event) {
                 <!-- 結果ヘッダー -->
                 <div class="bg-slate-800 px-4 py-2 border-b border-slate-700 flex items-center gap-3">
                     <h3 class="font-bold text-slate-200 text-sm">レース結果</h3>
+                    <div id="race-recovery-display" class="hidden ml-2 flex items-center gap-1 bg-slate-700/50 px-2 py-0.5 rounded border border-slate-600 shadow-sm">
+                        <span class="text-slate-400 text-[10px]">このレースの回収率:</span>
+                        <span id="race-recovery-value" class="font-bold font-mono text-sm text-slate-300">--%</span>
+                    </div>
                     <span id="result-ranking-compact"
                         class="ml-auto font-mono font-black text-blue-300 text-sm tracking-widest"></span>
                 </div>
@@ -1050,7 +1054,7 @@ window.addEventListener('unhandledrejection', function(event) {
 
                     <h3 class="font-bold text-slate-300 mb-4 pb-2 border-b border-slate-700 text-sm">的中結果分別</h3>
                     <div class="mb-6">
-                        <select id="setting-hit-type"
+                        <select id="setting-hit-type" onchange="updateStatsAndRaceRecovery()"
                             class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-slate-200 outline-none focus:border-blue-500">
                             <option value="buy">買い目的中</option>
                             <option value="ai">AI予想目の的中</option>
@@ -2018,10 +2022,39 @@ window.addEventListener('unhandledrejection', function(event) {
                         } catch (e) { }
                     }
                 } else {
-                    isHitFlag = !!data.hit;
-                    payout = data.payout || 0;
-                    // AI&カスタムの両方を選択している場合は投資額を2倍（各800円ずつ等）として計算
-                    invest = (hitType === 'both') ? (betAmountPerRace * 2) : betAmountPerRace;
+                    const preds = lastPredictionsCache[raceId]?.predictions;
+                    const result = raceResultCache[raceId]?.result;
+                    
+                    if (preds && result && result.ranking_str) {
+                        const getLocalPayout = (pList) => {
+                            let p = 0;
+                            (pList || []).slice(0, settings.max_items).forEach(item => {
+                                if (isHit(item.pattern, result.ranking_str)) {
+                                    isHitFlag = true;
+                                    const match = (result.payouts || []).find(pay => pay.combination === item.pattern);
+                                    if (match) {
+                                        const val = parseInt(match.payout.replace(/[^0-9]/g, ''), 10);
+                                        if (!isNaN(val)) p += Math.floor((val / 100) * 100);
+                                    }
+                                }
+                            });
+                            return p;
+                        };
+
+                        if (hitType === 'ai' || hitType === 'both') {
+                            invest += betAmountPerRace;
+                            payout += getLocalPayout(preds.ai_focus);
+                        }
+                        if (hitType === 'custom' || hitType === 'both') {
+                            invest += betAmountPerRace;
+                            payout += getLocalPayout(preds.rule_focus);
+                        }
+                    } else {
+                        // フォールバック: サーバー側のデータを使用
+                        isHitFlag = !!data.hit;
+                        payout = data.payout || 0;
+                        invest = (hitType === 'both') ? (betAmountPerRace * 2) : betAmountPerRace;
+                    }
                 }
 
                 if (invest > 0 || isHitFlag || payout > 0) {
@@ -2067,6 +2100,102 @@ window.addEventListener('unhandledrejection', function(event) {
                         </div>`;
                 }
             });
+            
+            if (typeof updateRaceSpecificRecoveryRate === 'function') {
+                updateRaceSpecificRecoveryRate();
+            }
+        }
+
+        function updateStatsAndRaceRecovery() {
+            updatePerformanceStats();
+            if (typeof updateRaceSpecificRecoveryRate === 'function') {
+                updateRaceSpecificRecoveryRate();
+            }
+        }
+
+        function updateRaceSpecificRecoveryRate() {
+            const displayEl = document.getElementById('race-recovery-display');
+            const valEl = document.getElementById('race-recovery-value');
+            if (!displayEl || !valEl) return;
+            
+            if (!currentRaceId || !raceResultCache[currentRaceId] || !raceResultCache[currentRaceId].result || !raceResultCache[currentRaceId].result.ranking_str) {
+                displayEl.classList.add('hidden');
+                return;
+            }
+
+            const result = raceResultCache[currentRaceId].result;
+            const hitType = document.getElementById('setting-hit-type')?.value || 'both';
+            const settings = getSettings();
+            const betAmountPerRace = settings.max_items * 100;
+            
+            let invest = 0;
+            let payout = 0;
+
+            const getPayoutForPreds = (preds) => {
+                let p = 0;
+                (preds || []).slice(0, settings.max_items).forEach(item => {
+                    if (isHit(item.pattern, result.ranking_str) && result.payouts && result.payouts.length > 0) {
+                        const match = (result.payouts || []).find(pay => pay.combination === item.pattern);
+                        if (match) {
+                            const oddsVal = parseInt(match.payout.replace(/[^0-9]/g, ''), 10);
+                            if (!isNaN(oddsVal)) p += Math.floor((oddsVal / 100) * 100); // 1点100円計算
+                        }
+                    }
+                });
+                return p;
+            };
+
+            if (hitType === 'buy') {
+                const cartData = localStorage.getItem(CACHE_PREFIX + 'cart_' + currentRaceId);
+                if (cartData) {
+                    try {
+                        const cartObj = JSON.parse(cartData);
+                        Object.entries(cartObj).forEach(([pat, amt]) => {
+                            invest += amt;
+                            if (isHit(pat, result.ranking_str) && result.payouts && result.payouts.length > 0) {
+                                const match = result.payouts.find(p => p.combination === pat);
+                                if (match) {
+                                    const oddsVal = parseInt(match.payout.replace(/[^0-9]/g, ''), 10);
+                                    if (!isNaN(oddsVal)) payout += Math.floor((oddsVal / 100) * amt);
+                                }
+                            }
+                        });
+                    } catch(e) {}
+                }
+            } else {
+                const preds = lastPredictions || (lastPredictionsCache[currentRaceId] ? lastPredictionsCache[currentRaceId].predictions : null);
+                if (preds) {
+                    if (hitType === 'ai' || hitType === 'both') {
+                        invest += betAmountPerRace;
+                        payout += getPayoutForPreds(preds.ai_focus);
+                    }
+                    if (hitType === 'custom' || hitType === 'both') {
+                        invest += betAmountPerRace;
+                        payout += getPayoutForPreds(preds.rule_focus);
+                    }
+                } else if (window.dailyHitsCache && window.dailyHitsCache[currentRaceId]) {
+                    // 最終手段としてキャッシュ値（Server経由データ）を使用
+                    const data = window.dailyHitsCache[currentRaceId];
+                    if (typeof data === 'object') {
+                        payout = data.payout || 0;
+                        invest = (hitType === 'both') ? (betAmountPerRace * 2) : betAmountPerRace;
+                    }
+                }
+            }
+
+            if (invest > 0) {
+                const rate = Math.round((payout / invest) * 100);
+                let colorClass = 'text-slate-300';
+                if (rate >= 100) colorClass = 'text-emerald-400 drop-shadow';
+                else if (rate > 0) colorClass = 'text-amber-300';
+                else colorClass = 'text-slate-400 opacity-80';
+
+                valEl.textContent = rate + '%';
+                valEl.className = 'font-bold font-mono text-sm ' + colorClass;
+                displayEl.classList.remove('hidden');
+            } else {
+                displayEl.classList.add('hidden');
+            }
         }
 
 
@@ -2692,7 +2821,13 @@ window.addEventListener('unhandledrejection', function(event) {
                     const isHitFlag = preds.rule_focus.some(p => isHit(p.pattern, data.race.ranking_str)) ||
                         preds.ai_focus.some(p => isHit(p.pattern, data.race.ranking_str));
 
-                    if (window.dailyHitsCache) window.dailyHitsCache[currentRaceId] = isHitFlag;
+                    if (window.dailyHitsCache && window.dailyHitsCache[currentRaceId]) {
+                        if (typeof window.dailyHitsCache[currentRaceId] === 'object') {
+                            window.dailyHitsCache[currentRaceId].hit = isHitFlag;
+                        } else {
+                            window.dailyHitsCache[currentRaceId] = { hit: isHitFlag };
+                        }
+                    }
                     const btn = document.getElementById(`race-btn-${currentRaceId}`);
                     if (btn) applyFinishBadge(btn, isHitFlag);
                 }
@@ -2882,6 +3017,12 @@ window.addEventListener('unhandledrejection', function(event) {
                 </div>`;
                 mc.appendChild(card);
             });
+
+            if (race.is_finished && race.ranking_str) {
+                if (typeof updateRaceSpecificRecoveryRate === 'function') {
+                    updateRaceSpecificRecoveryRate();
+                }
+            }
         }
 
         function appendTableRows(tb, players) {
@@ -3064,6 +3205,10 @@ window.addEventListener('unhandledrejection', function(event) {
 
             // カートの払い戻し計算 (分離した関数で更新)
             updateCartResultDisplay();
+
+            if (typeof updateRaceSpecificRecoveryRate === 'function') {
+                updateRaceSpecificRecoveryRate();
+            }
 
             // バナー表示
             document.getElementById('result-banner').classList.remove('hidden');
