@@ -2135,6 +2135,17 @@ window.addEventListener('unhandledrejection', function(event) {
                     });
                     
                     updatePerformanceStats();
+                    
+                    const highExCont = document.getElementById('high-expectation-results');
+                    if (highExCont) {
+                        const searchModal = document.getElementById('search-modal');
+                        const highTab = document.getElementById('search-content-high');
+                        if (searchModal && !searchModal.classList.contains('hidden') && highTab && !highTab.classList.contains('hidden')) {
+                            fetchExpectationRaces();
+                        } else {
+                            highExCont.innerHTML = '';
+                        }
+                    }
                 } else {
                     // API失敗時も的中キャッシュをリセットして統計を隠す
                     window.dailyHitsCache = null;
@@ -5140,12 +5151,30 @@ window.addEventListener('unhandledrejection', function(event) {
         };
 
         function createRaceCardHTML(r, colorTheme, desc) {
-            const hitData = (window.dailyHitsCache && r.is_finished) ? window.dailyHitsCache[r.id] : null;
-            const hitBadge = (hitData && hitData.hit) ? `<span class="ml-1 text-[10px] bg-red-500 border border-red-400/50 px-2 py-0.5 rounded text-white font-bold animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]">🎯的中</span>` : '';
-            const payoutHtml = (hitData && hitData.hit && hitData.payout > 0) 
+            let isHitFlag = false;
+            let hitPayout = 0;
+            const hitType = document.getElementById('setting-hit-type')?.value || 'both';
+
+            if (r.is_finished) {
+                if (hitType === 'buy') {
+                    const result = raceResultCache[r.id];
+                    if (result && result.result && result.result.ranking_str) {
+                        isHitFlag = determineHitStatus(r.id, result.result.ranking_str, null);
+                    }
+                } else if (window.dailyHitsCache) {
+                    const hitData = window.dailyHitsCache[r.id];
+                    if (hitData) {
+                        isHitFlag = !!hitData.hit;
+                        hitPayout = hitData.payout || 0;
+                    }
+                }
+            }
+
+            const hitBadge = isHitFlag ? `<span class="ml-1 text-[10px] bg-red-500 border border-red-400/50 px-2 py-0.5 rounded text-white font-bold animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]">🎯的中</span>` : '';
+            const payoutHtml = (isHitFlag && hitPayout > 0 && hitType !== 'buy') 
                 ? `<div class="text-[10px] font-bold text-emerald-400 mt-2.5 flex items-center gap-1.5 bg-emerald-900/40 border border-emerald-800/50 px-2.5 py-1.5 rounded w-full">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    払戻金: ¥${hitData.payout.toLocaleString()}
+                    払戻金: ¥${hitPayout.toLocaleString()}
                    </div>` 
                 : '';
 
