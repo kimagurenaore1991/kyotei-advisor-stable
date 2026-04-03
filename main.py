@@ -205,6 +205,14 @@ app.add_middleware(NoCacheStaticMiddleware)
 def read_root():
     return RedirectResponse(url="/static/index.html")
 
+@app.get("/api/config")
+async def get_client_config():
+    from app_config import SUPABASE_URL, SUPABASE_KEY
+    return {
+        "supabaseUrl": SUPABASE_URL,
+        "supabaseKey": SUPABASE_KEY
+    }
+
 
 # ─────────────────────────── Server-Sent Events (SSE) ───────────────────────
 # Simple broadcast: any number of clients subscribe via GET /api/events
