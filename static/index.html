@@ -527,7 +527,10 @@ window.addEventListener('unhandledrejection', function(event) {
                     <img id="user-avatar" src="" alt="" class="w-8 h-8 rounded-full border border-slate-600 bg-slate-700">
                     <div class="flex flex-col min-w-0">
                         <span id="user-name" class="text-xs font-bold text-slate-200 truncate">--</span>
-                        <span id="user-email" class="text-[10px] text-slate-400 truncate">--</span>
+                        <div class="flex items-center gap-2">
+                            <span id="user-email" class="text-[10px] text-slate-400 truncate">--</span>
+                            <span class="text-[8px] text-slate-600 font-mono">v1.1.0</span>
+                        </div>
                     </div>
                 </div>
                 <button onclick="logout()" 
@@ -1242,7 +1245,7 @@ window.addEventListener('unhandledrejection', function(event) {
     </div>
 
     <script>
-        const APP_VERSION = '1.0.9';
+        const APP_VERSION = '1.1.0';
         const API_BASE = '/api';
 
         let supabaseClient = null;
@@ -1261,17 +1264,43 @@ window.addEventListener('unhandledrejection', function(event) {
 
                 // セッション状態の変化を監視
                 supabaseClient.auth.onAuthStateChange(async (event, session) => {
+                    const prevUser = currentUser;
                     currentUser = session?.user || null;
-                    updateAuthUI();
-                    if (currentUser) {
-                        console.log('[Auth] Logged in:', currentUser.email);
-                        await syncDataOnLogin();
-                    } else {
-                        console.log('[Auth] Guest mode');
+                    
+                    if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+                        updateAuthUI();
+                        // 新しいユーザーでのログイン（または別アカウントへの切り替え）
+                        if (currentUser && (!prevUser || prevUser.id !== currentUser.id)) {
+                            console.log('[Auth] Logged in:', currentUser.email);
+                            showToast(`${currentUser.email} でログインしました`, 'success');
+                            // 前のユーザーのお気に入りデータをクリア
+                            favoriteRacersSet = new Set();
+                            await syncDataOnLogin();
+                        }
+                    } else if (event === 'SIGNED_OUT') {
+                        currentUser = null;
+                        updateAuthUI();
+                        console.log('[Auth] Logged out');
+                        // ログアウト時：お気に入りをクリアして表示を更新
+                        favoriteRacersSet = new Set();
+                        // お気に入りタブが開いていれば再描画（空の状態に）
+                        const favArea = document.getElementById('favorite-list-area');
+                        if (favArea) {
+                            favArea.innerHTML = '<p class="text-center text-slate-500 text-xs py-10">お気に入りに登録された選手はいません。<br>★マークを押して登録してください。</p>';
+                        }
+                    } else if (event === 'INITIAL_SESSION') {
+                        updateAuthUI();
+                        if (currentUser) {
+                            await syncDataOnLogin();
+                        } else {
+                            // 未ログイン状態：お気に入りをクリア
+                            favoriteRacersSet = new Set();
+                        }
                     }
                 });
             } catch (e) {
                 console.error('[Supabase] Init error:', e);
+                showToast('認証システムの初期化に失敗しました', 'alert');
             }
         }
 
@@ -1291,21 +1320,64 @@ window.addEventListener('unhandledrejection', function(event) {
         }
 
         async function loginWithGoogle() {
-            if (!supabaseClient) return;
+            if (!supabaseClient) {
+                showToast('認証システムが準備できていません。再読み込みしてください。', 'alert');
+                return;
+            }
+            // 別アカウントへの切り替えを確実にするため、まず現在のセッションをクリア
+            await supabaseClient.auth.signOut().catch(() => {});
             const { error } = await supabaseClient.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
-                    redirectTo: window.location.origin + '/static/index.html'
+                    redirectTo: window.location.origin + '/',
+                    queryParams: {
+                        prompt: 'select_account',
+                        access_type: 'offline'
+                    }
                 }
             });
-            if (error) alert('ログインエラー: ' + error.message);
+            if (error) {
+                console.error('[Auth] Login error:', error);
+                showToast('ログインエラー: ' + error.message, 'alert');
+            }
         }
 
+        // 緊急用：全てのログアウトボタンを強制フック
+        document.addEventListener('click', function(e) {
+            if (e.target && e.target.textContent && e.target.textContent.indexOf('ログアウト') !== -1) {
+                console.log('[Auth] Global logout catch');
+                logout(); 
+            }
+        }, true);
+
         async function logout() {
-            if (!supabaseClient) return;
-            if (confirm('ログアウトしますか？')) {
-                await supabaseClient.auth.signOut();
-                location.reload(); // データをクリアしてリセット
+            // 強制的なアラート（キャッシュ更新確認用）
+            console.log('[Auth] Starting logout process...');
+            
+            try {
+                // 1. 全てのストレージをクリア
+                localStorage.clear();
+                sessionStorage.clear();
+                
+                // 2. メモリ内の状態をクリア
+                currentUser = null;
+                if (typeof favoriteRacersSet !== 'undefined') favoriteRacersSet.clear();
+                
+                // 3. Supabaseからのサインアウトを試みる
+                if (supabaseClient && supabaseClient.auth) {
+                    await supabaseClient.auth.signOut().catch(() => {});
+                }
+                
+                // 4. UI更新
+                if (typeof updateAuthUI === 'function') updateAuthUI();
+
+                // 5. キャッシュを回避して完全にリロード
+                console.log('[Auth] State cleared, redirecting...');
+                window.location.replace('/?t=' + Date.now());
+                
+            } catch (err) {
+                console.error('[Auth] Logout error:', err);
+                window.location.replace('/');
             }
         }
 
@@ -1317,6 +1389,8 @@ window.addEventListener('unhandledrejection', function(event) {
                 await loadCartFromCloud(currentRaceId);
                 updateCartDisplay();
             }
+            // お気に入りも再取得
+            await initFavorites();
         }
 
         async function saveSettingsToCloud(settings) {
@@ -1404,12 +1478,18 @@ window.addEventListener('unhandledrejection', function(event) {
                     for (const reg of regs) await reg.unregister();
                 } catch (e) { }
             }
-            // バージョン変更時はリロード
+
+            // 認証ハッシュがある場合は、ページ遷移をさせないためにバージョンチェックを後回しにするかスキップ
+            const hasAuthHash = window.location.hash && window.location.hash.includes('access_token');
             const lastVersion = localStorage.getItem('kyotei_app_version');
             localStorage.setItem('kyotei_app_version', APP_VERSION);
-            if (lastVersion && lastVersion !== APP_VERSION) {
+            
+            if (!hasAuthHash && lastVersion && lastVersion !== APP_VERSION) {
+                console.log('[Version] New version detected, reloading...');
                 window.location.reload(true);
+                return;
             }
+
             await initSupabase();
         })();
 
@@ -5016,7 +5096,8 @@ window.addEventListener('unhandledrejection', function(event) {
             container.innerHTML = '<div class="text-center py-12"><div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mb-2"></div><p class="text-slate-400 text-xs">検索中...</p></div>';
             
             try {
-                const res = await fetch(`${API_BASE}/search/racers?q=${encodeURIComponent(q)}`);
+                const uid = currentUser ? currentUser.id : '';
+                const res = await fetch(`${API_BASE}/search/racers?q=${encodeURIComponent(q)}&user_id=${uid}`);
                 const data = await res.json();
                 renderSearchResults(data);
             } catch (e) {
@@ -5296,8 +5377,8 @@ window.addEventListener('unhandledrejection', function(event) {
             // SSE接続開始
             setupSSE();
 
-            // お気に入り初期化
-            initFavorites();
+            // お気に入りはSupabase初期化後（onAuthStateChange）に呼ばれるため、
+            // ここでは initFavorites() を呼ばない（ゲスト時に前ユーザーのデータが見えるバグを防ぐ）
         });
 
         // --- Favorite Racers Features ---
@@ -5305,7 +5386,13 @@ window.addEventListener('unhandledrejection', function(event) {
 
         async function initFavorites() {
             try {
-                const res = await fetch(`${API_BASE}/favorites`);
+                // ユーザーがいない場合は空セットを確保してリターン
+                if (!currentUser) {
+                    favoriteRacersSet = new Set();
+                    return;
+                }
+                const url = `${API_BASE}/favorites?user_id=${currentUser.id}`;
+                const res = await fetch(url);
                 if (res.ok) {
                     const favs = await res.json();
                     favoriteRacersSet = new Set(favs.map(f => f.toban));
@@ -5329,7 +5416,12 @@ window.addEventListener('unhandledrejection', function(event) {
                 const res = await fetch(`${API_BASE}/favorites/toggle`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ toban, name, active: nextActive })
+                    body: JSON.stringify({ 
+                        toban, 
+                        name, 
+                        active: nextActive, 
+                        user_id: currentUser ? currentUser.id : null 
+                    })
                 });
                 
                 if (res.ok) {
@@ -5372,7 +5464,8 @@ window.addEventListener('unhandledrejection', function(event) {
             container.innerHTML = '<div class="text-center py-10"><div class="inline-block animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500 mb-2"></div><p class="text-slate-500 text-[10px]">読み込み中...</p></div>';
             
             try {
-                const res = await fetch(`${API_BASE}/favorites`);
+                const url = currentUser ? `${API_BASE}/favorites?user_id=${currentUser.id}` : `${API_BASE}/favorites`;
+                const res = await fetch(url);
                 const favs = await res.json();
                 
                 if (favs.length === 0) {
