@@ -60,7 +60,7 @@ def upsert_favorites(favorites_data: list[dict]):
     if not is_supabase_enabled(): return
     supabase = get_supabase_client()
     try:
-        return supabase.table("favorite_racers").upsert(favorites_data, on_conflict="toban").execute()
+        return supabase.table("favorite_racers").upsert(favorites_data, on_conflict="user_id,toban").execute()
     except Exception as e:
         print(f"[SUPABASE ERROR] upsert_favorites: {e}")
         return None

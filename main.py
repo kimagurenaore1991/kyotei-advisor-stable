@@ -194,16 +194,18 @@ from starlette.middleware.base import BaseHTTPMiddleware
 class NoCacheStaticMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         response = await call_next(request)
-        if request.url.path.startswith("/static/"):
-            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-            response.headers["Pragma"] = "no-cache"
+        # 全てのレスポンスに対してキャッシュ無効化を試みる
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
         return response
 
 app.add_middleware(NoCacheStaticMiddleware)
 
 @app.get("/")
 def read_root():
-    return RedirectResponse(url="/static/index.html")
+    # キャッシュ回避のためバージョンパラメータを付与
+    return RedirectResponse(url="/static/index.html?v=1.1.1")
 
 @app.get("/api/config")
 async def get_client_config():
@@ -1746,7 +1748,7 @@ def update_exhibition(race_id: int, updates: List[ExhibitionUpdate]):
 
 
 @app.get("/api/search/racers")
-def search_racers(q: str):
+def search_racers(q: str, user_id: Optional[str] = Query(None)):
     """選手名または登番で選手を検索し、出場予定レースを返す"""
     conn = get_db_connection()
     try:
@@ -1771,14 +1773,18 @@ def search_racers(q: str):
         today_iso = now_jst.strftime('%Y-%m-%d')
         tomorrow_iso = (now_jst + timedelta(days=1)).strftime('%Y-%m-%d')
         
+        uid = user_id if user_id else ""
+        
         for r in racer_rows:
             toban = r["toban"]
             name = r["name"]
             
             if not toban: continue
 
-            # お気に入り状態の確認
-            is_fav = conn.execute("SELECT 1 FROM favorite_racers WHERE toban = ?", (toban,)).fetchone() is not None
+            # お気に入り状態の確認 (自分のお気に入りのみ表示)
+            is_fav = False
+            if uid:
+                is_fav = conn.execute("SELECT 1 FROM favorite_racers WHERE toban = ? AND user_id = ?", (toban, uid)).fetchone() is not None
 
             # 名前の補完（entriesにない場合racer_results等から探す）
             if not name:
@@ -1915,11 +1921,19 @@ def search_high_expectation():
         conn.close()
 
 @app.get("/api/favorites")
-def get_favorites():
+def get_favorites(user_id: Optional[str] = Query(None)):
     """お気に入り選手の一覧と近日出場予定を返す"""
     conn = get_db_connection()
     try:
-        fav_rows = conn.execute("SELECT toban, name FROM favorite_racers ORDER BY created_at DESC").fetchall()
+        # user_id が提供されている場合はそのユーザーの、そうでなければ空の結果を返す（ゲストにはお気に入りを見せない）
+        uid = user_id if user_id else ""
+        if not uid:
+            return []
+            
+        fav_rows = conn.execute(
+            "SELECT toban, name FROM favorite_racers WHERE user_id = ? ORDER BY created_at DESC", 
+            (uid,)
+        ).fetchall()
         
         results = []
         now_jst = datetime.now(JST)
@@ -1960,24 +1974,25 @@ def get_favorites():
         conn.close()
 
 @app.post("/api/favorites/toggle")
-def toggle_favorite(toban: str = Body(...), name: str = Body(...), active: bool = Body(...)):
+def toggle_favorite(toban: str = Body(...), name: str = Body(...), active: bool = Body(...), user_id: Optional[str] = Body(None)):
     """お気に入り登録・解除。解除時は Supabase からも削除を試みる。"""
     conn = get_db_connection()
     try:
+        uid = user_id if user_id else ""
         now_str = datetime.now(JST).isoformat()
         if active:
             conn.execute(
-                "INSERT OR REPLACE INTO favorite_racers (toban, name, created_at) VALUES (?, ?, ?)",
-                (toban, name, now_str)
+                "INSERT OR REPLACE INTO favorite_racers (user_id, toban, name, created_at) VALUES (?, ?, ?, ?)",
+                (uid, toban, name, now_str)
             )
             from supabase_client import upsert_favorites
-            upsert_favorites([{"toban": toban, "name": name, "created_at": now_str}])
+            upsert_favorites([{"user_id": uid, "toban": toban, "name": name, "created_at": now_str}])
         else:
-            conn.execute("DELETE FROM favorite_racers WHERE toban = ?", (toban,))
+            conn.execute("DELETE FROM favorite_racers WHERE user_id = ? AND toban = ?", (uid, toban))
             # Supabase削除 (オプション：完全に同期させたい場合)
             try:
                 from supabase_client import get_supabase_client
-                get_supabase_client().table("favorite_racers").delete().eq("toban", toban).execute()
+                get_supabase_client().table("favorite_racers").delete().eq("user_id", uid).eq("toban", toban).execute()
             except: pass
             
         conn.commit()

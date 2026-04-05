@@ -19,7 +19,12 @@ MIGRATIONS = [
     "ALTER TABLE entries ADD COLUMN weight_adjustment REAL DEFAULT 0.0",
     "ALTER TABLE entries ADD COLUMN pre_inspection_time REAL",
     "ALTER TABLE entries ADD COLUMN propeller TEXT DEFAULT ''",
-    "ALTER TABLE races ADD COLUMN day_label TEXT DEFAULT ''"
+    "ALTER TABLE races ADD COLUMN day_label TEXT DEFAULT ''",
+    "ALTER TABLE favorite_racers ADD COLUMN user_id TEXT DEFAULT ''",
+    "CREATE TABLE IF NOT EXISTS favorite_racers_new (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT DEFAULT '', toban TEXT NOT NULL, name TEXT, created_at TEXT, UNIQUE(user_id, toban))",
+    "INSERT INTO favorite_racers_new (toban, name, created_at, user_id) SELECT toban, name, created_at, user_id FROM favorite_racers",
+    "DROP TABLE favorite_racers",
+    "ALTER TABLE favorite_racers_new RENAME TO favorite_racers"
 ]
 
 INDEXES = [
@@ -28,6 +33,7 @@ INDEXES = [
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_entries_race_boat ON entries(race_id, boat_number)",
     "CREATE INDEX IF NOT EXISTS idx_racer_results_racer ON racer_results(racer_id)",
     "CREATE INDEX IF NOT EXISTS idx_racer_results_place ON racer_results(racer_id, place_code)",
+    "CREATE INDEX IF NOT EXISTS idx_favorite_racers_user ON favorite_racers(user_id)"
 ]
 
 
@@ -131,9 +137,12 @@ def init_db() -> None:
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS favorite_racers (
-            toban TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT DEFAULT '',
+            toban TEXT NOT NULL,
             name TEXT,
-            created_at TEXT
+            created_at TEXT,
+            UNIQUE(user_id, toban)
         )
         """
     )
