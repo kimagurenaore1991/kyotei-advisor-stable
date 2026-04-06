@@ -4199,10 +4199,24 @@ window.addEventListener('unhandledrejection', function(event) {
 
         function copyAndOpenTeleboat() {
             const keys = Object.keys(betCart);
+            const ua = navigator.userAgent.toLowerCase();
+            const isSP = /iphone|ipad|ipod|android/.test(ua);
+            const url = isSP ? "https://spweb.brtb.jp/" : "https://ib.mbrace.or.jp/";
+
+            const openUrl = () => {
+                if (isSP) {
+                    window.location.href = url;
+                } else {
+                    window.open(url, "_blank", "noopener,noreferrer");
+                }
+            };
+
             if (keys.length === 0) {
-                alert("カートが空です。予想を追加してください。");
+                showToast("テレボートを開きます", "info");
+                setTimeout(openUrl, 500);
                 return;
             }
+
             let text = "■ 買い目メモ\n";
             let total = 0;
             keys.sort().forEach(p => {
@@ -4212,19 +4226,12 @@ window.addEventListener('unhandledrejection', function(event) {
             text += `----------\n合計: ${total.toLocaleString()}円`;
 
             navigator.clipboard.writeText(text).then(() => {
-                alert("買い目をコピーしました！\nテレボートを開きます。");
+                showToast("買い目をコピーしました！テレボートを開きます。", "success");
+                setTimeout(openUrl, 800);
             }).catch(e => {
+                // Clipboard failure might still need an alert to show the text
                 alert("コピーに失敗しました。手動でメモしてください。\n\n" + text);
-            }).finally(() => {
-                const ua = navigator.userAgent.toLowerCase();
-                const isSP = /iphone|ipad|ipod|android/.test(ua);
-                const url = isSP ? "https://spweb.brtb.jp/" : "https://ib.mbrace.or.jp/";
-
-                if (isSP) {
-                    window.location.href = url;
-                } else {
-                    window.open(url, "_blank", "noopener,noreferrer");
-                }
+                openUrl();
             });
         }
 
@@ -5090,6 +5097,7 @@ window.addEventListener('unhandledrejection', function(event) {
         let favoriteRacersSet = new Set();
 
         async function initFavorites() {
+            favoriteRacersSet = new Set(); // Reset first
             if (supabaseClient && currentUser) {
                 try {
                     const { data, error } = await supabaseClient.from('favorite_racers').select('toban').eq('user_id', currentUser.id);
@@ -5195,8 +5203,41 @@ window.addEventListener('unhandledrejection', function(event) {
             container.innerHTML = '<div class="text-center py-10"><div class="inline-block animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500 mb-2"></div><p class="text-slate-500 text-[10px]">読み込み中...</p></div>';
             
             try {
-                const res = await fetch(`${API_BASE}/favorites`);
-                const favs = await res.json();
+                let favs = [];
+                if (supabaseClient && currentUser) {
+                    // ログイン中はSupabaseから自身のデータのみ取得
+                    const { data, error } = await supabaseClient
+                        .from('favorite_racers')
+                        .select('toban, name')
+                        .eq('user_id', currentUser.id)
+                        .order('created_at', { ascending: false });
+                    
+                    if (error) throw error;
+                    
+                    // 出場予定は別途APIで取得するか、フロントエンドで解決する
+                    // ここでは既存のロジックに合わせて、出場予定を追加で取得
+                    favs = await Promise.all(data.map(async f => {
+                        try {
+                           const res = await fetch(`${API_BASE}/racer_stats/${f.toban}`);
+                           const stats = await res.json();
+                           // APIを叩いて出場予定を補完
+                           const scheduledRes = await fetch(`${API_BASE}/favorites?toban=${f.toban}`);
+                           const sData = await scheduledRes.json();
+                           const match = sData.find(x => x.toban === f.toban);
+                           return {
+                               toban: f.toban,
+                               name: f.name,
+                               scheduled_races: match ? match.scheduled_races : []
+                           };
+                        } catch (e) {
+                           return { toban: f.toban, name: f.name, scheduled_races: [] };
+                        }
+                    }));
+                } else {
+                    // 非ログイン時は共通APIから取得
+                    const res = await fetch(`${API_BASE}/favorites`);
+                    favs = await res.json();
+                }
                 
                 if (favs.length === 0) {
                     container.innerHTML = '<p class="text-center text-slate-500 text-xs py-10">お気に入りに登録された選手はいません。<br>★マークを押して登録してください。</p>';
@@ -5205,6 +5246,7 @@ window.addEventListener('unhandledrejection', function(event) {
                 
                 let html = '<div class="grid grid-cols-1 gap-3 pb-4">';
                 favs.forEach(f => {
+                    const safeName = f.name.replace(/'/g, "\\'");
                     html += `
                     <div class="bg-slate-900/50 border border-slate-700 rounded-2xl p-4 shadow-xl">
                         <div class="flex justify-between items-start mb-4">
@@ -5213,12 +5255,12 @@ window.addEventListener('unhandledrejection', function(event) {
                                     <span class="text-[10px] font-bold text-slate-500 bg-slate-800 px-2 py-0.5 rounded">#${f.toban}</span>
                                     <h4 class="text-xl font-black text-white mt-1">${f.name}</h4>
                                 </div>
-                                <button onclick="toggleFavorite('${f.toban}', '${f.name.replace(/'/g, "\\'")}', event).then(refreshFavorites)" 
+                                <button onclick="toggleFavorite('${f.toban}', '${safeName}', event).then(refreshFavorites)" 
                                     class="w-10 h-10 flex items-center justify-center rounded-full transition-all text-yellow-400 bg-yellow-400/10 border-yellow-400/50 border">
                                     <span class="text-xl">★</span>
                                 </button>
                             </div>
-                            <button onclick="closeSearchModal(); openPlayerModal('${f.toban}', '${f.name.replace(/'/g, "\\'")}')" 
+                            <button onclick="closeSearchModal(); openPlayerModal('${f.toban}', '${safeName}')" 
                                 class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-4 py-2 rounded-xl font-bold transition-all shadow border border-slate-600">
                                 詳細データ
                             </button>
@@ -5228,7 +5270,7 @@ window.addEventListener('unhandledrejection', function(event) {
                                 <span class="w-1 h-3 bg-emerald-500 rounded-full"></span>近日出場予定
                             </p>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            ${f.scheduled_races.length > 0 ? 
+                            ${f.scheduled_races && f.scheduled_races.length > 0 ? 
                                 f.scheduled_races.map(sr => `
                                 <button onclick="closeSearchModal(); goToRace('${sr.place}', ${sr.race_id}, '${sr.date}')" 
                                     class="flex justify-between items-center bg-slate-800 hover:bg-emerald-900/40 p-3 rounded-xl border border-slate-700 transition-all text-xs group">
@@ -5245,7 +5287,8 @@ window.addEventListener('unhandledrejection', function(event) {
                 html += '</div>';
                 container.innerHTML = html;
             } catch (e) {
-                container.innerHTML = '<p class="text-red-400 text-center py-10 text-xs">データ取得に失敗しました</p>';
+                console.error('refreshFavorites error', e);
+                container.innerHTML = `<p class="text-red-400 text-center py-10 text-xs">データ取得に失敗しました: ${e.message}</p>`;
             }
         }
         // ==========================================
