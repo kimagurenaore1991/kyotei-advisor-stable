@@ -1940,11 +1940,18 @@ def search_high_expectation():
         conn.close()
 
 @app.get("/api/favorites")
-def get_favorites():
-    """お気に入り選手の一覧と近日出場予定を返す"""
+def get_favorites(toban: str = Query(default=None)):
+    """お気に入り選手の一覧と近日出場予定を返す (toban指定時は特定の選手のみ)"""
     conn = get_db_connection()
     try:
-        fav_rows = conn.execute("SELECT toban, name FROM favorite_racers ORDER BY created_at DESC").fetchall()
+        if toban:
+            fav_rows = [{"toban": toban, "name": ""}] # 名前はentries検索で補完される可能性あり
+            # 既にDBにあるか確認
+            exists = conn.execute("SELECT name FROM favorite_racers WHERE toban = ?", (toban,)).fetchone()
+            if exists:
+                fav_rows[0]["name"] = exists["name"]
+        else:
+            fav_rows = conn.execute("SELECT toban, name FROM favorite_racers ORDER BY created_at DESC").fetchall()
         
         results = []
         now_jst = datetime.now(JST)
@@ -1952,8 +1959,8 @@ def get_favorites():
         tomorrow_iso = (now_jst + timedelta(days=1)).strftime('%Y-%m-%d')
         
         for f in fav_rows:
-            toban = f["toban"]
-            name = f["name"]
+            t = f["toban"]
+            n = f["name"]
             
             # 出場予定レースを検索
             scheduled_rows = conn.execute(
@@ -1961,7 +1968,7 @@ def get_favorites():
                 "FROM entries e JOIN races r ON e.race_id = r.id "
                 "WHERE e.racer_id = ? AND r.race_date IN (?, ?) "
                 "ORDER BY r.race_date, r.race_number",
-                (toban, today_iso, tomorrow_iso)
+                (t, today_iso, tomorrow_iso)
             ).fetchall()
             
             scheduled_races = []
@@ -1975,8 +1982,8 @@ def get_favorites():
                 })
             
             results.append({
-                "toban": toban,
-                "name": name,
+                "toban": t,
+                "name": n,
                 "scheduled_races": scheduled_races
             })
             
