@@ -114,7 +114,11 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
   INSERT INTO public.profiles (id, email)
-  VALUES (new.id, new.email);
+  VALUES (
+    new.id, 
+    COALESCE(new.email, new.raw_user_meta_data->>'email')
+  )
+  ON CONFLICT (id) DO NOTHING;
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
