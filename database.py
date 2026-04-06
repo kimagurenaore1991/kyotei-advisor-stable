@@ -28,6 +28,7 @@ INDEXES = [
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_entries_race_boat ON entries(race_id, boat_number)",
     "CREATE INDEX IF NOT EXISTS idx_racer_results_racer ON racer_results(racer_id)",
     "CREATE INDEX IF NOT EXISTS idx_racer_results_place ON racer_results(racer_id, place_code)",
+    "CREATE INDEX IF NOT EXISTS idx_racer_profiles_name ON racer_profiles(name)",
 ]
 
 
@@ -134,6 +135,19 @@ def init_db() -> None:
             toban TEXT PRIMARY KEY,
             name TEXT,
             created_at TEXT
+        )
+        """
+    )
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS cart_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT,
+            race_id INTEGER NOT NULL,
+            cart_json TEXT NOT NULL DEFAULT '{}',
+            updated_at TEXT,
+            UNIQUE(user_id, race_id)
         )
         """
     )

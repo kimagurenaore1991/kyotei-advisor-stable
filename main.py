@@ -18,12 +18,12 @@ from live_scraper import (
 import scraper
 from scraper import (
     scrape_index, scrape_race_syusso, update_exhibition, update_result, 
-    update_all_active_races, get_racer_results_stats
+    update_all_active_races, get_racer_results_stats, search_racers_global
 )
 import time
 import asyncio
 
-from app_config import JST, LOCK_FILE, STATIC_DIR, LAST_SCRAPE_FILE
+from app_config import JST, LOCK_FILE, STATIC_DIR, LAST_SCRAPE_FILE, SUPABASE_URL, SUPABASE_KEY, USE_SUPABASE
 from database import get_db_connection, init_db, cleanup_old_data, sync_from_supabase
 
 app = FastAPI(title="Kyotei Advisor MVP")
@@ -204,6 +204,14 @@ app.add_middleware(NoCacheStaticMiddleware)
 @app.get("/")
 def read_root():
     return RedirectResponse(url="/static/index.html")
+
+@app.get("/api/config")
+def get_frontend_config():
+    return {
+        "use_supabase": USE_SUPABASE,
+        "supabase_url": SUPABASE_URL,
+        "supabase_key": SUPABASE_KEY
+    }
 
 
 # ─────────────────────────── Server-Sent Events (SSE) ───────────────────────
@@ -1742,21 +1750,46 @@ def search_racers(q: str):
     """選手名または登番で選手を検索し、出場予定レースを返す"""
     conn = get_db_connection()
     try:
-        # 1. 選手を検索
+        # 1. ローカルDBを検索
         if q.isdigit():
-            # 登番で検索
             racer_rows = conn.execute(
                 "SELECT DISTINCT racer_id as toban, racer_name as name FROM entries WHERE racer_id = ? "
                 "UNION "
-                "SELECT DISTINCT racer_id as toban, '' as name FROM racer_results WHERE racer_id = ? LIMIT 10",
-                (q, q)
+                "SELECT DISTINCT racer_id as toban, '' as name FROM racer_results WHERE racer_id = ? "
+                "UNION "
+                "SELECT DISTINCT toban, name FROM racer_profiles WHERE toban = ? LIMIT 10",
+                (q, q, q)
             ).fetchall()
         else:
-            # 名前（カタカナまたは漢字）で検索
             racer_rows = conn.execute(
-                "SELECT DISTINCT racer_id as toban, racer_name as name FROM entries WHERE racer_name LIKE ? LIMIT 20",
-                (f"%{q}%",)
+                "SELECT DISTINCT racer_id as toban, racer_name as name FROM entries WHERE racer_name LIKE ? "
+                "UNION "
+                "SELECT DISTINCT toban, name FROM racer_profiles WHERE name LIKE ? LIMIT 20",
+                (f"%{q}%", f"%{q}%")
             ).fetchall()
+        
+        # 2. ローカルで見つからなかった場合、または名前検索の場合は公式サイトも併せて検索
+        # (名前検索はローカルDBに全選手がいないため、常に公式サイトを確認したほうが確実)
+        if not racer_rows or not q.isdigit():
+            print(f"[SEARCH] Local results insufficient for '{q}'. Falling back to global search...")
+            global_results = search_racers_global(q)
+            
+            # グローバルで見つかった選手をDBに保存（キャッシュ的な役割）
+            if global_results:
+                now_str = datetime.now(JST).isoformat()
+                for gr in global_results:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO racer_profiles (toban, name, updated_at) VALUES (?, ?, ?)",
+                        (gr["toban"], gr["name"], now_str)
+                    )
+                conn.commit()
+                
+                # 検索結果リストを再構築（重複排除）
+                existing_tobans = {r["toban"] for r in racer_rows if r["toban"]}
+                for gr in global_results:
+                    if gr["toban"] not in existing_tobans:
+                        # 既存リストにない項目を追加（Row objectは直接作れないため辞書形式を許容するよう後続のループで調整）
+                        racer_rows.append({"toban": gr["toban"], "name": gr["name"]})
         
         results = []
         now_jst = datetime.now(JST)
@@ -1772,13 +1805,14 @@ def search_racers(q: str):
             # お気に入り状態の確認
             is_fav = conn.execute("SELECT 1 FROM favorite_racers WHERE toban = ?", (toban,)).fetchone() is not None
 
-            # 名前の補完（entriesにない場合racer_results等から探す）
+            # 名前の補完
             if not name:
-                name_row = conn.execute("SELECT racer_name FROM entries WHERE racer_id = ? AND racer_name != '' LIMIT 1", (toban,)).fetchone()
+                name_row = conn.execute("SELECT name FROM racer_profiles WHERE toban = ?", (toban,)).fetchone()
                 if name_row:
-                    name = name_row["racer_name"]
+                    name = name_row["name"]
                 else:
-                    name = "不明"
+                    name_row = conn.execute("SELECT racer_name FROM entries WHERE racer_id = ? AND racer_name != '' LIMIT 1", (toban,)).fetchone()
+                    name = name_row["racer_name"] if name_row else "不明"
             
             # 出場予定レースを検索
             scheduled_rows = conn.execute(
@@ -1799,7 +1833,6 @@ def search_racers(q: str):
                     "boat_no": sr["boat_number"]
                 })
             
-            # 同一選手が複数行出るのを防ぐ（UNIONでもnameが違うと別行になるため）
             if not any(x["toban"] == toban for x in results):
                 results.append({
                     "toban": toban,

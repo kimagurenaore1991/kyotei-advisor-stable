@@ -866,6 +866,102 @@ def repair_corrupted_races(days_back=2):
     finally:
         conn.close()
 
+def search_racers_global(q: str):
+    """
+    ボートレース公式サイトから選手を検索する。
+    q: 登録番号（数値4桁以上）または氏名（漢字・カナ）
+    """
+    base_url = "https://www.boatrace.jp"
+    search_url = f"{base_url}/owpc/pc/data/racersearch/index"
+    
+    session = requests.Session()
+    headers = {
+        "User-Agent": USER_AGENT,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": "ja,en;q=0.9",
+        "Origin": base_url,
+        "Referer": search_url,
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Upgrade-Insecure-Requests": "1",
+    }
+    
+    results = []
+    try:
+        # 1. フォームIDとViewStateの取得
+        res_init = session.get(search_url, headers=headers, timeout=REQUEST_TIMEOUT)
+        if res_init.status_code != 200:
+            return []
+            
+        soup_init = BeautifulSoup(res_init.content, "html.parser")
+        # フォームを探す。idが TDATP...A_2 のような形式
+        import re
+        form = soup_init.find("form", id=re.compile(r"TDATP\d+A_2"))
+        if not form:
+            # フォールバック
+            form_id = "TDATP310A_2"
+        else:
+            form_id = form.get("id")
+
+        view_state_el = soup_init.find("input", id="javax.faces.ViewState")
+        view_state = view_state_el.get("value") if view_state_el else "stateless"
+
+        # ボタンIDの特定（通常は末尾が _7）
+        button_id = f"{form_id}:{form_id.replace('_2', '_7')}"
+        # もしHTML内から確実に探したい場合は:
+        btn_el = soup_init.find("button", id=re.compile(rf"{form_id}:.*"))
+        if btn_el:
+            button_id = btn_el.get("id")
+
+        # 2. POSTパラメータの構築
+        data = {
+            form_id: form_id,
+            f"{form_id}:inBoatracerName": "",
+            f"{form_id}:inTobanLeft": "",
+            f"{form_id}:inTobanRight": "",
+            f"{form_id}:inCultivationTerm": "",
+            f"{form_id}:{form_id.replace('_2', '_3')}": "SELECTALL", # 級別
+            f"{form_id}:{form_id.replace('_2', '_4')}": "SELECTALL", # 支部
+            f"{form_id}:{form_id.replace('_2', '_5')}": "SELECTALL", # 出身地
+            f"{form_id}:{form_id.replace('_2', '_6')}": "SELECTALL", # 性別
+            f"{form_id}:{form_id.replace('_2', '_7')}": "",         # 検索ボタン (空文字でOK)
+            "javax.faces.ViewState": view_state,
+        }
+
+        if q.isdigit() and len(q) >= 4:
+            data[f"{form_id}:inTobanLeft"] = q
+        else:
+            data[f"{form_id}:inBoatracerName"] = q
+
+        # 3. 検索実行
+        res = session.post(search_url, data=data, headers=headers, timeout=REQUEST_TIMEOUT)
+        print(f"[DEBUG] search_racers_global (form_id={form_id}): status={res.status_code}")
+        
+        if res.status_code == 200:
+            soup = BeautifulSoup(res.content, "html.parser")
+            table = soup.select_one(".is-p_result")
+            if table:
+                rows = table.select("tbody tr")
+                print(f"[DEBUG] Found {len(rows)} rows")
+                for row in rows:
+                    tds = row.select("td")
+                    if len(tds) < 3: continue
+                    link_el = tds[1].select_one("a")
+                    if not link_el: continue
+                    href = link_el.get("href", "")
+                    toban_m = re.search(r'toban=(\d+)', href)
+                    toban = toban_m.group(1) if toban_m else ""
+                    name = link_el.get_text(strip=True).replace('\u3000', ' ')
+                    racer_class = tds[2].get_text(strip=True)
+                    if toban:
+                        results.append({"toban": toban, "name": name, "class": racer_class})
+            else:
+                print(f"[DEBUG] No result table. Title: {soup.title.string if soup.title else 'No Title'}")
+    except Exception as e:
+        print(f"Error in search_racers_global: {e}")
+
+    return results
+
+
 if __name__ == "__main__":
     from database import init_db
     init_db()
