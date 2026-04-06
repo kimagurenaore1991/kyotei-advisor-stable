@@ -1260,10 +1260,16 @@ window.addEventListener('unhandledrejection', function(event) {
                     // OAuthのエラーがURLに含まれている場合の検知（Google Cloudのテストユーザー設定漏れなど）
                     if (window.location.hash && window.location.hash.includes('error=')) {
                         const params = new URLSearchParams(window.location.hash.replace('#', '?'));
-                        const errDesc = params.get('error_description') || params.get('error');
-                        setTimeout(() => {
-                            alert('認証エラー: ' + decodeURIComponent(errDesc) + '\n\n【よくある原因】Google Cloud(GCP)のOAuth設定が「テストモード」の場合、登録されていない別アカウントではログインできません。GCPの設定をご確認ください。');
-                        }, 500);
+                        const err = params.get('error') || '';
+                        const errDesc = params.get('error_description') || '';
+                        
+                        let message = `認証エラー: ${decodeURIComponent(errDesc || err)}`;
+                        if (message.includes('Database error saving new user')) {
+                          message += '\n\n【DBエラー】サインアップ時のプロファイル作成に失敗しました。Supabaseの「Database -> Logs」または「Auth -> Logs」を確認してください。';
+                        }
+                        message += '\n\n【GCP設定の確認】Google Cloud(GCP)のOAuth設定が「テストモード」の場合、登録されていない別アカウントではログインできません。';
+                        
+                        setTimeout(() => { alert(message); }, 500);
                         // URLをきれいに
                         window.history.replaceState(null, '', window.location.pathname);
                     }
