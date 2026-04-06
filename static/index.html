@@ -18,6 +18,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -510,6 +511,23 @@ window.addEventListener('unhandledrejection', function(event) {
             </button>
         </div>
 
+
+        <!-- 認証UI -->
+        <div class="mx-3 mt-3">
+            <div id="auth-container" class="flex flex-col gap-1 p-2 bg-slate-900 rounded-lg border border-slate-700">
+                <div id="auth-unlogged" class="">
+                    <button onclick="loginWithGoogle()" class="w-full flex items-center justify-center gap-2 bg-white hover:bg-gray-100 text-slate-800 px-3 py-2 rounded-lg text-sm font-bold transition-colors shadow">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/><path fill="none" d="M1 1h22v22H1z"/></svg>
+                        Googleでログイン
+                    </button>
+                    <p class="text-[9px] text-slate-400 mt-1 text-center">お気に入りやカートの同期機能</p>
+                </div>
+                <div id="auth-logged" class="hidden text-center">
+                    <p id="auth-user-email" class="text-xs text-slate-300 truncate mb-2"></p>
+                    <button onclick="logout()" class="w-full text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 py-1 rounded transition-colors">ログアウト</button>
+                </div>
+            </div>
+        </div>
 
         <!-- 検索・更新ボタン -->
         <div class="mx-3 mt-3 mb-1 space-y-2">
@@ -1212,8 +1230,94 @@ window.addEventListener('unhandledrejection', function(event) {
     </div>
 
     <script>
-        const APP_VERSION = '1.0.9';
+        const APP_VERSION = '1.1.0';
         const API_BASE = '/api';
+        
+        let supabaseClient = null;
+        let currentUser = null;
+
+        async function initSupabase() {
+            try {
+                const res = await fetch(`${API_BASE}/config`);
+                const config = await res.json();
+                if (config.use_supabase && config.supabase_url && config.supabase_key) {
+                    supabaseClient = supabase.createClient(config.supabase_url, config.supabase_key);
+                    
+                    // 初期セッション取得
+                    const { data: { session } } = await supabaseClient.auth.getSession();
+                    currentUser = session?.user || null;
+                    updateAuthUI();
+
+                    // 認証状態の変更検知
+                    supabaseClient.auth.onAuthStateChange((event, session) => {
+                        currentUser = session?.user || null;
+                        updateAuthUI();
+                        // ログイン状態が変わったらお気に入りとカートを再ロード
+                        initFavorites();
+                        loadCart();
+                    });
+
+                    // OAuthのエラーがURLに含まれている場合の検知（Google Cloudのテストユーザー設定漏れなど）
+                    if (window.location.hash && window.location.hash.includes('error=')) {
+                        const params = new URLSearchParams(window.location.hash.replace('#', '?'));
+                        const errDesc = params.get('error_description') || params.get('error');
+                        setTimeout(() => {
+                            alert('認証エラー: ' + decodeURIComponent(errDesc) + '\n\n【よくある原因】Google Cloud(GCP)のOAuth設定が「テストモード」の場合、登録されていない別アカウントではログインできません。GCPの設定をご確認ください。');
+                        }, 500);
+                        // URLをきれいに
+                        window.history.replaceState(null, '', window.location.pathname);
+                    }
+                } else {
+                    document.getElementById('auth-container').classList.add('hidden');
+                }
+            } catch (e) {
+                console.warn('Supabase init skipped', e);
+            }
+        }
+
+        async function loginWithGoogle() {
+            if (!supabaseClient) return;
+            try {
+                const { error } = await supabaseClient.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: {
+                        redirectTo: window.location.origin + '/static/index.html',
+                        queryParams: {
+                            prompt: 'select_account' // 常にアカウント選択画面を出す
+                        }
+                    }
+                });
+                if (error) throw error;
+            } catch (error) {
+                showToast('ログインに失敗しました', 'error');
+            }
+        }
+
+        async function logout() {
+            if (!supabaseClient) return;
+            try {
+                const { error } = await supabaseClient.auth.signOut();
+                if (error) throw error;
+                showToast('ログアウトしました', 'info');
+            } catch (error) {
+                showToast('ログアウトに失敗しました', 'error');
+            }
+        }
+
+        function updateAuthUI() {
+            const unlogged = document.getElementById('auth-unlogged');
+            const logged = document.getElementById('auth-logged');
+            const emailEl = document.getElementById('auth-user-email');
+            if (currentUser) {
+                unlogged.classList.add('hidden');
+                logged.classList.remove('hidden');
+                emailEl.textContent = currentUser.email;
+            } else {
+                unlogged.classList.remove('hidden');
+                logged.classList.add('hidden');
+            }
+        }
+
 
         const places_dict = {
             "01": "桐生", "02": "戸田", "03": "江戸川", "04": "平和島", "05": "多摩川", "06": "浜名湖",
@@ -2357,7 +2461,7 @@ window.addEventListener('unhandledrejection', function(event) {
             stopOddsAutoRefresh();
             
             try {
-                loadCart(); // カート内容をロード
+                await loadCart(); // カート内容をロード
             } catch (e) {
                 console.warn('loadCart error', e);
             }
@@ -3991,6 +4095,16 @@ window.addEventListener('unhandledrejection', function(event) {
                 allCart[currentRaceId] = Object.keys(betCart);
                 localStorage.setItem('kyotei_v1_cart', JSON.stringify(allCart));
                 
+                if (supabaseClient && currentUser) {
+                    supabaseClient.from('cart_items').upsert([{
+                        user_id: currentUser.id,
+                        race_id: currentRaceId,
+                        cart_json: betCart
+                    }], { onConflict: 'user_id, race_id' }).then(({error}) => {
+                        if (error) console.warn('Supabase saveCart error', error);
+                    });
+                }
+                
                 updateCartResultDisplay();
                 
                 // 的中判定の即時反映
@@ -4007,11 +4121,24 @@ window.addEventListener('unhandledrejection', function(event) {
             }
         }
 
-        function loadCart() {
+        async function loadCart() {
             if (currentRaceId) {
-                const loaded = localStorage.getItem(CACHE_PREFIX + 'cart_' + currentRaceId);
-                if (loaded) betCart = JSON.parse(loaded);
-                else betCart = {};
+                let loadedCart = null;
+                if (supabaseClient && currentUser) {
+                    try {
+                        const { data, error } = await supabaseClient.from('cart_items').select('cart_json').eq('user_id', currentUser.id).eq('race_id', currentRaceId).maybeSingle();
+                        if (!error && data) {
+                            loadedCart = data.cart_json;
+                        }
+                    } catch (e) { console.warn('Supabase loadCart error', e); }
+                }
+                
+                if (!loadedCart) {
+                    const localData = localStorage.getItem(CACHE_PREFIX + 'cart_' + currentRaceId);
+                    if (localData) Object.assign(loadedCart || (loadedCart = {}), JSON.parse(localData));
+                }
+                
+                betCart = loadedCart || {};
             }
             renderCart();
         }
@@ -4945,14 +5072,30 @@ window.addEventListener('unhandledrejection', function(event) {
             // SSE接続開始
             setupSSE();
 
-            // お気に入り初期化
-            initFavorites();
+            // Supabase初期化（完了後に自動でお気に入りとカートがロードされます）
+            initSupabase().then(() => {
+                if (!supabaseClient) {
+                    initFavorites();
+                }
+            });
         });
 
         // --- Favorite Racers Features ---
         let favoriteRacersSet = new Set();
 
         async function initFavorites() {
+            if (supabaseClient && currentUser) {
+                try {
+                    const { data, error } = await supabaseClient.from('favorite_racers').select('toban').eq('user_id', currentUser.id);
+                    if (!error && data) {
+                        favoriteRacersSet = new Set(data.map(f => f.toban));
+                    }
+                } catch (e) {
+                    console.warn('initFavorites Supabase error', e);
+                }
+                return;
+            }
+            // fallback (SQLite)
             try {
                 const res = await fetch(`${API_BASE}/favorites`);
                 if (res.ok) {
@@ -4960,12 +5103,16 @@ window.addEventListener('unhandledrejection', function(event) {
                     favoriteRacersSet = new Set(favs.map(f => f.toban));
                 }
             } catch (e) {
-                console.warn('initFavorites error', e);
+                console.warn('initFavorites fallback error', e);
             }
         }
 
         async function toggleFavorite(toban, name, event) {
             if (event) event.stopPropagation();
+            if (supabaseClient && !currentUser) {
+                showToast('お気に入りに登録するにはログインしてください', 'warning');
+                return;
+            }
             const isActive = favoriteRacersSet.has(toban);
             const nextActive = !isActive;
 
@@ -4974,6 +5121,28 @@ window.addEventListener('unhandledrejection', function(event) {
             if (nextActive) favoriteRacersSet.add(toban);
             else favoriteRacersSet.delete(toban);
 
+            if (supabaseClient && currentUser) {
+                try {
+                    let error = null;
+                    if (nextActive) {
+                        const { error: err } = await supabaseClient.from('favorite_racers').insert([{ toban, name, user_id: currentUser.id }]);
+                        error = err;
+                    } else {
+                        const { error: err } = await supabaseClient.from('favorite_racers').delete().eq('toban', toban).eq('user_id', currentUser.id);
+                        error = err;
+                    }
+                    if (error) throw error;
+                    showToast(nextActive ? 'お気に入りに登録しました' : 'お気に入りを解除しました', 'info');
+                } catch (e) {
+                    updateFavoriteUI(toban, isActive);
+                    if (isActive) favoriteRacersSet.add(toban);
+                    else favoriteRacersSet.delete(toban);
+                    showToast('お気に入り操作に失敗しました', 'error');
+                }
+                return;
+            }
+
+            // Fallback
             try {
                 const res = await fetch(`${API_BASE}/favorites/toggle`, {
                     method: 'POST',
@@ -4987,7 +5156,6 @@ window.addEventListener('unhandledrejection', function(event) {
                     throw new Error('API Error');
                 }
             } catch (e) {
-                // 失敗時は戻す
                 updateFavoriteUI(toban, isActive);
                 if (isActive) favoriteRacersSet.add(toban);
                 else favoriteRacersSet.delete(toban);
