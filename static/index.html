@@ -2494,7 +2494,7 @@ window.addEventListener('unhandledrejection', function(event) {
 
             const isFinished = cachedResult && cachedResult.result && cachedResult.result.finished && !isInvalidResult;
 
-            // ─ 終了済みの場合: 結果を即表示してバックグラウンド処理なし ─
+            // ─ 終了済みの場合: 結果を即表示してバックグラウンド処理 (SWR) ─
             if (isFinished) {
                 currentRaceResult = cachedResult.result.ranking_str || null;
 
@@ -2511,6 +2511,48 @@ window.addEventListener('unhandledrejection', function(event) {
                 showResultBanner(cachedResult);
                 document.getElementById('odds-content').innerHTML = '<p class="text-sm text-slate-500 text-center py-4">レース終了済み（最終オッズ）</p>';
                 if (cachedResult.odds && cachedResult.odds.all_odds) renderOdds(cachedResult.odds.all_odds);
+
+                // --- SWR: バックグラウンドで最新結果への更新を確認 ---
+                if (window.navigator.onLine) {
+                    fetch(`${API_BASE}/races/${raceId}/options`)
+                        .then(res => res.ok ? res.json() : null)
+                        .then(freshData => {
+                            if (!freshData || !freshData.result || !freshData.result.finished) return;
+                            const oldRanking = cachedResult.result.ranking_str || "";
+                            const newRanking = freshData.result.ranking_str || "";
+                            
+                            // 着順が変わっている場合、または不完全な状態から更新された場合のみ上書き反映
+                            if (newRanking !== oldRanking || (newRanking !== "--" && oldRanking === "--")) {
+                                console.log("Background SWR updated result for", raceId, oldRanking, "->", newRanking);
+                                raceResultCache[raceId] = freshData;
+                                saveCache('raceResultCache', raceResultCache);
+                                
+                                // 的中判定のやり直しとサイドバーの更新
+                                if (lastPredictionsCache[raceId]) {
+                                    const preds = lastPredictionsCache[raceId].predictions;
+                                    const hitFlag = preds.rule_focus.some(p => isHit(p.pattern, newRanking)) ||
+                                                    preds.ai_focus.some(p => isHit(p.pattern, newRanking));
+                                    raceHitCache[raceId] = hitFlag;
+                                    saveCache('raceHitCache', raceHitCache);
+                                    if (window.dailyHitsCache) {
+                                        const oldData = window.dailyHitsCache[raceId] || {};
+                                        window.dailyHitsCache[raceId] = { hit: hitFlag, place: freshData.place_name || currentPlaceName, payout: oldData.payout || 0 };
+                                    }
+                                    const btn = document.getElementById(`race-btn-${raceId}`);
+                                    if (btn) applyFinishBadge(btn, hitFlag);
+                                    updatePerformanceStats();
+                                }
+                                
+                                // 開いているレースなら表示も更新
+                                if (currentRaceId === raceId) {
+                                    currentRaceResult = newRanking;
+                                    showResultBanner(freshData);
+                                    if (freshData.odds && freshData.odds.all_odds) renderOdds(freshData.odds.all_odds);
+                                    showToast("最新の確定結果に更新しました");
+                                }
+                            }
+                        }).catch(() => {});
+                }
                 return;
             }
 
@@ -2609,7 +2651,7 @@ window.addEventListener('unhandledrejection', function(event) {
             // サーバー側へのリクエストは少し遅延させて負荷軽減（デバウンス的な）
             if (window.weightTimeout) clearTimeout(window.weightTimeout);
             window.weightTimeout = setTimeout(() => {
-                if (currentRaceId) requestPrediction('custom');
+                if (currentRaceId) requestPrediction('custom', false, false, true);
             }, 800);
         }
 
@@ -2709,7 +2751,7 @@ window.addEventListener('unhandledrejection', function(event) {
         ['setting-bet-type', 'setting-max-items'].forEach(id => {
             document.getElementById(id).addEventListener('change', () => {
                 saveUserSettings();
-                if (currentRaceId) requestPrediction();
+                if (currentRaceId) requestPrediction('both', false, false, true);
             });
         });
 
@@ -2734,7 +2776,7 @@ window.addEventListener('unhandledrejection', function(event) {
             isSettingsLoading = false;
             saveUserSettings();
             showToast('設定を初期値にリセットしました。');
-            if (currentRaceId) requestPrediction();
+            if (currentRaceId) requestPrediction('both', false, false, true);
         }
 
         function toggleFixedHead(boatNum) {
@@ -2743,7 +2785,7 @@ window.addEventListener('unhandledrejection', function(event) {
             } else {
                 activeFixedHead = boatNum;
             }
-            if (currentRaceId) requestPrediction();
+            if (currentRaceId) requestPrediction('both', false, false, true);
         }
 
         async function requestPrediction(target = 'both', recalculateAi = false, ignoreExhibition = false, silent = false) {
@@ -2802,7 +2844,10 @@ window.addEventListener('unhandledrejection', function(event) {
                     const isHitFlag = preds.rule_focus.some(p => isHit(p.pattern, data.race.ranking_str)) ||
                         preds.ai_focus.some(p => isHit(p.pattern, data.race.ranking_str));
 
-                    if (window.dailyHitsCache) window.dailyHitsCache[currentRaceId] = isHitFlag;
+                    if (window.dailyHitsCache) {
+                        const oldData = window.dailyHitsCache[currentRaceId] || {};
+                        window.dailyHitsCache[currentRaceId] = { hit: isHitFlag, place: data.race.place_name || currentPlaceName, payout: oldData.payout || 0 };
+                    }
                     const btn = document.getElementById(`race-btn-${currentRaceId}`);
                     if (btn) applyFinishBadge(btn, isHitFlag);
                 }
