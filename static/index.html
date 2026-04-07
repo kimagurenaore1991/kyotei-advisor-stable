@@ -4925,29 +4925,57 @@ window.addEventListener('unhandledrejection', function(event) {
             html += '</div>';
             container.innerHTML = html;
         }
-        async function fetchExpectationRaces() {
+        let currentExpectationDate = null;
+
+        async function fetchExpectationRaces(targetDate = null) {
+            if (!targetDate) {
+                targetDate = getTargetDateStr(0);
+            }
+            currentExpectationDate = targetDate;
             const container = document.getElementById('high-expectation-results');
             container.innerHTML = '<div class="text-center py-12"><div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-amber-500 mb-2"></div><p class="text-slate-400 text-xs">的中期待値を解析中...</p></div>';
             
             try {
-                const res = await fetch(`${API_BASE}/search/high_expectation`);
+                const [res, hitRes] = await Promise.all([
+                    fetch(`${API_BASE}/search/high_expectation?date=${targetDate}`),
+                    fetch(`${API_BASE}/daily_hits?date=${targetDate}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ weights: getWeights(), settings: getSettings(), overrides: null })
+                    }).catch(() => ({ json: () => ({}) })) // Ignore hits error if any
+                ]);
+                
                 const data = await res.json();
-                renderExpectationResults(data);
+                const hitData = hitRes.ok ? await hitRes.json() : await hitRes.json();
+                renderExpectationResults(data, targetDate, hitData);
             } catch (e) {
                 container.innerHTML = '<p class="text-red-400 text-center py-12 text-sm">取得に失敗しました</p>';
             }
         }
-        function renderExpectationResults(data) {
+        function renderExpectationResults(data, targetDate, hitDataMap) {
             const container = document.getElementById('high-expectation-results');
             const solidRaces = data.solid || [];
             const valueRaces = data.value || [];
+            
+            const todayStr = getTargetDateStr(0);
+            const ydayStr = getTargetDateStr(-1);
+            
+            let navHtml = `
+            <div class="flex items-center justify-between bg-slate-800 rounded-lg p-2 mb-3 border border-slate-700 shadow-sm">
+                <button onclick="fetchExpectationRaces('${ydayStr}')" class="text-xs px-3 py-1.5 rounded font-bold transition-all ${targetDate === ydayStr ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-slate-700 text-slate-200 hover:bg-slate-600'}" ${targetDate === ydayStr ? 'disabled' : ''}>← 昨日の結果</button>
+                <div class="flex flex-col text-center">
+                    <span class="text-xs font-bold text-emerald-400">${targetDate} の予想/結果</span>
+                </div>
+                <button onclick="fetchExpectationRaces('${todayStr}')" class="text-xs px-3 py-1.5 rounded font-bold transition-all ${targetDate === todayStr ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-slate-700 text-slate-200 hover:bg-slate-600'}" ${targetDate === todayStr ? 'disabled' : ''}>本日の予想 →</button>
+            </div>
+            `;
 
             if (solidRaces.length === 0 && valueRaces.length === 0) {
-                container.innerHTML = '<p class="text-slate-500 text-center py-16 text-sm">現在、条件に合うレースはありません</p>';
+                container.innerHTML = navHtml + '<p class="text-slate-500 text-center py-16 text-sm">現在、条件に合うレースはありません</p>';
                 return;
             }
             
-            let html = `
+            let html = navHtml + `
             <div class="flex p-1 bg-slate-900 rounded-lg border border-slate-700 mb-4">
                 <button id="subtab-solid" onclick="switchExpectationSubTab('solid')" class="flex-1 py-1.5 text-xs font-bold rounded-md bg-emerald-600 text-white shadow-sm flex items-center justify-center gap-1 transition-all">🎯 的中率重視</button>
                 <button id="subtab-value" onclick="switchExpectationSubTab('value')" class="flex-1 py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-slate-200 flex items-center justify-center gap-1 transition-all">💰 期待値重視</button>
@@ -4959,7 +4987,7 @@ window.addEventListener('unhandledrejection', function(event) {
             if (solidRaces.length > 0) {
                 html += `<div class="bg-emerald-900/10 border border-emerald-900/30 p-3 rounded-xl text-emerald-400 text-xs shadow-inner">1号艇の勝率が非常に高い、イン逃げ鉄板のレースをピックアップしています。</div>`;
                 html += `<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">`;
-                solidRaces.forEach(r => html += createRaceCardHTML(r, 'solid', '大本命・イン逃げ推奨'));
+                solidRaces.forEach(r => html += createRaceCardHTML(r, 'solid', '大本命・イン逃げ推奨', targetDate, hitDataMap));
                 html += `</div>`;
             } else {
                 html += `<p class="text-slate-500 text-center py-10 text-xs">現在、条件に合う的中率重視レースはありません</p>`;
@@ -4971,7 +4999,7 @@ window.addEventListener('unhandledrejection', function(event) {
             if (valueRaces.length > 0) {
                 html += `<div class="bg-amber-900/10 border border-amber-900/30 p-3 rounded-xl text-amber-400 text-xs shadow-inner">1号艇の勝率が低く、中穴〜大穴展開が望めるレースをピックアップしています。</div>`;
                 html += `<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">`;
-                valueRaces.forEach(r => html += createRaceCardHTML(r, 'value', '中穴・大穴展開推奨'));
+                valueRaces.forEach(r => html += createRaceCardHTML(r, 'value', '中穴・大穴展開推奨', targetDate, hitDataMap));
                 html += `</div>`;
             } else {
                 html += `<p class="text-slate-500 text-center py-10 text-xs">現在、条件に合う期待値重視レースはありません</p>`;
@@ -5002,8 +5030,8 @@ window.addEventListener('unhandledrejection', function(event) {
             }
         };
 
-        function createRaceCardHTML(r, colorTheme, desc) {
-            const hitData = (window.dailyHitsCache && r.is_finished) ? window.dailyHitsCache[r.id] : null;
+        function createRaceCardHTML(r, colorTheme, desc, targetDateStr, scopedHitData) {
+            const hitData = (scopedHitData && r.is_finished) ? scopedHitData[r.id] : null;
             const hitBadge = (hitData && hitData.hit) ? `<span class="ml-1 text-[10px] bg-red-500 border border-red-400/50 px-2 py-0.5 rounded text-white font-bold animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]">🎯的中</span>` : '';
             const payoutHtml = (hitData && hitData.hit && hitData.payout > 0) 
                 ? `<div class="text-[10px] font-bold text-emerald-400 mt-2.5 flex items-center gap-1.5 bg-emerald-900/40 border border-emerald-800/50 px-2.5 py-1.5 rounded w-full">
@@ -5023,7 +5051,7 @@ window.addEventListener('unhandledrejection', function(event) {
             const badgeText = r.is_finished ? '終了' : '発売中';
 
             return `
-            <button onclick="closeSearchModal(); goToRace('${r.place}', ${r.id}, '${getTargetDateStr(0)}')" 
+            <button onclick="closeSearchModal(); goToRace('${r.place}', ${r.id}, '${targetDateStr || getTargetDateStr(0)}')" 
                 class="flex flex-col items-start bg-slate-800/60 border border-slate-700/60 ${hoverBorderCls} hover:bg-slate-700/40 p-4 rounded-xl transition-all text-left relative overflow-hidden group shadow w-full">
                 
                 <div class="flex justify-between w-full items-center mb-2">
@@ -5048,10 +5076,13 @@ window.addEventListener('unhandledrejection', function(event) {
             if (targetDate) {
                 const today = getTargetDateStr(0);
                 const tomorrow = getTargetDateStr(1);
+                const yday = getTargetDateStr(-1);
                 if (targetDate === today && relativeDate !== 0) {
                     await navigateDate(0 - relativeDate);
                 } else if (targetDate === tomorrow && relativeDate !== 1) {
                     await navigateDate(1 - relativeDate);
+                } else if (targetDate === yday && relativeDate !== -1) {
+                    await navigateDate(-1 - relativeDate);
                 }
             }
             
