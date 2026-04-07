@@ -1378,7 +1378,16 @@ def get_daily_hits(req: PredictRequest, date: str = Query(...)):
             continue
             
         rdict = dict(race)
-        _, preds = calculate_predictions(rdict, players, req.weights, req.settings)
+        ai_cache = None
+        if rdict.get("ai_predictions_json") and not req.recalculate_ai:
+            try:
+                temp_cache = json.loads(rdict["ai_predictions_json"])
+                if temp_cache.get("weights_hash") == req.weights._hash:
+                    ai_cache = temp_cache
+            except:
+                pass
+                
+        _, preds = calculate_predictions(rdict, players, req.weights, req.settings, ai_cache=ai_cache)
         
         ranking = rdict.get("ranking_str", "")
         hit = False
@@ -1888,8 +1897,17 @@ def search_high_expectation(req: PredictRequest, date: str = Query(default=None)
             if len(race_entries) < 6:
                 continue
                 
+            ai_cache = None
+            if race_dict.get("ai_predictions_json") and not getattr(req, "recalculate_ai", False):
+                try:
+                    temp_cache = json.loads(race_dict["ai_predictions_json"])
+                    if temp_cache.get("weights_hash") == req.weights._hash:
+                        ai_cache = temp_cache
+                except:
+                    pass
+                
             # キャッシュ利用（設定変更があれば再計算されるが、デフォルトAIなら即時返る）
-            _, preds = calculate_predictions(race_dict, race_entries, req.weights, req.settings)
+            _, preds = calculate_predictions(race_dict, race_entries, req.weights, req.settings, ai_cache=ai_cache)
             
             target_patterns = []
             if ht == "custom":
