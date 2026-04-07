@@ -1846,22 +1846,25 @@ def search_racers(q: str):
         conn.close()
 
 @app.get("/api/search/high_expectation")
-def search_high_expectation():
+def search_high_expectation(date: str = Query(default=None)):
     """AI予想に基づき、1号艇の勝率が高い『的中率重視』と、他艇の勝率が高い『期待値重視』のレースを抽出する"""
     conn = get_db_connection()
     try:
-        today_iso = datetime.now(JST).strftime('%Y-%m-%d')
-        # 本日の全レースをスキャン
+        if date:
+            target_iso = date
+        else:
+            target_iso = datetime.now(JST).strftime('%Y-%m-%d')
+        # 指定日の全レースをスキャン
         rows = conn.execute(
             "SELECT * "
             "FROM races WHERE race_date = ?",
-            (today_iso,)
+            (target_iso,)
         ).fetchall()
         
         # 選手のデータを取得
         entries = conn.execute(
             "SELECT * FROM entries WHERE race_id IN (SELECT id FROM races WHERE race_date = ?)",
-            (today_iso,)
+            (target_iso,)
         ).fetchall()
         
         entries_by_race = {}
