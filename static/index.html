@@ -2531,8 +2531,7 @@ window.addEventListener('unhandledrejection', function(event) {
                                 // 的中判定のやり直しとサイドバーの更新
                                 if (lastPredictionsCache[raceId]) {
                                     const preds = lastPredictionsCache[raceId].predictions;
-                                    const hitFlag = preds.rule_focus.some(p => isHit(p.pattern, newRanking)) ||
-                                                    preds.ai_focus.some(p => isHit(p.pattern, newRanking));
+                                    const hitFlag = determineHitStatus(raceId, newRanking, preds);
                                     raceHitCache[raceId] = hitFlag;
                                     saveCache('raceHitCache', raceHitCache);
                                     if (window.dailyHitsCache) {
@@ -2842,8 +2841,7 @@ window.addEventListener('unhandledrejection', function(event) {
                 // もし終了済みのレースなら、新しい予想で的中したかをチェックしてサイドバーを更新
                 if (data.race.is_finished && data.race.ranking_str) {
                     const preds = lastPredictions;
-                    const isHitFlag = preds.rule_focus.some(p => isHit(p.pattern, data.race.ranking_str)) ||
-                        preds.ai_focus.some(p => isHit(p.pattern, data.race.ranking_str));
+                    const isHitFlag = determineHitStatus(data.race.id, data.race.ranking_str, preds);
 
                     if (window.dailyHitsCache) {
                         const oldData = window.dailyHitsCache[currentRaceId] || {};
