@@ -1384,14 +1384,21 @@ def get_daily_hits(req: PredictRequest, date: str = Query(...)):
         hit = False
         ht = req.settings.hit_type
         hit_count = 0
+        max_items = req.settings.max_items
+        rule_focus_sliced = preds.get("rule_focus", [])[:max_items]
+        ai_focus_sliced = preds.get("ai_focus", [])[:max_items]
+        
         if ht == "custom":
-            hit_count = 1 if any(is_hit(p["pattern"], ranking) for p in preds["rule_focus"]) else 0
+            hit_count = 1 if any(is_hit(p["pattern"], ranking) for p in rule_focus_sliced) else 0
         elif ht == "ai":
-            hit_count = 1 if any(is_hit(p["pattern"], ranking) for p in preds["ai_focus"]) else 0
-        else: # "both" or "buy"
+            hit_count = 1 if any(is_hit(p["pattern"], ranking) for p in ai_focus_sliced) else 0
+        elif ht == "buy":
+            # buyモードの場合はフロントエンドのカート情報で判定するため、バックエンド側のカウントは無視する
+            hit_count = 0
+        else: # "both"
             # AIとカスタムを個別に的中判定し、的中したセット数をカウント（両方の場合は2倍の払戻）
-            hit_custom = 1 if any(is_hit(p["pattern"], ranking) for p in preds["rule_focus"]) else 0
-            hit_ai = 1 if any(is_hit(p["pattern"], ranking) for p in preds["ai_focus"]) else 0
+            hit_custom = 1 if any(is_hit(p["pattern"], ranking) for p in rule_focus_sliced) else 0
+            hit_ai = 1 if any(is_hit(p["pattern"], ranking) for p in ai_focus_sliced) else 0
             hit_count = hit_custom + hit_ai
             
         hit = (hit_count > 0)
@@ -1845,23 +1852,20 @@ def search_racers(q: str):
     finally:
         conn.close()
 
-@app.get("/api/search/high_expectation")
-def search_high_expectation(date: str = Query(default=None)):
-    """AI予想に基づき、1号艇の勝率が高い『的中率重視』と、他艇の勝率が高い『期待値重視』のレースを抽出する"""
+@app.post("/api/search/high_expectation")
+def search_high_expectation(req: PredictRequest, date: str = Query(default=None)):
+    """設定に応じた抽出出目の合計確率から『的中率重視』と『期待値重視』のレースを抽出する"""
     conn = get_db_connection()
     try:
         if date:
             target_iso = date
         else:
             target_iso = datetime.now(JST).strftime('%Y-%m-%d')
-        # 指定日の全レースをスキャン
         rows = conn.execute(
-            "SELECT * "
-            "FROM races WHERE race_date = ?",
+            "SELECT * FROM races WHERE race_date = ?",
             (target_iso,)
         ).fetchall()
         
-        # 選手のデータを取得
         entries = conn.execute(
             "SELECT * FROM entries WHERE race_id IN (SELECT id FROM races WHERE race_date = ?)",
             (target_iso,)
@@ -1871,65 +1875,67 @@ def search_high_expectation(date: str = Query(default=None)):
         for e in entries:
             entries_by_race.setdefault(e['race_id'], []).append(dict(e))
 
-        default_weights = CustomWeights()
-        default_settings = PredictSettings()
-
         solid_picked = []
         value_picked = []
         
+        ht = req.settings.hit_type
+        max_items = req.settings.max_items
+        
         for r in rows:
             race_dict = dict(r)
-            ai_data_str = race_dict.get("ai_predictions_json")
-            win_probs = {}
-            if ai_data_str:
-                try:
-                    ai_data = json.loads(ai_data_str)
-                    win_probs = ai_data.get("ai_win_probs", {})
-                except:
-                    pass
-            else:
-                # 動的に計算 (出走データが揃っている場合のみ / 未終了でまだキャッシュがないケースを想定)
-                rid = race_dict['id']
-                race_entries = entries_by_race.get(rid, [])
-                if len(race_entries) >= 6:
-                    _, preds = calculate_predictions(race_dict, race_entries, default_weights, default_settings)
-                    win_probs = preds.get("ai_win_probs", {})
+            rid = race_dict['id']
+            race_entries = entries_by_race.get(rid, [])
+            if len(race_entries) < 6:
+                continue
+                
+            # キャッシュ利用（設定変更があれば再計算されるが、デフォルトAIなら即時返る）
+            _, preds = calculate_predictions(race_dict, race_entries, req.weights, req.settings)
             
-            if not win_probs:
+            target_patterns = []
+            if ht == "custom":
+                target_patterns = preds.get("rule_focus", [])[:max_items]
+            elif ht == "ai":
+                target_patterns = preds.get("ai_focus", [])[:max_items]
+            else: # "both" or "buy"
+                target_patterns = preds.get("rule_focus", [])[:max_items] + preds.get("ai_focus", [])[:max_items]
+                seen = set()
+                uniq = []
+                for p in target_patterns:
+                    pat = p.get("pattern")
+                    if pat not in seen:
+                        seen.add(pat)
+                        uniq.append(p)
+                target_patterns = uniq
+                
+            if not target_patterns:
                 continue
 
-            prob_1 = win_probs.get("1", 0)
+            total_prob = sum(p.get("prob", 0) for p in target_patterns)
+            prob_1_head = sum(p.get("prob", 0) for p in target_patterns if str(p.get("pattern", "")).startswith("1-") or str(p.get("pattern", "")).startswith("1=") or str(p.get("pattern", "")) == "1")
+
             is_finished = bool(race_dict["is_finished"])
             
-            # 🎯 的中率重視 (Solid): 1号艇勝率70%以上
-            if prob_1 >= 70:
+            # 🎯 的中率重視 (Solid): 抽出された買い目の合計確率が50%以上
+            if total_prob >= 50:
                 solid_picked.append({
                     "id": race_dict["id"],
                     "place": race_dict["place_name"],
                     "race_no": race_dict["race_number"],
-                    "reason": f"1号勝率 {prob_1:.0f}%",
-                    "prob": prob_1,
+                    "reason": f"上位{len(target_patterns)}点 合計勝率{total_prob:.0f}%",
+                    "prob": total_prob,
                     "is_finished": is_finished
                 })
-            # 💰 期待値重視 (Value): 1号艇勝率50%未満（本命が飛びやすい） & 2~6号のいずれかが20%以上
-            elif prob_1 < 50:
-                max_other_prob = 0
-                max_other_boat = ""
-                for b in ["2", "3", "4", "5", "6"]:
-                    p = win_probs.get(b, 0)
-                    if p > max_other_prob:
-                        max_other_prob = p
-                        max_other_boat = b
-                
-                if max_other_prob >= 20:
-                    value_picked.append({
-                        "id": race_dict["id"],
-                        "place": race_dict["place_name"],
-                        "race_no": race_dict["race_number"],
-                        "reason": f"{max_other_boat}号勝率 {max_other_prob:.0f}%",
-                        "prob": max_other_prob,
-                        "is_finished": is_finished
-                    })
+            
+            # 💰 期待値重視 (Value): アタマ1号艇以外（穴狙い）が半分以上を占めるが、全体の期待確率はそこそこある（15%以上）
+            if total_prob >= 15 and prob_1_head < (total_prob * 0.5):
+                value_picked.append({
+                    "id": race_dict["id"],
+                    "place": race_dict["place_name"],
+                    "race_no": race_dict["race_number"],
+                    "reason": f"上位{len(target_patterns)}点 穴期待",
+                    "prob": total_prob,
+                    "is_finished": is_finished
+                })
         
         # ソート: 未終了(False)を上(0), 終了(True)を下(1)にする。その後確率順。
         solid_picked.sort(key=lambda x: (x["is_finished"], -x["prob"]))
