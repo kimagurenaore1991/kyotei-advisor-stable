@@ -1648,6 +1648,7 @@ window.addEventListener('unhandledrejection', function(event) {
         function determineHitStatus(raceId, resultStr, preds) {
             if (!resultStr || resultStr === '--') return false;
             const hitType = document.getElementById('setting-hit-type')?.value || 'both';
+            const maxItems = parseInt(document.getElementById('setting-max-items')?.value || '8');
 
             // 1. 買い目的中 (カート内)
             if (hitType === 'buy') {
@@ -1667,17 +1668,17 @@ window.addEventListener('unhandledrejection', function(event) {
 
             // 2. AI予想的中
             if (hitType === 'ai') {
-                return (preds.ai_focus || []).some(item => isHit(item.pattern, resultStr));
+                return (preds.ai_focus || []).slice(0, maxItems).some(item => isHit(item.pattern, resultStr));
             }
 
             // 3. カスタマイズ予想的中
             if (hitType === 'custom') {
-                return (preds.rule_focus || []).some(item => isHit(item.pattern, resultStr));
+                return (preds.rule_focus || []).slice(0, maxItems).some(item => isHit(item.pattern, resultStr));
             }
 
             // 4. AI & カスタマイズ的中 (デフォルト)
-            return (preds.rule_focus || []).some(item => isHit(item.pattern, resultStr)) ||
-                (preds.ai_focus || []).some(item => isHit(item.pattern, resultStr));
+            return (preds.rule_focus || []).slice(0, maxItems).some(item => isHit(item.pattern, resultStr)) ||
+                (preds.ai_focus || []).slice(0, maxItems).some(item => isHit(item.pattern, resultStr));
         }
 
 
@@ -4936,8 +4937,13 @@ window.addEventListener('unhandledrejection', function(event) {
             container.innerHTML = '<div class="text-center py-12"><div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-amber-500 mb-2"></div><p class="text-slate-400 text-xs">的中期待値を解析中...</p></div>';
             
             try {
+                const reqBody = { weights: getWeights(), settings: getSettings(), overrides: null };
                 const [res, hitRes] = await Promise.all([
-                    fetch(`${API_BASE}/search/high_expectation?date=${targetDate}`),
+                    fetch(`${API_BASE}/search/high_expectation?date=${targetDate}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(reqBody)
+                    }),
                     fetch(`${API_BASE}/daily_hits?date=${targetDate}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
