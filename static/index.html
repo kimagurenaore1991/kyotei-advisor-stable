@@ -1165,7 +1165,7 @@ window.addEventListener('unhandledrejection', function(event) {
                 <button onclick="resetSettingsToDefault(); refreshSidebarHits();"
                     class="bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-2 px-6 rounded-lg w-full transition-colors border border-slate-600 text-xs">設定を初期値に戻す</button>
                 <button
-                    onclick="document.getElementById('settings-modal').classList.add('hidden'); if(currentRaceId){requestPrediction();} refreshSidebarHits();"
+                    onclick="document.getElementById('settings-modal').classList.add('hidden'); if(currentRaceId){requestPrediction();} refreshSidebarHits(); if(typeof currentExpectationDate !== 'undefined'){fetchExpectationRaces(currentExpectationDate);}else{fetchExpectationRaces();}"
                     class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-lg w-full transition-colors shadow-lg">完了・反映する</button>
             </div>
         </div>
