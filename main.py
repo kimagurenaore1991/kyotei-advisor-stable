@@ -1912,11 +1912,12 @@ def search_high_expectation(req: PredictRequest, date: str = Query(default=None)
 
             total_prob = sum(p.get("prob", 0) for p in target_patterns)
             prob_1_head = sum(p.get("prob", 0) for p in target_patterns if str(p.get("pattern", "")).startswith("1-") or str(p.get("pattern", "")).startswith("1=") or str(p.get("pattern", "")) == "1")
+            hole_prob = total_prob - prob_1_head
 
             is_finished = bool(race_dict["is_finished"])
             
-            # 🎯 的中率重視 (Solid): 抽出された買い目の合計確率が50%以上
-            if total_prob >= 50:
+            # 抽出候補として追加（後でソートして上位を取る）
+            if total_prob > 0:
                 solid_picked.append({
                     "id": race_dict["id"],
                     "place": race_dict["place_name"],
@@ -1926,14 +1927,14 @@ def search_high_expectation(req: PredictRequest, date: str = Query(default=None)
                     "is_finished": is_finished
                 })
             
-            # 💰 期待値重視 (Value): アタマ1号艇以外（穴狙い）が半分以上を占めるが、全体の期待確率はそこそこある（15%以上）
-            if total_prob >= 15 and prob_1_head < (total_prob * 0.5):
+            # Valueは、穴目（1アタマ以外）の確率が十分に含まれているものを評価する
+            if hole_prob > 0:
                 value_picked.append({
                     "id": race_dict["id"],
                     "place": race_dict["place_name"],
                     "race_no": race_dict["race_number"],
-                    "reason": f"上位{len(target_patterns)}点 穴期待",
-                    "prob": total_prob,
+                    "reason": f"穴目勝率 {hole_prob:.0f}%",
+                    "prob": hole_prob,  # ソート用にhole_probを設定
                     "is_finished": is_finished
                 })
         
@@ -1941,6 +1942,8 @@ def search_high_expectation(req: PredictRequest, date: str = Query(default=None)
         solid_picked.sort(key=lambda x: (x["is_finished"], -x["prob"]))
         value_picked.sort(key=lambda x: (x["is_finished"], -x["prob"]))
         
+        # solidとvalueで同じレースが被らないように、上位から選出する際に工夫をいれることもできるが
+        # ここではシンプルにそれぞれのリストの上位15件を返す
         return {
             "solid": solid_picked[:15],
             "value": value_picked[:15]
