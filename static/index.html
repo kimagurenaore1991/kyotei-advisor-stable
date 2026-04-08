@@ -5550,6 +5550,17 @@ window.addEventListener('unhandledrejection', function(event) {
             initUXFeatures();
         }
 
+        function resetMainView() {
+            const welcome = document.getElementById('welcome-screen');
+            const header = document.getElementById('race-header');
+            if (welcome) welcome.classList.remove('hidden');
+            if (header) header.classList.add('hidden');
+            // 選択解除
+            currentRaceId = null;
+            const activeBtns = document.querySelectorAll('.race-btn-active');
+            activeBtns.forEach(b => b.classList.remove('race-btn-active', 'ring-2', 'ring-blue-500'));
+        }
+
         // --- Advanced History & Back Button Management ---
         const HistoryManager = {
             isNavigating: false,
