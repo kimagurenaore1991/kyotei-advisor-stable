@@ -1,172 +1,172 @@
-21: <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-519: <button onclick="loginWithGoogle()" class="w-full flex items-center justify-center gap-2 bg-white hover:bg-gray-100 text
-527: <button onclick="logout()" class="w-full text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 py-1 rounded transition-
-695: <div id="cart-result-summary"></div>
-777: <button id="add-all-custom" onclick="addAllToCart('rule-focus')" class="hidden text-[10px] bg-blue-600 hover:bg-blue-500
-786: <button id="add-all-ai" onclick="addAllToCart('ai-focus')" class="hidden text-[10px] bg-slate-600 hover:bg-slate-500 tex
-811: <div id="cart-section"
-903: <button onclick="addManualBetsToCart()"
-909: <div class="px-2 py-1 max-h-64 overflow-y-auto custom-scrollbar" id="cart-items">
-956: <button onclick="deleteTopCartItem()"
-958: <button onclick="deleteSelectedCartItems()"
-960: <button onclick="clearCart()"
-966: <span class="text-amber-400 font-bold font-mono text-xl" id="cart-total-amount">0円</span>
-1261: const lastVersion = localStorage.getItem('kyotei_app_version');
-1262: localStorage.setItem('kyotei_app_version', APP_VERSION);
-1380: Object.keys(localStorage).forEach(k => {
-1383: if (!isStillValid) localStorage.removeItem(k);
-1392: const prevHitType = JSON.parse(localStorage.getItem('kyotei_v1_user_settings') || '{}').hit_type;
-1398: localStorage.setItem('kyotei_v1_user_settings', JSON.stringify(settings));
-1421: const val = localStorage.getItem('kyotei_v1_user_settings');
-1486: try { const val = localStorage.getItem(CACHE_PREFIX + 'raceResultCache'); return val ? JSON.parse(val) : {}; } catch (e)
-1489: try { const val = localStorage.getItem(CACHE_PREFIX + 'raceHitCache'); return val ? JSON.parse(val) : {}; } catch (e) { 
-1492: try { const val = localStorage.getItem(CACHE_PREFIX + 'lastPredictionsCache'); return val ? JSON.parse(val) : {}; } catc
-1496: try { localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(val)); } catch (e) { }
-1562: const cartKey = `cart_${raceId}`;
-1563: const cartData = localStorage.getItem(CACHE_PREFIX + cartKey);
-1564: if (cartData) {
-1566: const cartObj = JSON.parse(cartData);
-1567: return Object.keys(cartObj).some(pat => isHit(pat, resultStr));
-1825: <button class="w-6 h-6 rounded bg-slate-600 hover:bg-emerald-600 active:bg-emerald-700 text-white flex items-center just
-1861: const cachedData = localStorage.getItem(APP_PREFIX + cacheKey);
-1896: localStorage.setItem(APP_PREFIX + cacheKey, text);
-1941: if (localStorage.getItem(APP_PREFIX + cacheKey)) return; // すでにあればスキップ
-1949: localStorage.setItem(APP_PREFIX + cacheKey, JSON.stringify(data));
-2020: const cartData = localStorage.getItem(CACHE_PREFIX + 'cart_' + raceId);
-2021: if (resultData && resultData.result && resultData.result.ranking_str && cartData) {
-2023: const cartObj = JSON.parse(cartData);
-2025: Object.entries(cartObj).forEach(([pat, amt]) => {
-2178: const cachedData = localStorage.getItem(APP_PREFIX + cacheKey);
-2215: if (localStorage.getItem(APP_PREFIX + cacheKey) !== racesStr) {
-2216: localStorage.setItem(APP_PREFIX + cacheKey, racesStr);
-2324: // NOTE: raceResultCache / raceHitCache は上部で localStorage から初期化済み
-2378: loadCart(); // カート内容をロード
-2380: console.warn('loadCart error', e);
-2666: const overrides = currentRaceId ? (JSON.parse(localStorage.getItem(`kyotei_override_${currentRaceId}`)) || null) : null;
-2790: topPickContent.innerHTML = `<button onclick="quickAddToCart('${pattern}')" class="px-5 py-3 bg-gradient-to-r from-blue-5
-2859: class="w-8 h-8 flex items-center justify-center rounded-full transition-all ${p.is_favorite ? 'text-yellow-400 bg-yellow
-2860: <span class="text-sm">${p.is_favorite ? '★' : '☆'}</span>
-2925: class="text-sm px-1 transition-all ${p.is_favorite ? 'text-yellow-400' : 'text-slate-600 hover:text-slate-400'}">
-2926: ${p.is_favorite ? '★' : '☆'}
-3027: renderCart();
-3084: updateCartResultDisplay();
-3172: function quickAddToCart(pattern) {
-3173: if (typeof addToCart === 'function') {
-3174: addToCart(pattern);
-3210: return `<div class="${cls} rounded p-1.5 text-center font-mono cursor-pointer transition-all active:scale-95" onclick="q
-3264: <div class="flex items-center justify-between px-2 py-2 cursor-pointer transition-colors hover:bg-slate-700 active:bg-bl
-3328: html += `<td class="${cls} font-mono text-center py-1.5 relative group cursor-pointer transition-all active:bg-blue-600/
-3372: html += `<td class="${cls} font-mono text-center py-2" onclick="quickAddToCart('${f}-${s}')">${odds}</td>`;
-3478: localStorage.removeItem(`kyotei_override_${currentRaceId}`);
-3522: localStorage.setItem(`kyotei_override_${currentRaceId}`, JSON.stringify(updates));
-3534: localStorage.setItem(`kyotei_override_${currentRaceId}`, JSON.stringify(updates));
-3546: localStorage.setItem(`kyotei_override_${currentRaceId}`, JSON.stringify(updates));
-3764: vote: 'cart-section',
-3867: // ─── Cart & Keypad logic ─────────────────────────────────────────────
-3868: let betCart = {};
-3871: function addAllToCart(containerId) {
-3874: const buttons = container.querySelectorAll('button[onclick^="addToCart"]');
-3881: if (match) addToCart(match[1]);
-3886: function addToCart(pattern) {
-3887: if (!betCart[pattern]) betCart[pattern] = 100;
-3888: else betCart[pattern] += 100;
-3889: renderCart();
-3890: saveCart();
-3893: const cartEl = document.getElementById('cart-section');
-3894: if (cartEl) {
-3895: cartEl.classList.remove('ring-2', 'ring-emerald-500', 'bg-emerald-900/20');
-3896: void cartEl.offsetWidth; // trigger reflow
-3897: cartEl.classList.add('ring-2', 'ring-emerald-500', 'transition-all', 'duration-300');
-3898: setTimeout(() => cartEl.classList.remove('ring-2', 'ring-emerald-500'), 500);
-3902: function updateCartAmount(pattern, amt) {
-3904: if (isNaN(amt) || amt <= 0) delete betCart[pattern];
-3905: else betCart[pattern] = amt;
-3906: renderCart();
-3907: saveCart();
-3910: function removeFromCart(pattern) {
-3911: delete betCart[pattern];
-3912: renderCart();
-3913: saveCart();
-3916: function deleteTopCartItem() {
-3917: const keys = Object.keys(betCart);
-3919: delete betCart[keys[0]];
-3920: renderCart();
-3921: saveCart();
-3925: function deleteSelectedCartItems() {
-3926: const selected = document.querySelectorAll('.cart-item-checkbox:checked');
-3933: delete betCart[cb.dataset.pattern];
-3935: renderCart();
-3936: saveCart();
-3940: function clearCart() {
-3941: if (Object.keys(betCart).length === 0) return;
-3943: betCart = {};
-3944: renderCart();
-3945: saveCart();
-3952: keypadContext.value = String(betCart[pattern] || '0');
-3998: updateCartAmount(keypadContext.pattern, val);
-4003: function saveCart() {
-4005: saveCache('cart_' + currentRaceId, betCart);
-4008: const allCart = JSON.parse(localStorage.getItem('kyotei_v1_cart') || '{}');
-4009: allCart[currentRaceId] = Object.keys(betCart);
-4010: localStorage.setItem('kyotei_v1_cart', JSON.stringify(allCart));
-4012: updateCartResultDisplay();
-4028: function loadCart() {
-4030: const loaded = localStorage.getItem(CACHE_PREFIX + 'cart_' + currentRaceId);
-4031: if (loaded) betCart = JSON.parse(loaded);
-4032: else betCart = {};
-4034: renderCart();
-4037: function renderCart() {
-4038: const el = document.getElementById('cart-items');
-4040: const keys = Object.keys(betCart);
-4043: document.getElementById('cart-total-amount').textContent = '0円';
-4050: const amt = betCart[pat];
-4068: <input type="checkbox" class="cart-item-checkbox w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 text-blue-500 focus:r
-4076: <button onclick="removeFromCart('${pat}')" class="text-slate-500 hover:text-red-400 text-xs px-1 ml-1 transition-colors"
-4082: document.getElementById('cart-total-amount').textContent = total.toLocaleString() + '円';
-4086: const keys = Object.keys(betCart);
-4094: text += `${p} : ${betCart[p]}円\n`;
-4095: total += betCart[p];
-4117: function updateCartResultDisplay() {
-4118: let cartTotal = 0;
-4119: let cartReturn = 0;
-4120: const cartEl = document.getElementById('cart-result-summary');
-4121: if (!cartEl) return;
-4126: const loaded = localStorage.getItem(CACHE_PREFIX + 'cart_' + currentRaceId);
-4128: const savedCart = JSON.parse(loaded);
-4129: Object.keys(savedCart).forEach(pat => {
-4130: const amt = savedCart[pat];
-4131: cartTotal += amt;
-4136: if (!isNaN(oddsVal)) cartReturn += Math.floor((oddsVal / 100) * amt);
-4143: cartEl.innerHTML = '';
-4144: cartEl.classList.add('hidden');
-4148: if (cartTotal > 0) {
-4149: const diff = cartReturn - cartTotal;
-4152: cartEl.innerHTML = `
-4156: <div class="text-[10px] text-slate-400 mb-0.5">投資: ${cartTotal.toLocaleString()}円 👉 払戻: ${cartReturn.toLocaleString()}円<
-4160: cartEl.classList.remove('hidden');
-4162: cartEl.innerHTML = '';
-4163: cartEl.classList.add('hidden');
-4257: function addManualBetsToCart() {
-4306: arrPatterns.forEach(pat => addToCart(pat));
-4467: const keys = Object.keys(betCart);
-4486: // Determine needed bet types from cart
-4577: betCart[r.pat] = r.alloc;
-4591: <button onclick="saveCart(); renderCart(); showToast('資金配分をカートに適用しました', 'ok');" class="text-[11px] bg-emerald-600 hover:
-4730: class="w-10 h-10 flex items-center justify-center rounded-full transition-all ${r.is_favorite ? 'text-yellow-400 bg-yell
-4731: <span class="text-xl">${r.is_favorite ? '★' : '☆'}</span>
-4971: let favoriteRacersSet = new Set();
-4975: const res = await fetch(`${API_BASE}/favorites`);
-4978: favoriteRacersSet = new Set(favs.map(f => f.toban));
-4987: const isActive = favoriteRacersSet.has(toban);
-4992: if (nextActive) favoriteRacersSet.add(toban);
-4993: else favoriteRacersSet.delete(toban);
-4996: const res = await fetch(`${API_BASE}/favorites/toggle`, {
-5010: if (isActive) favoriteRacersSet.add(toban);
-5011: else favoriteRacersSet.delete(toban);
-5038: const container = document.getElementById('favorite-list-area');
-5042: const res = await fetch(`${API_BASE}/favorites`);
-5102: localStorage.setItem('theme', isLight ? 'light' : 'dark');
-5145: if (!localStorage.getItem('tutorialDone')) {
-5152: localStorage.setItem('tutorialDone', 'true');
-5173: if (localStorage.getItem('theme') === 'light') {
-5350: <div id="favorite-list-area" class="min-h-[100px] max-h-[450px] overflow-y-auto space-y-3">
+31: .drawer-open {
+368: /* ── Numeric Keypad Modal ── */
+535: <button onclick="openSearchModal()"
+776: <h3 class="font-bold text-blue-300 text-sm flex items-center">カスタム予想 <span onclick="showHelpModal('custom')" class="help-tooltip-icon">?</span></h3>
+785: <h3 class="font-bold text-slate-300 text-sm flex items-center">AI解析予想 <span onclick="showHelpModal('solid')" class="help-tooltip-icon">?</span></h3>
+788: <div class="text-[10px] text-slate-400 mb-1 flex items-center">シミュレーション1着率 <span onclick="showHelpModal('solid')" class="help-tooltip-icon">?</span></div>
+808: <!-- [4] 予想カスタマイズ (Moved to Settings Modal) -->
+1004: <!-- Global Settings Modal -->
+1218: <!-- Player Modal -->
+1220: onclick="if(event.target===this)closeModal()">
+1225: <button onclick="closeModal()"
+1239: async function initSupabase() {
+1284: async function loginWithGoogle() {
+1302: async function logout() {
+1313: function updateAuthUI() {
+1336: (async function clearCacheOnLoad() {
+1361: function resetMainView() {
+1405: function getTargetDateStr(rel) {
+1414: function getDisplayDateLabel(rel) {
+1421: async function navigateDate(delta) {
+1453: function getTodayStr() {
+1482: function saveUserSettings() {
+1507: function loadUserSettings() {
+1577: var raceResultCache = (function () {
+1580: var raceHitCache = (function () {
+1583: var lastPredictionsCache = (function () {
+1587: function saveCache(key, val) {
+1607: function setupSSE() {
+1648: function determineHitStatus(raceId, resultStr, preds) {
+1688: function generateOptions(min, max, step, selectedValue, fixedDigits = 2) {
+1699: function generateTiltOptions(selectedValue) {
+1713: function getGradeInfo(race_title) {
+1740: function gradeBadge(label, cls, small = false) {
+1746: function isHit(pattern, resultText) {
+1771: function getExArrow(ex, players) {
+1781: function setAiMode(mode) {
+1791: function setCustomMode(mode) {
+1801: function updateModeButtons() {
+1826: function getExArrowIcon(ex, players) {
+1837: function closeModal() {
+1842: function navigateRace(direction) {
+1860: function updateNavButtons() {
+1877: function renderList(elemId, list, isAi) {
+1929: drawer.classList.toggle('drawer-open');
+1933: drawer.classList.remove('drawer-open');
+1941: async function loadPlaces(isRetry = false) {
+2029: async function prefetchAdjacentDates() {
+2050: async function refreshSidebarHits() {
+2088: function updatePerformanceStats() {
+2185: function renderPlaces(places) {
+2249: async function loadRaces(placeName, autoLoadFirst = false, retryCount = 0) {
+2328: function renderRacesList(grid, races, placeName, autoLoadFirst) {
+2345: drawer.classList.remove('drawer-open');
+2369: async function prefetchRaceDetails(races) {
+2396: function applyFinishBadge(btn, isHitFlag) {
+2418: async function checkRaceFinished(races) {
+2462: async function loadRaceDetail(raceId) {
+2584: function startActiveRaceTimer(raceId) {
+2602: function stopActiveRaceTimer() {
+2609: function getWeights() {
+2620: function getSettings() {
+2631: function changeWeight(id, delta) {
+2659: function simulateCustomPrediction() {
+2758: function resetSettingsToDefault() {
+2782: function toggleFixedHead(boatNum) {
+2791: async function requestPrediction(target = 'both', recalculateAi = false, ignoreExhibition = false, silent = false) {
+2863: function sortTable(col) {
+2875: function renderRace(race, players, predictions) {
+2982: <div class="flex items-center justify-between cursor-pointer active:bg-slate-700/50 rounded transition-colors -m-1 p-1" onclick="${isAbs ? '' : `openPlayerModal('${p.racer_id || p.toban || ''}','${(p.racer_name || '').replace(/'/g, "\\'")}')`}">
+3041: function appendTableRows(tb, players) {
+3053: <td class="px-3 py-2 cursor-pointer" onclick="${isAbs ? '' : `openPlayerModal('${p.racer_id || p.toban || ''}','${(p.racer_name || '').replace(/'/g, "\\'")}')`}">
+3118: function startOddsAutoRefresh() {
+3125: function stopOddsAutoRefresh() {
+3130: function showResultBanner(data) {
+3242: async function loadRaceOptions(silent = false) {
+3289: function changeOddsBetType(type) {
+3302: function changeOddsFirstBoat(boat) {
+3308: function quickAddToCart(pattern) {
+3314: async function loadOdds() {
+3327: function renderOdds(odds_list) {
+3355: function render3tOfficialGrid(odds_list) {
+3424: function render3tMatrix(odds_list) {
+3475: function render2tMatrix(odds_list) {
+3518: function updateWeatherDisplay(weatherInfo) {
+3586: function showToast(msg, type = 'ok') {
+3596: function createToast() {
+3634: function getOverrideDataFromInputs() {
+3652: function toggleAbsent(boatNum) {
+3701: openPlayerModal(toban, '');
+3716: // ─── Player Modal ──────────────────────────────────────────────────────
+3717: async function openPlayerModal(toban, name) {
+3832: function switchPlayerTab(tab) {
+3851: function closeModal() { document.getElementById('player-modal').classList.add('hidden'); }
+3855: async function checkStatus() {
+3905: function switchTab(tab) {
+3907: drawer.classList.add('drawer-open');
+3950: async function silentRefresh() {
+4007: function addAllToCart(containerId) {
+4022: function addToCart(pattern) {
+4038: function updateCartAmount(pattern, amt) {
+4046: function removeFromCart(pattern) {
+4052: function deleteTopCartItem() {
+4061: function deleteSelectedCartItems() {
+4076: function clearCart() {
+4086: function openKeypad(pattern) {
+4104: function closeKeypad() {
+4108: function keypadInput(action) {
+4126: function updateKeypadDisplay() {
+4131: function applyKeypadValue() {
+4139: function saveCart() {
+4174: async function loadCart() {
+4196: function renderCart() {
+4244: function copyAndOpenTeleboat() {
+4283: function updateCartResultDisplay() {
+4336: function updateManualBetUI() {
+4365: function toggleManualBet(col, boatNum) {
+4374: function toggleManualBetAll(col) {
+4383: function clearManualBetOptions() {
+4390: function toggleManualBetColumns() {
+4423: function addManualBetsToCart() {
+4507: function updateTrackAdvisory(placeName, raceData = null) {
+4545: function startCountdown(raceTimeStr, placeCode, raceNumber) {
+4559: function tick() {
+4585: function stopCountdown() {
+4594: function updateLiveLink(placeCode, raceNumber) {
+4607: function getExArrowIcon(exTime, allPlayers) {
+4617: function getExArrow(exTime, allPlayers) {
+4627: function showFundDistribution() {
+4632: async function calcFundDistribution() {
+4776: (function initSSE() {
+4781: function connectSSE() {
+4784: es.addEventListener('race_finished', function (e) {
+4812: es.addEventListener('exhibition_updated', function (e) {
+4827: es.onerror = function () {
+4836: es.onopen = function () {
+4848: function openSearchModal() {
+4853: if (drawer) drawer.classList.remove('drawer-open');
+4859: function closeSearchModal() {
+4862: async function performSearch() {
+4877: function renderSearchResults(results) {
+4900: <button onclick="closeSearchModal(); openPlayerModal('${r.toban}', '${r.name.replace(/'/g, "\\'")}')"
+4912: <button onclick="closeSearchModal(); goToRace('${sr.place}', ${sr.race_id}, '${sr.date}')"
+4929: async function fetchExpectationRaces(targetDate = null) {
+4959: function renderExpectationResults(data, targetDate, hitDataMap) {
+5037: function createRaceCardHTML(r, colorTheme, desc, targetDateStr, scopedHitData) {
+5058: <button onclick="closeSearchModal(); goToRace('${r.place}', ${r.id}, '${targetDateStr || getTargetDateStr(0)}')"
+5078: async function goToRace(placeName, raceId, targetDate = null) {
+5122: if (dr) dr.classList.remove('drawer-open');
+5127: function switchSearchTab(tab) {
+5179: async function initFavorites() {
+5204: async function toggleFavorite(toban, name, event) {
+5260: function updateFavoriteUI(toban, active) {
+5281: async function refreshFavorites() {
+5343: <button onclick="closeSearchModal(); openPlayerModal('${f.toban}', '${safeName}')"
+5355: <button onclick="closeSearchModal(); goToRace('${sr.place}', ${sr.race_id}, '${sr.date}')"
+5378: function toggleTheme() {
+5385: function showHelpModal(key) {
+5397: bodyEl.innerHTML = `<p>${info.d}</p><div class="mt-6 text-center"><button onclick="closeHelpModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-all shadow border border-slate-600">閉じる</button></div>`;
+5401: function closeHelpModal() {
+5405: function showToast(msg, type = 'info') {
+5423: function checkTutorial() {
+5430: function finishTutorial() {
+5436: function setupOfflineHandlers() {
+5450: function initUXFeatures() {
+5512: function traceAlert5Min(r) {
+5530: function silentRefreshRacesList(racesData) {
+5547: <!-- Numeric Keypad Modal -->
+5593: <!-- Search Modal -->
+5649: <!-- Help Tooltip Modal -->
+5650: <div id="help-modal" class="fixed inset-0 z-[120] hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onclick="closeHelpModal()">
+5656: <button onclick="closeHelpModal()" class="text-slate-400 hover:text-white p-2">✕</button>
+5664: <!-- Offline Modal -->
