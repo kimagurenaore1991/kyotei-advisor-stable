@@ -5564,12 +5564,27 @@ window.addEventListener('unhandledrejection', function(event) {
         // --- Advanced History & Back Button Management ---
         const HistoryManager = {
             isNavigating: false,
+            initialized: false,
             
             init() {
-                // Initial stack: [ROOT] -> [HOME]
+                if (this.initialized) return;
+                this.initialized = true;
+
+                // 1. Initial stack: [ROOT]
                 // ROOT acts as the final exit trap
                 history.replaceState({ type: 'root' }, "");
-                history.pushState({ type: 'home' }, "");
+                
+                // 2. モバイルブラウザ向け：ユーザーの初操作時にスタックを積む
+                // これを行わないと、ブラウザが履歴操作を無視してアプリを終了させることがあるため
+                const primeHistory = () => {
+                    if (history.state && history.state.type === 'root') {
+                        history.pushState({ type: 'home' }, "");
+                    }
+                    window.removeEventListener('touchstart', primeHistory);
+                    window.removeEventListener('mousedown', primeHistory);
+                };
+                window.addEventListener('touchstart', primeHistory, { passive: true });
+                window.addEventListener('mousedown', primeHistory, { passive: true });
                 
                 window.addEventListener('popstate', (e) => this.handlePop(e));
             },
@@ -5577,29 +5592,36 @@ window.addEventListener('unhandledrejection', function(event) {
             pushRace(raceId, placeName) {
                 if (this.isNavigating) return;
                 // Avoid pushing duplicate consecutive races
-                if (history.state?.type === 'race' && history.state.raceId === raceId) return;
+                if (history.state && history.state.type === 'race' && history.state.raceId === raceId) return;
                 
                 history.pushState({ type: 'race', raceId, placeName }, "");
             },
             
             pushModal(id) {
                 if (this.isNavigating) return;
+                // すでにそのモーダルがトップなら重ねない
+                if (history.state && history.state.type === 'modal' && history.state.modalId === id) return;
                 history.pushState({ type: 'modal', modalId: id }, "");
             },
             
             handlePop(event) {
                 const state = event.state;
-                if (!state) return;
+                const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+                
+                // スマホアプリ(PWAスタンドアロン)時は終了させず、ホームに引き戻す
+                // PCブラウザ等の非スタンドアロン環境では、履歴の最初に戻った際に「前のサイトへの戻り」を許可する
+                if (!state || state.type === 'root') {
+                    if (isStandalone) {
+                        history.pushState({ type: 'home' }, "");
+                        this.closeAllUI();
+                        resetMainView();
+                    }
+                    return;
+                }
                 
                 this.isNavigating = true;
                 try {
                     switch (state.type) {
-                        case 'root':
-                            // Final trap: user tried to go back from home
-                            // Re-push home to stay in app
-                            history.pushState({ type: 'home' }, "");
-                            break;
-                            
                         case 'home':
                             // Close all UI and show welcome
                             this.closeAllUI();
@@ -5613,8 +5635,7 @@ window.addEventListener('unhandledrejection', function(event) {
                             break;
                             
                         case 'modal':
-                            // Usually handled by closing things when moving AWAY from modal state
-                            // but we ensure it's open if we somehow land on it
+                            // 対象のモーダルを表示（ブラウザバックでここに来ることは稀だが整合性のため）
                             const el = document.getElementById(state.modalId);
                             if (el) el.classList.remove('hidden');
                             break;
