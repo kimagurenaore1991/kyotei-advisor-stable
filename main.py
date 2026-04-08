@@ -1897,11 +1897,12 @@ def search_high_expectation(req: PredictRequest, date: str = Query(default=None)
             if len(race_entries) < 6:
                 continue
                 
+            p_hash = compute_players_hash(race_dict, race_entries, req.weights, req.settings)
             ai_cache = None
             if race_dict.get("ai_predictions_json") and not getattr(req, "recalculate_ai", False):
                 try:
                     temp_cache = json.loads(race_dict["ai_predictions_json"])
-                    if temp_cache.get("weights_hash") == req.weights._hash:
+                    if temp_cache.get("hash") == p_hash:
                         ai_cache = temp_cache
                 except:
                     pass
