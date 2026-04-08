@@ -1460,8 +1460,16 @@ window.addEventListener('unhandledrejection', function(event) {
 
             // 3. もし戻った先のステートがモーダルだった場合（重ねていた場合など）
             if (state && state.modal) {
-                const el = document.getElementById(state.modal);
-                if (el) el.classList.remove('hidden');
+                if (state.modal === 'drawer') {
+                    // ドロワー（モバイルメニュー）を復元
+                    const dr = document.getElementById('drawer');
+                    const ov = document.getElementById('drawer-overlay');
+                    if (dr) dr.classList.add('drawer-open');
+                    if (ov) ov.classList.remove('hidden');
+                } else {
+                    const el = document.getElementById(state.modal);
+                    if (el) el.classList.remove('hidden');
+                }
             }
         });
 
