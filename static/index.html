@@ -5541,6 +5541,81 @@ window.addEventListener('unhandledrejection', function(event) {
         } else {
             initUXFeatures();
         }
+
+        // --- Android Back Button Handling Setup ---
+        (function setupBackButtonHandling() {
+            // Initial dummy state to guard against immediate exit
+            history.pushState({ appRoot: true }, document.title, location.href);
+
+            window.addEventListener('popstate', function(event) {
+                if (window.__allowExit) {
+                    // Force native exit
+                    setTimeout(() => { history.back(); }, 10);
+                    return;
+                }
+                
+                let closedSomething = false;
+                
+                // 1. Drawer
+                const drawer = document.getElementById('drawer');
+                const overlay = document.getElementById('drawer-overlay');
+                if (drawer && drawer.classList.contains('drawer-open')) {
+                    drawer.classList.remove('drawer-open');
+                    if (overlay) overlay.classList.add('hidden');
+                    closedSomething = true;
+                }
+                
+                // 2. All standard modals + exit-modal
+                const modals = [
+                    'settings-modal', 
+                    'search-modal', 
+                    'player-modal', 
+                    'keypad-modal', 
+                    'help-modal', 
+                    'offline-modal', 
+                    'tutorial-overlay',
+                    'exit-modal'
+                ];
+                
+                for (const id of modals) {
+                    const el = document.getElementById(id);
+                    if (el && !el.classList.contains('hidden')) {
+                        el.classList.add('hidden');
+                        if (id === 'tutorial-overlay') el.style.display = 'none';
+                        closedSomething = true;
+                    }
+                }
+                
+                if (closedSomething) {
+                    // Restore the dummy state so back button works again for next action
+                    history.pushState({ appRoot: true }, document.title, location.href);
+                } else {
+                    // No UI was open. Show exit confirmation modal.
+                    const exitModal = document.getElementById('exit-modal');
+                    if (exitModal) {
+                        exitModal.classList.remove('hidden');
+                    }
+                    // Restore the dummy state so they can press back to close this very modal
+                    history.pushState({ appRoot: true }, document.title, location.href);
+                }
+            });
+
+            // Global functions for the exit modal buttons
+            window.closeExitModal = function() {
+                const m = document.getElementById('exit-modal');
+                if (m) m.classList.add('hidden');
+            };
+            
+            window.confirmExitApp = function() {
+                const m = document.getElementById('exit-modal');
+                if (m) m.classList.add('hidden');
+                
+                window.__allowExit = true;
+                // history.back() will trigger the popstate event above, which will 
+                // read __allowExit = true and invoke another history.back() to fully exit.
+                history.back(); 
+            };
+        })();
     </script>
 
 
@@ -5694,6 +5769,22 @@ window.addEventListener('unhandledrejection', function(event) {
         <button onclick="finishTutorial()" class="w-full max-w-xs py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl shadow-[0_0_15px_rgba(37,99,235,0.5)] transition-all active:scale-95 text-lg">
             はじめる！
         </button>
+    </div>
+
+    <!-- Exit Confirmation Modal -->
+    <div id="exit-modal" class="fixed inset-0 z-[150] hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-800 rounded-2xl w-full max-w-xs border border-slate-700 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div class="p-6 text-center">
+                <div class="w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center mx-auto mb-4 border border-slate-600">
+                    <span class="text-2xl">👋</span>
+                </div>
+                <h3 class="text-lg font-black text-slate-200 mb-2">アプリを終了しますか？</h3>
+            </div>
+            <div class="flex border-t border-slate-700 bg-slate-900/50 hidden-mobile-tap-highlight">
+                <button onclick="closeExitModal()" class="flex-1 py-4 text-center text-slate-400 font-bold hover:bg-slate-800 transition-colors border-r border-slate-700 cursor-pointer">いいえ</button>
+                <button onclick="confirmExitApp()" class="flex-1 py-4 text-center text-red-500 font-bold hover:bg-slate-800 transition-colors cursor-pointer">はい</button>
+            </div>
+        </div>
     </div>
 </body>
 
