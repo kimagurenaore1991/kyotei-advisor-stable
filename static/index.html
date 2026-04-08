@@ -499,7 +499,7 @@ window.addEventListener('unhandledrejection', function(event) {
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
                 </svg>
             </button>
-            <button onclick="document.getElementById('settings-modal').classList.remove('hidden')"
+            <button onclick="showModal('settings-modal')"
                 class="text-slate-400 hover:text-white transition-colors" title="全体設定">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -1011,7 +1011,7 @@ window.addEventListener('unhandledrejection', function(event) {
                 <h3 class="font-bold text-slate-200 flex items-center gap-2 text-lg">
                     カスタマイズ共通設定
                 </h3>
-                <button onclick="document.getElementById('settings-modal').classList.add('hidden');"
+                <button onclick="hideModal('settings-modal');"
                     class="text-slate-400 hover:text-white p-2">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
@@ -1165,7 +1165,7 @@ window.addEventListener('unhandledrejection', function(event) {
                 <button onclick="resetSettingsToDefault(); refreshSidebarHits();"
                     class="bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-2 px-6 rounded-lg w-full transition-colors border border-slate-600 text-xs">設定を初期値に戻す</button>
                 <button
-                    onclick="document.getElementById('settings-modal').classList.add('hidden'); if(currentRaceId){requestPrediction();} refreshSidebarHits(); if(typeof currentExpectationDate !== 'undefined'){fetchExpectationRaces(currentExpectationDate);}else{fetchExpectationRaces();}"
+                    onclick="hideModal('settings-modal'); if(currentRaceId){requestPrediction();} refreshSidebarHits(); if(typeof currentExpectationDate !== 'undefined'){fetchExpectationRaces(currentExpectationDate);}else{fetchExpectationRaces();}"
                     class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-lg w-full transition-colors shadow-lg">完了・反映する</button>
             </div>
         </div>
@@ -1410,6 +1410,93 @@ window.addEventListener('unhandledrejection', function(event) {
             const day = String(d.getDate()).padStart(2, '0');
             return `${y}-${m}-${day}`;
         }
+
+        // ─── 履歴管理（スマホの戻るボタン対応） ──────────────────────────────────
+        let isInternalPopState = false;
+
+        function pushPageState(state, title = "") {
+            // 現在のステートと同じならプッシュしない
+            if (history.state && 
+                history.state.view === state.view && 
+                history.state.raceId === state.raceId && 
+                history.state.modal === state.modal) {
+                return;
+            }
+            history.pushState(state, title);
+        }
+
+        function closeAllModalsDirect() {
+            ['settings-modal', 'player-modal', 'keypad-modal', 'search-modal', 'help-modal', 'offline-modal', 'tutorial-overlay'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.classList.add('hidden');
+                    if (id === 'tutorial-overlay') el.style.display = 'none';
+                }
+            });
+            // ドロワー（モバイルメニュー）も閉じる
+            const dr = document.getElementById('drawer');
+            const ov = document.getElementById('drawer-overlay');
+            if (dr) dr.classList.remove('drawer-open');
+            if (ov) ov.classList.add('hidden');
+        }
+
+        window.addEventListener('popstate', (event) => {
+            const state = event.state;
+            console.log('[History] Popstate detected:', state);
+
+            // 1. 全てのモーダルを閉じる (戻るボタンの基本挙動)
+            closeAllModalsDirect();
+
+            // 2. 画面表示の切り替え
+            if (!state || state.view === 'home') {
+                resetMainView();
+            } else if (state.view === 'race' && state.raceId) {
+                // 履歴からの復元時は pushState しないようにフラグを立てるか引数を渡す
+                isInternalPopState = true;
+                goToRace(state.placeName, state.raceId, state.targetDate, true).finally(() => {
+                    isInternalPopState = false;
+                });
+            }
+
+            // 3. もし戻った先のステートがモーダルだった場合（重ねていた場合など）
+            if (state && state.modal) {
+                const el = document.getElementById(state.modal);
+                if (el) el.classList.remove('hidden');
+            }
+        });
+
+        // 初回ロード時に現在の状態を replaceState しておく
+        window.addEventListener('load', () => {
+            if (!history.state) {
+                history.replaceState({ view: 'home' }, "");
+            }
+        });
+
+        function showModal(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('hidden');
+                pushPageState({ 
+                    view: (typeof currentRaceId !== 'undefined' && currentRaceId) ? 'race' : 'home', 
+                    raceId: (typeof currentRaceId !== 'undefined') ? currentRaceId : null,
+                    placeName: (typeof currentPlaceName !== 'undefined') ? currentPlaceName : null,
+                    targetDate: getTargetDateStr(relativeDate),
+                    modal: id 
+                });
+            }
+        }
+
+        function hideModal(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.add('hidden');
+                // 現在の履歴がこのモーダルなら戻る (popstateリスナーが他を掃除してくれる)
+                if (history.state && history.state.modal === id) {
+                    history.back();
+                }
+            }
+        }
+
 
         function getDisplayDateLabel(rel) {
             if (rel === 0) return '本日';
@@ -1835,7 +1922,7 @@ window.addEventListener('unhandledrejection', function(event) {
 
 
         function closeModal() {
-            document.getElementById('player-modal').classList.add('hidden');
+            hideModal('player-modal');
         }
 
         // ─── Race Navigation ──────────────────────────────────────────────────
@@ -1926,12 +2013,26 @@ window.addEventListener('unhandledrejection', function(event) {
         const drawer = document.getElementById('drawer');
         const overlay = document.getElementById('drawer-overlay');
         document.getElementById('menu-btn').addEventListener('click', () => {
-            drawer.classList.toggle('drawer-open');
-            overlay.classList.toggle('hidden');
+            if (drawer.classList.contains('drawer-open')) {
+                drawer.classList.remove('drawer-open');
+                overlay.classList.add('hidden');
+                if (history.state && history.state.modal === 'drawer') history.back();
+            } else {
+                drawer.classList.add('drawer-open');
+                overlay.classList.remove('hidden');
+                pushPageState({ 
+                    view: (typeof currentRaceId !== 'undefined' && currentRaceId) ? 'race' : 'home', 
+                    raceId: (typeof currentRaceId !== 'undefined') ? currentRaceId : null,
+                    placeName: (typeof currentPlaceName !== 'undefined') ? currentPlaceName : null,
+                    targetDate: getTargetDateStr(relativeDate),
+                    modal: 'drawer' 
+                });
+            }
         });
         overlay.addEventListener('click', () => {
             drawer.classList.remove('drawer-open');
             overlay.classList.add('hidden');
+            if (history.state && history.state.modal === 'drawer') history.back();
         });
 
         // ─── Load Places ───────────────────────────────────────────────────────
@@ -3717,7 +3818,7 @@ window.addEventListener('unhandledrejection', function(event) {
         async function openPlayerModal(toban, name) {
             const modal = document.getElementById('player-modal');
             document.getElementById('modal-player-name').textContent = name || '選手詳細';
-            modal.classList.remove('hidden');
+            showModal('player-modal');
 
             const content = document.getElementById('modal-content');
             content.innerHTML = `<div class="text-center py-8 text-slate-400 animate-pulse">取得中...</div>`;
@@ -3848,7 +3949,7 @@ window.addEventListener('unhandledrejection', function(event) {
             }
         }
 
-        function closeModal() { document.getElementById('player-modal').classList.add('hidden'); }
+        function closeModal() { hideModal('player-modal'); }
 
         let lastScrapingState = false;
         let isFirstStatusCheck = true;
@@ -4098,11 +4199,11 @@ window.addEventListener('unhandledrejection', function(event) {
             }
 
             updateKeypadDisplay();
-            document.getElementById('keypad-modal').classList.remove('hidden');
+            showModal('keypad-modal');
         }
 
         function closeKeypad() {
-            document.getElementById('keypad-modal').classList.add('hidden');
+            hideModal('keypad-modal');
         }
 
         function keypadInput(action) {
@@ -4853,11 +4954,11 @@ window.addEventListener('unhandledrejection', function(event) {
                 if (drawer) drawer.classList.remove('drawer-open');
                 if (overlay) overlay.classList.add('hidden');
             }
-            document.getElementById('search-modal').classList.remove('hidden');
+            showModal('search-modal');
             document.getElementById('modal-search-input').focus();
         }
         function closeSearchModal() {
-            document.getElementById('search-modal').classList.add('hidden');
+            hideModal('search-modal');
         }
         async function performSearch() {
             const q = document.getElementById('modal-search-input').value.trim();
@@ -5075,8 +5176,35 @@ window.addEventListener('unhandledrejection', function(event) {
             </button>`;
         }
 
-        async function goToRace(placeName, raceId, targetDate = null) {
+        function showHelpModal(key) {
+            const titleEl = document.getElementById('help-modal-title');
+            const bodyEl = document.getElementById('help-modal-body');
+            const dict = {
+                'expectation': { t: '期待値（回収率）とは？', d: '100円の舟券を買ったときに、平均していくら戻ってくるかを示すAIの予測値です。100%を超えれば「買う価値がある（儲かる確率が高い）」と判断できます。' },
+                'solid': { t: '鉄板（Solid）とは？', d: 'AIが分析した結果、1着、あるいは上位の組み合わせが非常に堅い（当たる確率が高い）と予想されるレースです。安定した的中を狙いたい初心者におすすめです。' },
+                'value': { t: '穴（Value）とは？', d: '勝率は少し下がりますが、オッズ（配当）が高く、当たった時のリターンが極めて大きいレースです。ハイリスク・ハイリターンを狙う際におすすめです。' },
+                'exhibition': { t: '展示タイムとは？', d: 'レース直前に行われる予行演習でのタイムです。このタイムが速いほど、モーターの直線スピードが出ている証拠となります。' },
+                'custom': { t: 'カスタム予想とは？', d: '右上の「設定ボタン」から、あなたが重視する要素（選手の勝率やモーター、展示タイムなど）の比重を自由に変更し、あなただけのAI予想を作り出せる機能です。' }
+            };
+            const info = dict[key] || { t: '解説', d: '詳細がありません' };
+            titleEl.innerHTML = `<span>💡 ${info.t}</span>`;
+            bodyEl.innerHTML = `<p>${info.d}</p><div class="mt-6 text-center"><button onclick="closeHelpModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-all shadow border border-slate-600">閉じる</button></div>`;
+            showModal('help-modal');
+        }
+
+        function closeHelpModal() {
+            hideModal('help-modal');
+        }
+
+        async function goToRace(placeName, raceId, targetDate = null, skipHistory = false) {
             console.log(`[Navigation] Navigating to ${placeName} #${raceId} (${targetDate || 'today'})`);
+            
+            // 履歴に追加
+            if (!skipHistory) {
+                const effectiveDate = targetDate || getTargetDateStr(relativeDate);
+                pushPageState({ view: 'race', raceId, placeName, targetDate: effectiveDate });
+            }
+
             if (targetDate) {
                 const today = getTargetDateStr(0);
                 const tomorrow = getTargetDateStr(1);
@@ -5382,25 +5510,8 @@ window.addEventListener('unhandledrejection', function(event) {
             showToast(isLight ? '🌞 ライトモードにしました' : '🌙 ダークモードにしました', 'info');
         }
 
-        function showHelpModal(key) {
-            const titleEl = document.getElementById('help-modal-title');
-            const bodyEl = document.getElementById('help-modal-body');
-            const dict = {
-                'expectation': { t: '期待値（回収率）とは？', d: '100円の舟券を買ったときに、平均していくら戻ってくるかを示すAIの予測値です。100%を超えれば「買う価値がある（儲かる確率が高い）」と判断できます。' },
-                'solid': { t: '鉄板（Solid）とは？', d: 'AIが分析した結果、1着、あるいは上位の組み合わせが非常に堅い（当たる確率が高い）と予想されるレースです。安定した的中を狙いたい初心者におすすめです。' },
-                'value': { t: '穴（Value）とは？', d: '勝率は少し下がりますが、オッズ（配当）が高く、当たった時のリターンが極めて大きいレースです。ハイリスク・ハイリターンを狙う際におすすめです。' },
-                'exhibition': { t: '展示タイムとは？', d: 'レース直前に行われる予行演習でのタイムです。このタイムが速いほど、モーターの直線スピードが出ている証拠となります。' },
-                'custom': { t: 'カスタム予想とは？', d: '右上の「設定ボタン」から、あなたが重視する要素（選手の勝率やモーター、展示タイムなど）の比重を自由に変更し、あなただけのAI予想を作り出せる機能です。' }
-            };
-            const info = dict[key] || { t: '解説', d: '詳細がありません' };
-            titleEl.innerHTML = `<span>💡 ${info.t}</span>`;
-            bodyEl.innerHTML = `<p>${info.d}</p><div class="mt-6 text-center"><button onclick="closeHelpModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-all shadow border border-slate-600">閉じる</button></div>`;
-            document.getElementById('help-modal').classList.remove('hidden');
-        }
-
-        function closeHelpModal() {
-            document.getElementById('help-modal').classList.add('hidden');
-        }
+        function showOfflineModal() { showModal('offline-modal'); }
+        function closeOfflineModal() { hideModal('offline-modal'); }
 
         function showToast(msg, type = 'info') {
             const container = document.getElementById('toast-container');
@@ -5422,28 +5533,34 @@ window.addEventListener('unhandledrejection', function(event) {
 
         function checkTutorial() {
             if (!localStorage.getItem('tutorialDone')) {
-                document.getElementById('tutorial-overlay').classList.remove('hidden');
-                document.getElementById('tutorial-overlay').style.display = 'flex'; // override hidden utility
+                const el = document.getElementById('tutorial-overlay');
+                if (el) {
+                    el.style.display = 'flex';
+                    showModal('tutorial-overlay');
+                }
             }
         }
 
         function finishTutorial() {
             localStorage.setItem('tutorialDone', 'true');
-            document.getElementById('tutorial-overlay').classList.add('hidden');
-            document.getElementById('tutorial-overlay').style.display = 'none';
+            const el = document.getElementById('tutorial-overlay');
+            if (el) {
+                el.style.display = 'none';
+                hideModal('tutorial-overlay');
+            }
         }
 
         function setupOfflineHandlers() {
             window.addEventListener('offline', () => {
-                document.getElementById('offline-modal').classList.remove('hidden');
+                showModal('offline-modal');
             });
             window.addEventListener('online', () => {
-                document.getElementById('offline-modal').classList.add('hidden');
+                hideModal('offline-modal');
                 showToast('ネットワークが復旧しました。再読み込みします。', 'success');
                 setTimeout(() => window.location.reload(), 1500);
             });
             if (!navigator.onLine) {
-                document.getElementById('offline-modal').classList.remove('hidden');
+                showModal('offline-modal');
             }
         }
 
