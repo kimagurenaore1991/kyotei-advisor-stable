@@ -5544,50 +5544,50 @@ window.addEventListener('unhandledrejection', function(event) {
 
         // --- Android Back Button Handling Setup ---
         (function setupBackButtonHandling() {
-            // Initial dummy state to guard against immediate exit
-            history.pushState({ appRoot: true }, document.title, location.href);
+            // Initial trap: push a dummy hash state
+            if (location.hash !== '#!') {
+                history.pushState(null, "", "#!");
+            }
 
             window.addEventListener('popstate', function(event) {
-                if (window.__allowExit) {
-                    // Force native exit
-                    setTimeout(() => { history.back(); }, 10);
-                    return;
-                }
-                
-                let closedSomething = false;
-                
-                // 1. Drawer
-                const drawer = document.getElementById('drawer');
-                const overlay = document.getElementById('drawer-overlay');
-                if (drawer && drawer.classList.contains('drawer-open')) {
-                    drawer.classList.remove('drawer-open');
-                    if (overlay) overlay.classList.add('hidden');
-                    closedSomething = true;
-                }
-                
-                // 2. All standard modals
-                const modals = [
-                    'settings-modal', 
-                    'search-modal', 
-                    'player-modal', 
-                    'keypad-modal', 
-                    'help-modal', 
-                    'offline-modal', 
-                    'tutorial-overlay'
-                ];
-                
-                for (const id of modals) {
-                    const el = document.getElementById(id);
-                    if (el && !el.classList.contains('hidden')) {
-                        el.classList.add('hidden');
-                        if (id === 'tutorial-overlay') el.style.display = 'none';
+                // If we've gone back from the hash state, the current hash will be empty
+                if (!location.hash || location.hash === '') {
+                    // First, put the trap back immediately
+                    history.pushState(null, "", "#!");
+                    
+                    // Then handle UI closing
+                    let closedSomething = false;
+                    
+                    // 1. Drawer
+                    const drawer = document.getElementById('drawer');
+                    const overlay = document.getElementById('drawer-overlay');
+                    if (drawer && drawer.classList.contains('drawer-open')) {
+                        drawer.classList.remove('drawer-open');
+                        if (overlay) overlay.classList.add('hidden');
                         closedSomething = true;
                     }
+                    
+                    // 2. All standard modals
+                    const modals = [
+                        'settings-modal', 
+                        'search-modal', 
+                        'player-modal', 
+                        'keypad-modal', 
+                        'help-modal', 
+                        'offline-modal', 
+                        'tutorial-overlay'
+                    ];
+                    
+                    for (const id of modals) {
+                        const el = document.getElementById(id);
+                        if (el && !el.classList.contains('hidden')) {
+                            el.classList.add('hidden');
+                            if (id === 'tutorial-overlay') el.style.display = 'none';
+                            closedSomething = true;
+                        }
+                    }
+                    // No UI was open? No problem, we've already re-pushed the state above.
                 }
-                
-                // Restore the dummy state so back button works again for next action
-                // Even if nothing was closed, we push it to prevent exiting the app
-                history.pushState({ appRoot: true }, document.title, location.href);
             });
         })();
     </script>
