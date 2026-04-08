@@ -5284,11 +5284,11 @@ window.addEventListener('unhandledrejection', function(event) {
                 const tomorrow = getTargetDateStr(1);
                 const yday = getTargetDateStr(-1);
                 if (targetDate === today && relativeDate !== 0) {
-                    await navigateDate(0 - relativeDate);
+                    await navigateDate(0 - relativeDate, true);
                 } else if (targetDate === tomorrow && relativeDate !== 1) {
-                    await navigateDate(1 - relativeDate);
+                    await navigateDate(1 - relativeDate, true);
                 } else if (targetDate === yday && relativeDate !== -1) {
-                    await navigateDate(-1 - relativeDate);
+                    await navigateDate(-1 - relativeDate, true);
                 }
             }
             
@@ -5319,6 +5319,7 @@ window.addEventListener('unhandledrejection', function(event) {
             
             // モバイルならドロワーを閉じる
             if (window.innerWidth < 768) {
+                switchTab('race', true); // レース表示タブへ
                 const dr = document.getElementById('drawer');
                 const ov = document.getElementById('drawer-overlay');
                 if (dr) dr.classList.remove('drawer-open');
