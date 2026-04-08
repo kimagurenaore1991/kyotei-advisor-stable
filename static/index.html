@@ -499,7 +499,7 @@ window.addEventListener('unhandledrejection', function(event) {
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
                 </svg>
             </button>
-            <button onclick="openSettingsModal()"
+            <button onclick="document.getElementById('settings-modal').classList.remove('hidden')"
                 class="text-slate-400 hover:text-white transition-colors" title="全体設定">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -1011,7 +1011,7 @@ window.addEventListener('unhandledrejection', function(event) {
                 <h3 class="font-bold text-slate-200 flex items-center gap-2 text-lg">
                     カスタマイズ共通設定
                 </h3>
-                <button onclick="closeSettingsModal()"
+                <button onclick="document.getElementById('settings-modal').classList.add('hidden');"
                     class="text-slate-400 hover:text-white p-2">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
@@ -1165,7 +1165,7 @@ window.addEventListener('unhandledrejection', function(event) {
                 <button onclick="resetSettingsToDefault(); refreshSidebarHits();"
                     class="bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-2 px-6 rounded-lg w-full transition-colors border border-slate-600 text-xs">設定を初期値に戻す</button>
                 <button
-                    onclick="closeSettingsModal(); if(currentRaceId){requestPrediction();} refreshSidebarHits();"
+                    onclick="document.getElementById('settings-modal').classList.add('hidden'); if(currentRaceId){requestPrediction();} refreshSidebarHits(); if(typeof currentExpectationDate !== 'undefined'){fetchExpectationRaces(currentExpectationDate);}else{fetchExpectationRaces();}"
                     class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-lg w-full transition-colors shadow-lg">完了・反映する</button>
             </div>
         </div>
@@ -1226,18 +1226,6 @@ window.addEventListener('unhandledrejection', function(event) {
                     class="p-2 hover:bg-slate-700 rounded-full transition-colors text-slate-400">✕</button>
             </div>
             <div id="modal-content" class="p-5"></div>
-        </div>
-    </div>
-
-    <!-- Exit Confirmation Modal (for PWA) -->
-    <div id="exit-modal" class="fixed inset-0 z-[100] hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-slate-800 border border-slate-700 rounded-xl shadow-2xl w-full max-w-xs p-6 text-center">
-            <h3 class="font-bold text-slate-200 text-lg mb-2">アプリを終了しますか？</h3>
-            <p class="text-sm text-slate-400 mb-6">現在の画面を閉じます。</p>
-            <div class="flex gap-3">
-                <button onclick="document.getElementById('exit-modal').classList.add('hidden');" class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-bold">キャンセル</button>
-                <button onclick="window.close();" class="flex-1 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold">終了する</button>
-            </div>
         </div>
     </div>
 
@@ -1660,6 +1648,7 @@ window.addEventListener('unhandledrejection', function(event) {
         function determineHitStatus(raceId, resultStr, preds) {
             if (!resultStr || resultStr === '--') return false;
             const hitType = document.getElementById('setting-hit-type')?.value || 'both';
+            const maxItems = parseInt(document.getElementById('setting-max-items')?.value || '8');
 
             // 1. 買い目的中 (カート内)
             if (hitType === 'buy') {
@@ -1679,17 +1668,17 @@ window.addEventListener('unhandledrejection', function(event) {
 
             // 2. AI予想的中
             if (hitType === 'ai') {
-                return (preds.ai_focus || []).some(item => isHit(item.pattern, resultStr));
+                return (preds.ai_focus || []).slice(0, maxItems).some(item => isHit(item.pattern, resultStr));
             }
 
             // 3. カスタマイズ予想的中
             if (hitType === 'custom') {
-                return (preds.rule_focus || []).some(item => isHit(item.pattern, resultStr));
+                return (preds.rule_focus || []).slice(0, maxItems).some(item => isHit(item.pattern, resultStr));
             }
 
             // 4. AI & カスタマイズ的中 (デフォルト)
-            return (preds.rule_focus || []).some(item => isHit(item.pattern, resultStr)) ||
-                (preds.ai_focus || []).some(item => isHit(item.pattern, resultStr));
+            return (preds.rule_focus || []).slice(0, maxItems).some(item => isHit(item.pattern, resultStr)) ||
+                (preds.ai_focus || []).slice(0, maxItems).some(item => isHit(item.pattern, resultStr));
         }
 
 
@@ -1846,11 +1835,7 @@ window.addEventListener('unhandledrejection', function(event) {
 
 
         function closeModal() {
-            const el = document.getElementById('player-modal');
-            if (el && !el.classList.contains('hidden')) {
-                el.classList.add('hidden');
-                if (history.state && history.state.type === 'modal' && history.state.id === 'player-modal') history.back();
-            }
+            document.getElementById('player-modal').classList.add('hidden');
         }
 
         // ─── Race Navigation ──────────────────────────────────────────────────
@@ -1941,16 +1926,12 @@ window.addEventListener('unhandledrejection', function(event) {
         const drawer = document.getElementById('drawer');
         const overlay = document.getElementById('drawer-overlay');
         document.getElementById('menu-btn').addEventListener('click', () => {
-            const isOpen = drawer.classList.toggle('drawer-open');
+            drawer.classList.toggle('drawer-open');
             overlay.classList.toggle('hidden');
-            if (isOpen) {
-                history.pushState({ type: 'drawer' }, "");
-            }
         });
         overlay.addEventListener('click', () => {
             drawer.classList.remove('drawer-open');
             overlay.classList.add('hidden');
-            if (history.state && history.state.type === 'drawer') history.back();
         });
 
         // ─── Load Places ───────────────────────────────────────────────────────
@@ -2478,11 +2459,8 @@ window.addEventListener('unhandledrejection', function(event) {
         }
 
         // ─── Race Detail ──────────────────────────────────────────────────────
-        async function loadRaceDetail(raceId, skipPush = false) {
+        async function loadRaceDetail(raceId) {
             currentRaceId = raceId;
-            if (!skipPush) {
-                history.pushState({ type: 'race', id: raceId }, "");
-            }
             originalPlayersSnapshot = [];
             currentPlayersData = [];
             currentRaceResult = null;
@@ -2517,7 +2495,7 @@ window.addEventListener('unhandledrejection', function(event) {
 
             const isFinished = cachedResult && cachedResult.result && cachedResult.result.finished && !isInvalidResult;
 
-            // ─ 終了済みの場合: 結果を即表示してバックグラウンド処理なし ─
+            // ─ 終了済みの場合: 結果を即表示してバックグラウンド処理 (SWR) ─
             if (isFinished) {
                 currentRaceResult = cachedResult.result.ranking_str || null;
 
@@ -2534,6 +2512,47 @@ window.addEventListener('unhandledrejection', function(event) {
                 showResultBanner(cachedResult);
                 document.getElementById('odds-content').innerHTML = '<p class="text-sm text-slate-500 text-center py-4">レース終了済み（最終オッズ）</p>';
                 if (cachedResult.odds && cachedResult.odds.all_odds) renderOdds(cachedResult.odds.all_odds);
+
+                // --- SWR: バックグラウンドで最新結果への更新を確認 ---
+                if (window.navigator.onLine) {
+                    fetch(`${API_BASE}/races/${raceId}/options`)
+                        .then(res => res.ok ? res.json() : null)
+                        .then(freshData => {
+                            if (!freshData || !freshData.result || !freshData.result.finished) return;
+                            const oldRanking = cachedResult.result.ranking_str || "";
+                            const newRanking = freshData.result.ranking_str || "";
+                            
+                            // 着順が変わっている場合、または不完全な状態から更新された場合のみ上書き反映
+                            if (newRanking !== oldRanking || (newRanking !== "--" && oldRanking === "--")) {
+                                console.log("Background SWR updated result for", raceId, oldRanking, "->", newRanking);
+                                raceResultCache[raceId] = freshData;
+                                saveCache('raceResultCache', raceResultCache);
+                                
+                                // 的中判定のやり直しとサイドバーの更新
+                                if (lastPredictionsCache[raceId]) {
+                                    const preds = lastPredictionsCache[raceId].predictions;
+                                    const hitFlag = determineHitStatus(raceId, newRanking, preds);
+                                    raceHitCache[raceId] = hitFlag;
+                                    saveCache('raceHitCache', raceHitCache);
+                                    if (window.dailyHitsCache) {
+                                        const oldData = window.dailyHitsCache[raceId] || {};
+                                        window.dailyHitsCache[raceId] = { hit: hitFlag, place: freshData.place_name || currentPlaceName, payout: oldData.payout || 0 };
+                                    }
+                                    const btn = document.getElementById(`race-btn-${raceId}`);
+                                    if (btn) applyFinishBadge(btn, hitFlag);
+                                    updatePerformanceStats();
+                                }
+                                
+                                // 開いているレースなら表示も更新
+                                if (currentRaceId === raceId) {
+                                    currentRaceResult = newRanking;
+                                    showResultBanner(freshData);
+                                    if (freshData.odds && freshData.odds.all_odds) renderOdds(freshData.odds.all_odds);
+                                    showToast("最新の確定結果に更新しました");
+                                }
+                            }
+                        }).catch(() => {});
+                }
                 return;
             }
 
@@ -2632,7 +2651,7 @@ window.addEventListener('unhandledrejection', function(event) {
             // サーバー側へのリクエストは少し遅延させて負荷軽減（デバウンス的な）
             if (window.weightTimeout) clearTimeout(window.weightTimeout);
             window.weightTimeout = setTimeout(() => {
-                if (currentRaceId) requestPrediction('custom');
+                if (currentRaceId) requestPrediction('custom', false, false, true);
             }, 800);
         }
 
@@ -2732,7 +2751,7 @@ window.addEventListener('unhandledrejection', function(event) {
         ['setting-bet-type', 'setting-max-items'].forEach(id => {
             document.getElementById(id).addEventListener('change', () => {
                 saveUserSettings();
-                if (currentRaceId) requestPrediction();
+                if (currentRaceId) requestPrediction('both', false, false, true);
             });
         });
 
@@ -2757,7 +2776,7 @@ window.addEventListener('unhandledrejection', function(event) {
             isSettingsLoading = false;
             saveUserSettings();
             showToast('設定を初期値にリセットしました。');
-            if (currentRaceId) requestPrediction();
+            if (currentRaceId) requestPrediction('both', false, false, true);
         }
 
         function toggleFixedHead(boatNum) {
@@ -2766,7 +2785,7 @@ window.addEventListener('unhandledrejection', function(event) {
             } else {
                 activeFixedHead = boatNum;
             }
-            if (currentRaceId) requestPrediction();
+            if (currentRaceId) requestPrediction('both', false, false, true);
         }
 
         async function requestPrediction(target = 'both', recalculateAi = false, ignoreExhibition = false, silent = false) {
@@ -2822,10 +2841,12 @@ window.addEventListener('unhandledrejection', function(event) {
                 // もし終了済みのレースなら、新しい予想で的中したかをチェックしてサイドバーを更新
                 if (data.race.is_finished && data.race.ranking_str) {
                     const preds = lastPredictions;
-                    const isHitFlag = preds.rule_focus.some(p => isHit(p.pattern, data.race.ranking_str)) ||
-                        preds.ai_focus.some(p => isHit(p.pattern, data.race.ranking_str));
+                    const isHitFlag = determineHitStatus(data.race.id, data.race.ranking_str, preds);
 
-                    if (window.dailyHitsCache) window.dailyHitsCache[currentRaceId] = isHitFlag;
+                    if (window.dailyHitsCache) {
+                        const oldData = window.dailyHitsCache[currentRaceId] || {};
+                        window.dailyHitsCache[currentRaceId] = { hit: isHitFlag, place: data.race.place_name || currentPlaceName, payout: oldData.payout || 0 };
+                    }
                     const btn = document.getElementById(`race-btn-${currentRaceId}`);
                     if (btn) applyFinishBadge(btn, isHitFlag);
                 }
@@ -3697,7 +3718,6 @@ window.addEventListener('unhandledrejection', function(event) {
             const modal = document.getElementById('player-modal');
             document.getElementById('modal-player-name').textContent = name || '選手詳細';
             modal.classList.remove('hidden');
-            history.pushState({ type: 'modal', id: 'player-modal' }, "");
 
             const content = document.getElementById('modal-content');
             content.innerHTML = `<div class="text-center py-8 text-slate-400 animate-pulse">取得中...</div>`;
@@ -3884,12 +3904,12 @@ window.addEventListener('unhandledrejection', function(event) {
 
         function switchTab(tab) {
             if (tab === 'venue') {
-                // Trigger sidebar button click to ensure history logic runs
-                document.getElementById('menu-btn').click();
+                drawer.classList.add('drawer-open');
+                overlay.classList.remove('hidden');
                 return;
             }
             if (tab === 'settings') {
-                openSettingsModal();
+                document.getElementById('settings-modal').classList.remove('hidden');
                 return;
             }
             currentTab = tab;
@@ -4066,8 +4086,6 @@ window.addEventListener('unhandledrejection', function(event) {
         function openKeypad(pattern) {
             keypadContext.pattern = pattern;
             keypadContext.value = String(betCart[pattern] || '0');
-            
-            history.pushState({ type: 'modal', id: 'keypad-modal' }, "");
 
             const displayEl = document.getElementById('keypad-pattern-display');
             if (displayEl) {
@@ -4084,11 +4102,7 @@ window.addEventListener('unhandledrejection', function(event) {
         }
 
         function closeKeypad() {
-            const el = document.getElementById('keypad-modal');
-            if (el && !el.classList.contains('hidden')) {
-                el.classList.add('hidden');
-                if (history.state && history.state.type === 'modal' && history.state.id === 'keypad-modal') history.back();
-            }
+            document.getElementById('keypad-modal').classList.add('hidden');
         }
 
         function keypadInput(action) {
@@ -4525,7 +4539,6 @@ window.addEventListener('unhandledrejection', function(event) {
         // ===================================================================
         // === Phase 1 Feature: Countdown Timer ==============================
         // ===================================================================
-
         let _countdownTimer = null;
         let _raceScheduledTime = null;
 
@@ -4840,16 +4853,11 @@ window.addEventListener('unhandledrejection', function(event) {
                 if (drawer) drawer.classList.remove('drawer-open');
                 if (overlay) overlay.classList.add('hidden');
             }
-            history.pushState({ type: 'modal', id: 'search-modal' }, "");
             document.getElementById('search-modal').classList.remove('hidden');
             document.getElementById('modal-search-input').focus();
         }
         function closeSearchModal() {
-            const el = document.getElementById('search-modal');
-            if (el && !el.classList.contains('hidden')) {
-                el.classList.add('hidden');
-                if (history.state && history.state.type === 'modal' && history.state.id === 'search-modal') history.back();
-            }
+            document.getElementById('search-modal').classList.add('hidden');
         }
         async function performSearch() {
             const q = document.getElementById('modal-search-input').value.trim();
@@ -4916,29 +4924,62 @@ window.addEventListener('unhandledrejection', function(event) {
             html += '</div>';
             container.innerHTML = html;
         }
-        async function fetchExpectationRaces() {
+        let currentExpectationDate = null;
+
+        async function fetchExpectationRaces(targetDate = null) {
+            if (!targetDate) {
+                targetDate = getTargetDateStr(0);
+            }
+            currentExpectationDate = targetDate;
             const container = document.getElementById('high-expectation-results');
             container.innerHTML = '<div class="text-center py-12"><div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-amber-500 mb-2"></div><p class="text-slate-400 text-xs">的中期待値を解析中...</p></div>';
             
             try {
-                const res = await fetch(`${API_BASE}/search/high_expectation`);
+                const reqBody = { weights: getWeights(), settings: getSettings(), overrides: null };
+                const [res, hitRes] = await Promise.all([
+                    fetch(`${API_BASE}/search/high_expectation?date=${targetDate}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(reqBody)
+                    }),
+                    fetch(`${API_BASE}/daily_hits?date=${targetDate}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ weights: getWeights(), settings: getSettings(), overrides: null })
+                    }).catch(() => ({ json: () => ({}) })) // Ignore hits error if any
+                ]);
+                
                 const data = await res.json();
-                renderExpectationResults(data);
+                const hitData = hitRes.ok ? await hitRes.json() : await hitRes.json();
+                renderExpectationResults(data, targetDate, hitData);
             } catch (e) {
                 container.innerHTML = '<p class="text-red-400 text-center py-12 text-sm">取得に失敗しました</p>';
             }
         }
-        function renderExpectationResults(data) {
+        function renderExpectationResults(data, targetDate, hitDataMap) {
             const container = document.getElementById('high-expectation-results');
             const solidRaces = data.solid || [];
             const valueRaces = data.value || [];
+            
+            const todayStr = getTargetDateStr(0);
+            const ydayStr = getTargetDateStr(-1);
+            
+            let navHtml = `
+            <div class="flex items-center justify-between bg-slate-800 rounded-lg p-2 mb-3 border border-slate-700 shadow-sm">
+                <button onclick="fetchExpectationRaces('${ydayStr}')" class="text-xs px-3 py-1.5 rounded font-bold transition-all ${targetDate === ydayStr ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-slate-700 text-slate-200 hover:bg-slate-600'}" ${targetDate === ydayStr ? 'disabled' : ''}>← 昨日の結果</button>
+                <div class="flex flex-col text-center">
+                    <span class="text-xs font-bold text-emerald-400">${targetDate} の予想/結果</span>
+                </div>
+                <button onclick="fetchExpectationRaces('${todayStr}')" class="text-xs px-3 py-1.5 rounded font-bold transition-all ${targetDate === todayStr ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-slate-700 text-slate-200 hover:bg-slate-600'}" ${targetDate === todayStr ? 'disabled' : ''}>本日の予想 →</button>
+            </div>
+            `;
 
             if (solidRaces.length === 0 && valueRaces.length === 0) {
-                container.innerHTML = '<p class="text-slate-500 text-center py-16 text-sm">現在、条件に合うレースはありません</p>';
+                container.innerHTML = navHtml + '<p class="text-slate-500 text-center py-16 text-sm">現在、条件に合うレースはありません</p>';
                 return;
             }
             
-            let html = `
+            let html = navHtml + `
             <div class="flex p-1 bg-slate-900 rounded-lg border border-slate-700 mb-4">
                 <button id="subtab-solid" onclick="switchExpectationSubTab('solid')" class="flex-1 py-1.5 text-xs font-bold rounded-md bg-emerald-600 text-white shadow-sm flex items-center justify-center gap-1 transition-all">🎯 的中率重視</button>
                 <button id="subtab-value" onclick="switchExpectationSubTab('value')" class="flex-1 py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-slate-200 flex items-center justify-center gap-1 transition-all">💰 期待値重視</button>
@@ -4950,7 +4991,7 @@ window.addEventListener('unhandledrejection', function(event) {
             if (solidRaces.length > 0) {
                 html += `<div class="bg-emerald-900/10 border border-emerald-900/30 p-3 rounded-xl text-emerald-400 text-xs shadow-inner">1号艇の勝率が非常に高い、イン逃げ鉄板のレースをピックアップしています。</div>`;
                 html += `<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">`;
-                solidRaces.forEach(r => html += createRaceCardHTML(r, 'solid', '大本命・イン逃げ推奨'));
+                solidRaces.forEach(r => html += createRaceCardHTML(r, 'solid', '大本命・イン逃げ推奨', targetDate, hitDataMap));
                 html += `</div>`;
             } else {
                 html += `<p class="text-slate-500 text-center py-10 text-xs">現在、条件に合う的中率重視レースはありません</p>`;
@@ -4962,7 +5003,7 @@ window.addEventListener('unhandledrejection', function(event) {
             if (valueRaces.length > 0) {
                 html += `<div class="bg-amber-900/10 border border-amber-900/30 p-3 rounded-xl text-amber-400 text-xs shadow-inner">1号艇の勝率が低く、中穴〜大穴展開が望めるレースをピックアップしています。</div>`;
                 html += `<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">`;
-                valueRaces.forEach(r => html += createRaceCardHTML(r, 'value', '中穴・大穴展開推奨'));
+                valueRaces.forEach(r => html += createRaceCardHTML(r, 'value', '中穴・大穴展開推奨', targetDate, hitDataMap));
                 html += `</div>`;
             } else {
                 html += `<p class="text-slate-500 text-center py-10 text-xs">現在、条件に合う期待値重視レースはありません</p>`;
@@ -4993,8 +5034,8 @@ window.addEventListener('unhandledrejection', function(event) {
             }
         };
 
-        function createRaceCardHTML(r, colorTheme, desc) {
-            const hitData = (window.dailyHitsCache && r.is_finished) ? window.dailyHitsCache[r.id] : null;
+        function createRaceCardHTML(r, colorTheme, desc, targetDateStr, scopedHitData) {
+            const hitData = (scopedHitData && r.is_finished) ? scopedHitData[r.id] : null;
             const hitBadge = (hitData && hitData.hit) ? `<span class="ml-1 text-[10px] bg-red-500 border border-red-400/50 px-2 py-0.5 rounded text-white font-bold animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]">🎯的中</span>` : '';
             const payoutHtml = (hitData && hitData.hit && hitData.payout > 0) 
                 ? `<div class="text-[10px] font-bold text-emerald-400 mt-2.5 flex items-center gap-1.5 bg-emerald-900/40 border border-emerald-800/50 px-2.5 py-1.5 rounded w-full">
@@ -5014,7 +5055,7 @@ window.addEventListener('unhandledrejection', function(event) {
             const badgeText = r.is_finished ? '終了' : '発売中';
 
             return `
-            <button onclick="closeSearchModal(); goToRace('${r.place}', ${r.id}, '${getTargetDateStr(0)}')" 
+            <button onclick="closeSearchModal(); goToRace('${r.place}', ${r.id}, '${targetDateStr || getTargetDateStr(0)}')" 
                 class="flex flex-col items-start bg-slate-800/60 border border-slate-700/60 ${hoverBorderCls} hover:bg-slate-700/40 p-4 rounded-xl transition-all text-left relative overflow-hidden group shadow w-full">
                 
                 <div class="flex justify-between w-full items-center mb-2">
@@ -5039,10 +5080,13 @@ window.addEventListener('unhandledrejection', function(event) {
             if (targetDate) {
                 const today = getTargetDateStr(0);
                 const tomorrow = getTargetDateStr(1);
+                const yday = getTargetDateStr(-1);
                 if (targetDate === today && relativeDate !== 0) {
                     await navigateDate(0 - relativeDate);
                 } else if (targetDate === tomorrow && relativeDate !== 1) {
                     await navigateDate(1 - relativeDate);
+                } else if (targetDate === yday && relativeDate !== -1) {
+                    await navigateDate(-1 - relativeDate);
                 }
             }
             
@@ -5352,15 +5396,10 @@ window.addEventListener('unhandledrejection', function(event) {
             titleEl.innerHTML = `<span>💡 ${info.t}</span>`;
             bodyEl.innerHTML = `<p>${info.d}</p><div class="mt-6 text-center"><button onclick="closeHelpModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-all shadow border border-slate-600">閉じる</button></div>`;
             document.getElementById('help-modal').classList.remove('hidden');
-            history.pushState({ type: 'modal', id: 'help-modal' }, "");
         }
 
         function closeHelpModal() {
-            const el = document.getElementById('help-modal');
-            if (el && !el.classList.contains('hidden')) {
-                el.classList.add('hidden');
-                if (history.state && history.state.type === 'modal' && history.state.id === 'help-modal') history.back();
-            }
+            document.getElementById('help-modal').classList.add('hidden');
         }
 
         function showToast(msg, type = 'info') {
@@ -5390,12 +5429,8 @@ window.addEventListener('unhandledrejection', function(event) {
 
         function finishTutorial() {
             localStorage.setItem('tutorialDone', 'true');
-            const el = document.getElementById('tutorial-overlay');
-            if (el && !el.classList.contains('hidden')) {
-                el.classList.add('hidden');
-                el.style.display = 'none';
-                if (history.state && history.state.type === 'modal' && history.state.id === 'tutorial-overlay') history.back();
-            }
+            document.getElementById('tutorial-overlay').classList.add('hidden');
+            document.getElementById('tutorial-overlay').style.display = 'none';
         }
 
         function setupOfflineHandlers() {
@@ -5421,57 +5456,6 @@ window.addEventListener('unhandledrejection', function(event) {
             checkTutorial();
             // Setup Offline logic
             setupOfflineHandlers();
-
-            // Browser Back Button (Popstate) Handling
-            window.addEventListener('popstate', (e) => {
-                let handled = false;
-
-                // 1. Close Sidebar
-                const drawer = document.getElementById('drawer');
-                if (drawer && drawer.classList.contains('drawer-open')) {
-                    drawer.classList.remove('drawer-open');
-                    document.getElementById('drawer-overlay').classList.add('hidden');
-                    handled = true;
-                }
-
-                // 2. Close All Modals
-                ['search-modal', 'settings-modal', 'help-modal', 'player-modal', 'keypad-modal', 'tutorial-overlay', 'exit-modal'].forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el && !el.classList.contains('hidden')) {
-                        el.classList.add('hidden');
-                        if (id === 'tutorial-overlay') el.style.display = 'none';
-                        handled = true;
-                    }
-                });
-
-                if (handled) return;
-
-                // 3. View States (Race Detail -> Home)
-                if (!e.state) {
-                    if (currentRaceId) {
-                        resetMainView();
-                    } else if (window.matchMedia('(display-mode: standalone)').matches) {
-                        // In standalone PWA and at home, show exit confirm
-                        document.getElementById('exit-modal').classList.remove('hidden');
-                        history.pushState(null, "");
-                    }
-                } else if (e.state.type === 'race') {
-                    loadRaceDetail(e.state.id, true);
-                }
-            });
-            
-            // Override Settings Modal trigger (was inline)
-            window.openSettingsModal = function() {
-                document.getElementById('settings-modal').classList.remove('hidden');
-                history.pushState({ type: 'modal', id: 'settings-modal' }, "");
-            };
-            window.closeSettingsModal = function() {
-                const el = document.getElementById('settings-modal');
-                if (el && !el.classList.contains('hidden')) {
-                    el.classList.add('hidden');
-                    if (history.state && history.state.type === 'modal' && history.state.id === 'settings-modal') history.back();
-                }
-            };
             
             // Auto Refresh Polling (Every 60s)
             setInterval(async () => {
