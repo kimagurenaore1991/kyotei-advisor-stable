@@ -5565,7 +5565,7 @@ window.addEventListener('unhandledrejection', function(event) {
                     closedSomething = true;
                 }
                 
-                // 2. All standard modals + exit-modal
+                // 2. All standard modals
                 const modals = [
                     'settings-modal', 
                     'search-modal', 
@@ -5573,8 +5573,7 @@ window.addEventListener('unhandledrejection', function(event) {
                     'keypad-modal', 
                     'help-modal', 
                     'offline-modal', 
-                    'tutorial-overlay',
-                    'exit-modal'
+                    'tutorial-overlay'
                 ];
                 
                 for (const id of modals) {
@@ -5586,35 +5585,10 @@ window.addEventListener('unhandledrejection', function(event) {
                     }
                 }
                 
-                if (closedSomething) {
-                    // Restore the dummy state so back button works again for next action
-                    history.pushState({ appRoot: true }, document.title, location.href);
-                } else {
-                    // No UI was open. Show exit confirmation modal.
-                    const exitModal = document.getElementById('exit-modal');
-                    if (exitModal) {
-                        exitModal.classList.remove('hidden');
-                    }
-                    // Restore the dummy state so they can press back to close this very modal
-                    history.pushState({ appRoot: true }, document.title, location.href);
-                }
+                // Restore the dummy state so back button works again for next action
+                // Even if nothing was closed, we push it to prevent exiting the app
+                history.pushState({ appRoot: true }, document.title, location.href);
             });
-
-            // Global functions for the exit modal buttons
-            window.closeExitModal = function() {
-                const m = document.getElementById('exit-modal');
-                if (m) m.classList.add('hidden');
-            };
-            
-            window.confirmExitApp = function() {
-                const m = document.getElementById('exit-modal');
-                if (m) m.classList.add('hidden');
-                
-                window.__allowExit = true;
-                // history.back() will trigger the popstate event above, which will 
-                // read __allowExit = true and invoke another history.back() to fully exit.
-                history.back(); 
-            };
         })();
     </script>
 
@@ -5772,21 +5746,7 @@ window.addEventListener('unhandledrejection', function(event) {
         </button>
     </div>
 
-    <!-- Exit Confirmation Modal -->
-    <div id="exit-modal" class="fixed inset-0 z-[150] hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-slate-800 rounded-2xl w-full max-w-xs border border-slate-700 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div class="p-6 text-center">
-                <div class="w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center mx-auto mb-4 border border-slate-600">
-                    <span class="text-2xl">👋</span>
-                </div>
-                <h3 class="text-lg font-black text-slate-200 mb-2">アプリを終了しますか？</h3>
-            </div>
-            <div class="flex border-t border-slate-700 bg-slate-900/50 hidden-mobile-tap-highlight">
-                <button onclick="closeExitModal()" class="flex-1 py-4 text-center text-slate-400 font-bold hover:bg-slate-800 transition-colors border-r border-slate-700 cursor-pointer">いいえ</button>
-                <button onclick="confirmExitApp()" class="flex-1 py-4 text-center text-red-500 font-bold hover:bg-slate-800 transition-colors cursor-pointer">はい</button>
-            </div>
-        </div>
-    </div>
+
 </body>
 
 </html>
