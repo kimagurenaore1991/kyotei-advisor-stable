@@ -5606,15 +5606,22 @@ window.addEventListener('unhandledrejection', function(event) {
             
             handlePop(event) {
                 const state = event.state;
+                // ブラウザモードに関わらずモバイル端末なら戻るボタン保護を優先
+                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
                 const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
                 
-                // スマホアプリ(PWAスタンドアロン)時は終了させず、ホームに引き戻す
+                // モバイル環境全体(Android含む)またはPWAスタンドアロン時は終了させず、ホームに引き戻す
                 // PCブラウザ等の非スタンドアロン環境では、履歴の最初に戻った際に「前のサイトへの戻り」を許可する
                 if (!state || state.type === 'root') {
-                    if (isStandalone) {
-                        history.pushState({ type: 'home' }, "");
-                        this.closeAllUI();
-                        resetMainView();
+                    if (isMobile || isStandalone) {
+                        // Android Chrome対策: 微小な遅延(setTimeout)を入れてpushStateすることで確実に履歴を張り直す
+                        setTimeout(() => {
+                            if (history.state?.type !== 'home') {
+                                history.pushState({ type: 'home' }, "");
+                            }
+                            this.closeAllUI();
+                            resetMainView();
+                        }, 10);
                     }
                     return;
                 }
