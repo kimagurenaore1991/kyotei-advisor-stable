@@ -499,7 +499,7 @@ window.addEventListener('unhandledrejection', function(event) {
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
                 </svg>
             </button>
-            <button onclick="document.getElementById('settings-modal').classList.remove('hidden')"
+            <button onclick="switchTab('settings')"
                 class="text-slate-400 hover:text-white transition-colors" title="全体設定">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -2459,7 +2459,10 @@ window.addEventListener('unhandledrejection', function(event) {
         }
 
         // ─── Race Detail ──────────────────────────────────────────────────────
-        async function loadRaceDetail(raceId) {
+        async function loadRaceDetail(raceId, fromHistory = false) {
+            if (!fromHistory && window.HistoryManager) {
+                HistoryManager.pushRace(raceId, currentPlaceName);
+            }
             currentRaceId = raceId;
             originalPlayersSnapshot = [];
             currentPlayersData = [];
@@ -3718,6 +3721,7 @@ window.addEventListener('unhandledrejection', function(event) {
             const modal = document.getElementById('player-modal');
             document.getElementById('modal-player-name').textContent = name || '選手詳細';
             modal.classList.remove('hidden');
+            if (window.HistoryManager) HistoryManager.pushModal('player-modal');
 
             const content = document.getElementById('modal-content');
             content.innerHTML = `<div class="text-center py-8 text-slate-400 animate-pulse">取得中...</div>`;
@@ -3910,6 +3914,7 @@ window.addEventListener('unhandledrejection', function(event) {
             }
             if (tab === 'settings') {
                 document.getElementById('settings-modal').classList.remove('hidden');
+                if (window.HistoryManager) HistoryManager.pushModal('settings-modal');
                 return;
             }
             currentTab = tab;
@@ -4099,6 +4104,7 @@ window.addEventListener('unhandledrejection', function(event) {
 
             updateKeypadDisplay();
             document.getElementById('keypad-modal').classList.remove('hidden');
+            if (window.HistoryManager) HistoryManager.pushModal('keypad-modal');
         }
 
         function closeKeypad() {
@@ -4855,6 +4861,7 @@ window.addEventListener('unhandledrejection', function(event) {
             }
             document.getElementById('search-modal').classList.remove('hidden');
             document.getElementById('modal-search-input').focus();
+            if (window.HistoryManager) HistoryManager.pushModal('search-modal');
         }
         function closeSearchModal() {
             document.getElementById('search-modal').classList.add('hidden');
@@ -5396,6 +5403,7 @@ window.addEventListener('unhandledrejection', function(event) {
             titleEl.innerHTML = `<span>💡 ${info.t}</span>`;
             bodyEl.innerHTML = `<p>${info.d}</p><div class="mt-6 text-center"><button onclick="closeHelpModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-all shadow border border-slate-600">閉じる</button></div>`;
             document.getElementById('help-modal').classList.remove('hidden');
+            if (window.HistoryManager) HistoryManager.pushModal('help-modal');
         }
 
         function closeHelpModal() {
@@ -5542,54 +5550,94 @@ window.addEventListener('unhandledrejection', function(event) {
             initUXFeatures();
         }
 
-        // --- Android Back Button Handling Setup ---
-        (function setupBackButtonHandling() {
-            // Initial trap: push a dummy hash state
-            if (location.hash !== '#!') {
-                history.pushState(null, "", "#!");
-            }
-
-            window.addEventListener('popstate', function(event) {
-                // If we've gone back from the hash state, the current hash will be empty
-                if (!location.hash || location.hash === '') {
-                    // First, put the trap back immediately
-                    history.pushState(null, "", "#!");
-                    
-                    // Then handle UI closing
-                    let closedSomething = false;
-                    
-                    // 1. Drawer
-                    const drawer = document.getElementById('drawer');
-                    const overlay = document.getElementById('drawer-overlay');
-                    if (drawer && drawer.classList.contains('drawer-open')) {
-                        drawer.classList.remove('drawer-open');
-                        if (overlay) overlay.classList.add('hidden');
-                        closedSomething = true;
+        // --- Advanced History & Back Button Management ---
+        const HistoryManager = {
+            isNavigating: false,
+            
+            init() {
+                // Initial stack: [ROOT] -> [HOME]
+                // ROOT acts as the final exit trap
+                history.replaceState({ type: 'root' }, "");
+                history.pushState({ type: 'home' }, "");
+                
+                window.addEventListener('popstate', (e) => this.handlePop(e));
+            },
+            
+            pushRace(raceId, placeName) {
+                if (this.isNavigating) return;
+                // Avoid pushing duplicate consecutive races
+                if (history.state?.type === 'race' && history.state.raceId === raceId) return;
+                
+                history.pushState({ type: 'race', raceId, placeName }, "");
+            },
+            
+            pushModal(id) {
+                if (this.isNavigating) return;
+                history.pushState({ type: 'modal', modalId: id }, "");
+            },
+            
+            handlePop(event) {
+                const state = event.state;
+                if (!state) return;
+                
+                this.isNavigating = true;
+                try {
+                    switch (state.type) {
+                        case 'root':
+                            // Final trap: user tried to go back from home
+                            // Re-push home to stay in app
+                            history.pushState({ type: 'home' }, "");
+                            break;
+                            
+                        case 'home':
+                            // Close all UI and show welcome
+                            this.closeAllUI();
+                            resetMainView();
+                            break;
+                            
+                        case 'race':
+                            // Navigate to specific race
+                            this.closeAllUI();
+                            if (window.loadRaceDetail) loadRaceDetail(state.raceId, true);
+                            break;
+                            
+                        case 'modal':
+                            // Usually handled by closing things when moving AWAY from modal state
+                            // but we ensure it's open if we somehow land on it
+                            const el = document.getElementById(state.modalId);
+                            if (el) el.classList.remove('hidden');
+                            break;
                     }
-                    
-                    // 2. All standard modals
-                    const modals = [
-                        'settings-modal', 
-                        'search-modal', 
-                        'player-modal', 
-                        'keypad-modal', 
-                        'help-modal', 
-                        'offline-modal', 
-                        'tutorial-overlay'
-                    ];
-                    
-                    for (const id of modals) {
-                        const el = document.getElementById(id);
-                        if (el && !el.classList.contains('hidden')) {
-                            el.classList.add('hidden');
-                            if (id === 'tutorial-overlay') el.style.display = 'none';
-                            closedSomething = true;
-                        }
-                    }
-                    // No UI was open? No problem, we've already re-pushed the state above.
+                } finally {
+                    this.isNavigating = false;
                 }
-            });
-        })();
+            },
+            
+            closeAllUI() {
+                // 1. Drawer
+                const drawer = document.getElementById('drawer');
+                const overlay = document.getElementById('drawer-overlay');
+                if (drawer) drawer.classList.remove('drawer-open');
+                if (overlay) overlay.classList.add('hidden');
+                
+                // 2. Modals
+                const modals = [
+                    'settings-modal', 'search-modal', 'player-modal', 
+                    'keypad-modal', 'help-modal', 'offline-modal', 'tutorial-overlay'
+                ];
+                modals.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.classList.add('hidden');
+                        if (id === 'tutorial-overlay') el.style.display = 'none';
+                    }
+                });
+            }
+        };
+
+        // Initialize on load
+        HistoryManager.init();
+        window.HistoryManager = HistoryManager;
     </script>
 
 
