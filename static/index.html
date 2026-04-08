@@ -499,7 +499,7 @@ window.addEventListener('unhandledrejection', function(event) {
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
                 </svg>
             </button>
-            <button onclick="document.getElementById('settings-modal').classList.remove('hidden')"
+            <button onclick="openSettingsModal()"
                 class="text-slate-400 hover:text-white transition-colors" title="全体設定">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -1011,7 +1011,7 @@ window.addEventListener('unhandledrejection', function(event) {
                 <h3 class="font-bold text-slate-200 flex items-center gap-2 text-lg">
                     カスタマイズ共通設定
                 </h3>
-                <button onclick="document.getElementById('settings-modal').classList.add('hidden');"
+                <button onclick="closeSettingsModal()"
                     class="text-slate-400 hover:text-white p-2">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
@@ -1165,7 +1165,7 @@ window.addEventListener('unhandledrejection', function(event) {
                 <button onclick="resetSettingsToDefault(); refreshSidebarHits();"
                     class="bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-2 px-6 rounded-lg w-full transition-colors border border-slate-600 text-xs">設定を初期値に戻す</button>
                 <button
-                    onclick="document.getElementById('settings-modal').classList.add('hidden'); if(currentRaceId){requestPrediction();} refreshSidebarHits();"
+                    onclick="closeSettingsModal(); if(currentRaceId){requestPrediction();} refreshSidebarHits();"
                     class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-lg w-full transition-colors shadow-lg">完了・反映する</button>
             </div>
         </div>
@@ -1226,6 +1226,18 @@ window.addEventListener('unhandledrejection', function(event) {
                     class="p-2 hover:bg-slate-700 rounded-full transition-colors text-slate-400">✕</button>
             </div>
             <div id="modal-content" class="p-5"></div>
+        </div>
+    </div>
+
+    <!-- Exit Confirmation Modal (for PWA) -->
+    <div id="exit-modal" class="fixed inset-0 z-[100] hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-xl shadow-2xl w-full max-w-xs p-6 text-center">
+            <h3 class="font-bold text-slate-200 text-lg mb-2">アプリを終了しますか？</h3>
+            <p class="text-sm text-slate-400 mb-6">現在の画面を閉じます。</p>
+            <div class="flex gap-3">
+                <button onclick="document.getElementById('exit-modal').classList.add('hidden');" class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-bold">キャンセル</button>
+                <button onclick="window.close();" class="flex-1 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold">終了する</button>
+            </div>
         </div>
     </div>
 
@@ -1834,7 +1846,11 @@ window.addEventListener('unhandledrejection', function(event) {
 
 
         function closeModal() {
-            document.getElementById('player-modal').classList.add('hidden');
+            const el = document.getElementById('player-modal');
+            if (el && !el.classList.contains('hidden')) {
+                el.classList.add('hidden');
+                if (history.state && history.state.type === 'modal' && history.state.id === 'player-modal') history.back();
+            }
         }
 
         // ─── Race Navigation ──────────────────────────────────────────────────
@@ -1925,12 +1941,16 @@ window.addEventListener('unhandledrejection', function(event) {
         const drawer = document.getElementById('drawer');
         const overlay = document.getElementById('drawer-overlay');
         document.getElementById('menu-btn').addEventListener('click', () => {
-            drawer.classList.toggle('drawer-open');
+            const isOpen = drawer.classList.toggle('drawer-open');
             overlay.classList.toggle('hidden');
+            if (isOpen) {
+                history.pushState({ type: 'drawer' }, "");
+            }
         });
         overlay.addEventListener('click', () => {
             drawer.classList.remove('drawer-open');
             overlay.classList.add('hidden');
+            if (history.state && history.state.type === 'drawer') history.back();
         });
 
         // ─── Load Places ───────────────────────────────────────────────────────
@@ -2458,8 +2478,11 @@ window.addEventListener('unhandledrejection', function(event) {
         }
 
         // ─── Race Detail ──────────────────────────────────────────────────────
-        async function loadRaceDetail(raceId) {
+        async function loadRaceDetail(raceId, skipPush = false) {
             currentRaceId = raceId;
+            if (!skipPush) {
+                history.pushState({ type: 'race', id: raceId }, "");
+            }
             originalPlayersSnapshot = [];
             currentPlayersData = [];
             currentRaceResult = null;
@@ -3674,6 +3697,7 @@ window.addEventListener('unhandledrejection', function(event) {
             const modal = document.getElementById('player-modal');
             document.getElementById('modal-player-name').textContent = name || '選手詳細';
             modal.classList.remove('hidden');
+            history.pushState({ type: 'modal', id: 'player-modal' }, "");
 
             const content = document.getElementById('modal-content');
             content.innerHTML = `<div class="text-center py-8 text-slate-400 animate-pulse">取得中...</div>`;
@@ -3860,12 +3884,12 @@ window.addEventListener('unhandledrejection', function(event) {
 
         function switchTab(tab) {
             if (tab === 'venue') {
-                drawer.classList.add('drawer-open');
-                overlay.classList.remove('hidden');
+                // Trigger sidebar button click to ensure history logic runs
+                document.getElementById('menu-btn').click();
                 return;
             }
             if (tab === 'settings') {
-                document.getElementById('settings-modal').classList.remove('hidden');
+                openSettingsModal();
                 return;
             }
             currentTab = tab;
@@ -4042,6 +4066,8 @@ window.addEventListener('unhandledrejection', function(event) {
         function openKeypad(pattern) {
             keypadContext.pattern = pattern;
             keypadContext.value = String(betCart[pattern] || '0');
+            
+            history.pushState({ type: 'modal', id: 'keypad-modal' }, "");
 
             const displayEl = document.getElementById('keypad-pattern-display');
             if (displayEl) {
@@ -4058,7 +4084,11 @@ window.addEventListener('unhandledrejection', function(event) {
         }
 
         function closeKeypad() {
-            document.getElementById('keypad-modal').classList.add('hidden');
+            const el = document.getElementById('keypad-modal');
+            if (el && !el.classList.contains('hidden')) {
+                el.classList.add('hidden');
+                if (history.state && history.state.type === 'modal' && history.state.id === 'keypad-modal') history.back();
+            }
         }
 
         function keypadInput(action) {
@@ -4495,6 +4525,7 @@ window.addEventListener('unhandledrejection', function(event) {
         // ===================================================================
         // === Phase 1 Feature: Countdown Timer ==============================
         // ===================================================================
+
         let _countdownTimer = null;
         let _raceScheduledTime = null;
 
@@ -4809,11 +4840,16 @@ window.addEventListener('unhandledrejection', function(event) {
                 if (drawer) drawer.classList.remove('drawer-open');
                 if (overlay) overlay.classList.add('hidden');
             }
+            history.pushState({ type: 'modal', id: 'search-modal' }, "");
             document.getElementById('search-modal').classList.remove('hidden');
             document.getElementById('modal-search-input').focus();
         }
         function closeSearchModal() {
-            document.getElementById('search-modal').classList.add('hidden');
+            const el = document.getElementById('search-modal');
+            if (el && !el.classList.contains('hidden')) {
+                el.classList.add('hidden');
+                if (history.state && history.state.type === 'modal' && history.state.id === 'search-modal') history.back();
+            }
         }
         async function performSearch() {
             const q = document.getElementById('modal-search-input').value.trim();
@@ -5316,10 +5352,15 @@ window.addEventListener('unhandledrejection', function(event) {
             titleEl.innerHTML = `<span>💡 ${info.t}</span>`;
             bodyEl.innerHTML = `<p>${info.d}</p><div class="mt-6 text-center"><button onclick="closeHelpModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-all shadow border border-slate-600">閉じる</button></div>`;
             document.getElementById('help-modal').classList.remove('hidden');
+            history.pushState({ type: 'modal', id: 'help-modal' }, "");
         }
 
         function closeHelpModal() {
-            document.getElementById('help-modal').classList.add('hidden');
+            const el = document.getElementById('help-modal');
+            if (el && !el.classList.contains('hidden')) {
+                el.classList.add('hidden');
+                if (history.state && history.state.type === 'modal' && history.state.id === 'help-modal') history.back();
+            }
         }
 
         function showToast(msg, type = 'info') {
@@ -5349,8 +5390,12 @@ window.addEventListener('unhandledrejection', function(event) {
 
         function finishTutorial() {
             localStorage.setItem('tutorialDone', 'true');
-            document.getElementById('tutorial-overlay').classList.add('hidden');
-            document.getElementById('tutorial-overlay').style.display = 'none';
+            const el = document.getElementById('tutorial-overlay');
+            if (el && !el.classList.contains('hidden')) {
+                el.classList.add('hidden');
+                el.style.display = 'none';
+                if (history.state && history.state.type === 'modal' && history.state.id === 'tutorial-overlay') history.back();
+            }
         }
 
         function setupOfflineHandlers() {
@@ -5376,6 +5421,57 @@ window.addEventListener('unhandledrejection', function(event) {
             checkTutorial();
             // Setup Offline logic
             setupOfflineHandlers();
+
+            // Browser Back Button (Popstate) Handling
+            window.addEventListener('popstate', (e) => {
+                let handled = false;
+
+                // 1. Close Sidebar
+                const drawer = document.getElementById('drawer');
+                if (drawer && drawer.classList.contains('drawer-open')) {
+                    drawer.classList.remove('drawer-open');
+                    document.getElementById('drawer-overlay').classList.add('hidden');
+                    handled = true;
+                }
+
+                // 2. Close All Modals
+                ['search-modal', 'settings-modal', 'help-modal', 'player-modal', 'keypad-modal', 'tutorial-overlay', 'exit-modal'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el && !el.classList.contains('hidden')) {
+                        el.classList.add('hidden');
+                        if (id === 'tutorial-overlay') el.style.display = 'none';
+                        handled = true;
+                    }
+                });
+
+                if (handled) return;
+
+                // 3. View States (Race Detail -> Home)
+                if (!e.state) {
+                    if (currentRaceId) {
+                        resetMainView();
+                    } else if (window.matchMedia('(display-mode: standalone)').matches) {
+                        // In standalone PWA and at home, show exit confirm
+                        document.getElementById('exit-modal').classList.remove('hidden');
+                        history.pushState(null, "");
+                    }
+                } else if (e.state.type === 'race') {
+                    loadRaceDetail(e.state.id, true);
+                }
+            });
+            
+            // Override Settings Modal trigger (was inline)
+            window.openSettingsModal = function() {
+                document.getElementById('settings-modal').classList.remove('hidden');
+                history.pushState({ type: 'modal', id: 'settings-modal' }, "");
+            };
+            window.closeSettingsModal = function() {
+                const el = document.getElementById('settings-modal');
+                if (el && !el.classList.contains('hidden')) {
+                    el.classList.add('hidden');
+                    if (history.state && history.state.type === 'modal' && history.state.id === 'settings-modal') history.back();
+                }
+            };
             
             // Auto Refresh Polling (Every 60s)
             setInterval(async () => {
