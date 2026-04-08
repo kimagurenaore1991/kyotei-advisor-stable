@@ -268,13 +268,8 @@
             transform: rotate(180deg);
         }
 
-        .odds-change-up {
-            color: #f87171;
-        }
-
-        .odds-change-down {
-            color: #60a5fa;
-        }
+        .odds-change-up { color: #f87171; }
+        .odds-change-down { color: #60a5fa; }
 
         /* Stats Styles */
         .stats-card {
@@ -284,14 +279,12 @@
             padding: 10px;
             margin-bottom: 12px;
         }
-
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 8px;
             text-align: center;
         }
-
         .stats-label {
             font-size: 9px;
             color: #94a3b8;
@@ -299,24 +292,14 @@
             letter-spacing: 0.05em;
             margin-bottom: 2px;
         }
-
         .stats-value {
             font-size: 13px;
             font-weight: 800;
             font-family: 'JetBrains Mono', monospace;
         }
-
-        .stats-value.hit-rate {
-            color: #fbbf24;
-        }
-
-        .stats-value.return-rate {
-            color: #34d399;
-        }
-
-        .stats-value.race-count {
-            color: #94a3b8;
-        }
+        .stats-value.hit-rate { color: #fbbf24; }
+        .stats-value.return-rate { color: #34d399; }
+        .stats-value.race-count { color: #94a3b8; }
 
         .odds-chevron {
             transition: transform 0.2s;
@@ -437,91 +420,48 @@
         }
     </style>
 
-    <script>
-        window.onerror = function (msg, url, line, col, error) {
-            const div = document.createElement('div');
-            div.style.position = 'fixed';
-            div.style.top = '10px';
-            div.style.left = '10px';
-            div.style.zIndex = '99999';
-            div.style.background = 'white';
-            div.style.color = 'red';
-            div.style.padding = '10px';
-            div.style.border = '2px solid red';
-            div.innerHTML = 'JS ERROR: ' + msg + ' at line ' + line + ':' + col + '<br><pre>' + (error ? error.stack : '') + '</pre>';
-            document.body.appendChild(div);
-        };
-        window.addEventListener('unhandledrejection', function (event) {
-            window.onerror(event.reason, null, 0, 0, event.reason);
-        });
-    </script>
+<script>
+window.onerror = function(msg, url, line, col, error) {
+    const div = document.createElement('div');
+    div.style.position = 'fixed';
+    div.style.top = '10px';
+    div.style.left = '10px';
+    div.style.zIndex = '99999';
+    div.style.background = 'white';
+    div.style.color = 'red';
+    div.style.padding = '10px';
+    div.style.border = '2px solid red';
+    div.innerHTML = 'JS ERROR: ' + msg + ' at line ' + line + ':' + col + '<br><pre>' + (error ? error.stack : '') + '</pre>';
+    document.body.appendChild(div);
+};
+window.addEventListener('unhandledrejection', function(event) {
+    window.onerror(event.reason, null, 0, 0, event.reason);
+});
+</script>
     <!-- Light Mode Overrides -->
     <style id="light-mode-styles">
         html.light-mode body {
             background-color: #f8fafc !important;
             color: #1e293b !important;
         }
-
-        html.light-mode .bg-slate-900 {
-            background-color: #f1f5f9 !important;
-        }
-
-        html.light-mode .bg-slate-800,
-        html.light-mode .bg-slate-800\/80 {
-            background-color: #ffffff !important;
-        }
-
-        html.light-mode .bg-slate-750 {
-            background-color: #f8fafc !important;
-        }
-
-        html.light-mode .bg-slate-700,
-        html.light-mode .bg-slate-700\/50 {
-            background-color: #e2e8f0 !important;
-        }
-
-        html.light-mode .border-slate-700,
-        html.light-mode .border-slate-600 {
-            border-color: #cbd5e1 !important;
-        }
-
-        html.light-mode .text-slate-200,
-        html.light-mode .text-slate-300,
-        html.light-mode .text-white {
-            color: #0f172a !important;
-        }
-
-        html.light-mode .text-slate-400,
-        html.light-mode .text-slate-500 {
-            color: #475569 !important;
-        }
-
-        html.light-mode .bg-gradient-to-br {
-            background: #ffffff !important;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        }
-
+        html.light-mode .bg-slate-900 { background-color: #f1f5f9 !important; }
+        html.light-mode .bg-slate-800, html.light-mode .bg-slate-800\/80 { background-color: #ffffff !important; }
+        html.light-mode .bg-slate-750 { background-color: #f8fafc !important; }
+        html.light-mode .bg-slate-700, html.light-mode .bg-slate-700\/50 { background-color: #e2e8f0 !important; }
+        html.light-mode .border-slate-700, html.light-mode .border-slate-600 { border-color: #cbd5e1 !important; }
+        html.light-mode .text-slate-200, html.light-mode .text-slate-300, html.light-mode .text-white { color: #0f172a !important; }
+        html.light-mode .text-slate-400, html.light-mode .text-slate-500 { color: #475569 !important; }
+        html.light-mode .bg-gradient-to-br { background: #ffffff !important; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        
         /* Tooltip */
         .help-tooltip-icon {
-            display: inline-flex;
-            justify-content: center;
-            align-items: center;
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            background-color: #cbd5e1;
-            color: #0f172a;
-            font-size: 10px;
-            font-weight: bold;
-            cursor: pointer;
-            margin-left: 4px;
+            display: inline-flex; justify-content: center; align-items: center;
+            width: 14px; height: 14px; border-radius: 50%;
+            background-color: #cbd5e1; color: #0f172a;
+            font-size: 10px; font-weight: bold; cursor: pointer; margin-left: 4px;
             vertical-align: middle;
         }
-
-        html.light-mode .help-tooltip-icon {
-            background-color: #94a3b8;
-            color: #fff;
-        }
+        html.light-mode .help-tooltip-icon { background-color: #94a3b8; color: #fff; }
     </style>
 </head>
 
@@ -556,9 +496,7 @@
             <button onclick="toggleTheme()" id="theme-toggle-btn"
                 class="text-slate-400 hover:text-white transition-colors" title="テーマ切替">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z">
-                    </path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
                 </svg>
             </button>
             <button onclick="document.getElementById('settings-modal').classList.remove('hidden')"
@@ -578,27 +516,15 @@
         <div class="mx-3 mt-3">
             <div id="auth-container" class="flex flex-col gap-1 p-2 bg-slate-900 rounded-lg border border-slate-700">
                 <div id="auth-unlogged" class="">
-                    <button onclick="loginWithGoogle()"
-                        class="w-full flex items-center justify-center gap-2 bg-white hover:bg-gray-100 text-slate-800 px-3 py-2 rounded-lg text-sm font-bold transition-colors shadow">
-                        <svg class="w-4 h-4" viewBox="0 0 24 24">
-                            <path fill="#4285F4"
-                                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                            <path fill="#34A853"
-                                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                            <path fill="#FBBC05"
-                                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                            <path fill="#EA4335"
-                                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                            <path fill="none" d="M1 1h22v22H1z" />
-                        </svg>
+                    <button onclick="loginWithGoogle()" class="w-full flex items-center justify-center gap-2 bg-white hover:bg-gray-100 text-slate-800 px-3 py-2 rounded-lg text-sm font-bold transition-colors shadow">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/><path fill="none" d="M1 1h22v22H1z"/></svg>
                         Googleでログイン
                     </button>
                     <p class="text-[9px] text-slate-400 mt-1 text-center">お気に入りやカートの同期機能</p>
                 </div>
                 <div id="auth-logged" class="hidden text-center">
                     <p id="auth-user-email" class="text-xs text-slate-300 truncate mb-2"></p>
-                    <button onclick="logout()"
-                        class="w-full text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 py-1 rounded transition-colors">ログアウト</button>
+                    <button onclick="logout()" class="w-full text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 py-1 rounded transition-colors">ログアウト</button>
                 </div>
             </div>
         </div>
@@ -606,20 +532,18 @@
         <!-- 検索・更新ボタン -->
         <div class="mx-3 mt-3 mb-1 space-y-2">
             <div class="flex gap-1">
-                <button onclick="openSearchModal()"
+                <button onclick="openSearchModal()" 
                     class="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg text-sm font-bold transition-colors shadow-lg active:scale-95 cursor-pointer">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                     選手検索 / レース期待値
                 </button>
             </div>
-            <button id="silent-refresh-btn" onclick="silentRefresh()"
+            <button id="silent-refresh-btn" onclick="silentRefresh()" 
                 class="w-full flex items-center justify-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 active:bg-slate-800 text-slate-300 text-[10px] font-bold rounded-lg transition-colors shadow border border-slate-600">
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
                 🔄 画面更新
             </button>
@@ -835,10 +759,9 @@
             <!-- [2] 各予想 (2カラム) — mobile:order-2 / desktop:col-span-3 row-2 -->
             <div id="predict-section"
                 class="order-2 lg:col-span-3 lg:row-start-2 grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 scroll-mt-20">
-
+                
                 <!-- イチオシ推奨買い目 (Beginner Top Pick) -->
-                <div id="top-pick-box"
-                    class="hidden lg:col-span-2 bg-gradient-to-r from-blue-900 to-indigo-900 border border-blue-500/50 rounded-xl p-4 shadow-[0_0_15px_rgba(59,130,246,0.2)]">
+                <div id="top-pick-box" class="hidden lg:col-span-2 bg-gradient-to-r from-blue-900 to-indigo-900 border border-blue-500/50 rounded-xl p-4 shadow-[0_0_15px_rgba(59,130,246,0.2)]">
                     <h3 class="font-black text-blue-200 text-sm flex items-center gap-2 mb-2">
                         <span class="text-xl">🎯</span> 迷ったらコレ！（本日のおすすめ買い目）
                     </h3>
@@ -850,11 +773,8 @@
                 <!-- Custom -->
                 <div class="bg-gradient-to-br from-slate-800 to-blue-900/40 p-4 rounded-xl border border-blue-800/50">
                     <div class="flex justify-between items-center mb-2 pb-2 border-b border-blue-800/50">
-                        <h3 class="font-bold text-blue-300 text-sm flex items-center">カスタム予想 <span
-                                onclick="showHelpModal('custom')" class="help-tooltip-icon">?</span></h3>
-                        <button id="add-all-custom" onclick="addAllToCart('rule-focus')"
-                            class="hidden text-[10px] bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded font-bold transition-all">一括追加
-                            🛒</button>
+                        <h3 class="font-bold text-blue-300 text-sm flex items-center">カスタム予想 <span onclick="showHelpModal('custom')" class="help-tooltip-icon">?</span></h3>
+                        <button id="add-all-custom" onclick="addAllToCart('rule-focus')" class="hidden text-[10px] bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded font-bold transition-all">一括追加 🛒</button>
                     </div>
                     <div id="rule-focus" class="space-y-1 my-2"></div>
                     <p class="text-[10px] text-blue-500 text-center mt-1">設定に応じてリアルタイム変動</p>
@@ -862,14 +782,10 @@
                 <!-- AI -->
                 <div class="bg-gradient-to-br from-slate-800 to-slate-900 p-4 rounded-xl border border-slate-600">
                     <div class="flex justify-between items-center mb-2 pb-2 border-b border-slate-600">
-                        <h3 class="font-bold text-slate-300 text-sm flex items-center">AI解析予想 <span
-                                onclick="showHelpModal('solid')" class="help-tooltip-icon">?</span></h3>
-                        <button id="add-all-ai" onclick="addAllToCart('ai-focus')"
-                            class="hidden text-[10px] bg-slate-600 hover:bg-slate-500 text-white px-2 py-1 rounded font-bold transition-all">一括追加
-                            🛒</button>
+                        <h3 class="font-bold text-slate-300 text-sm flex items-center">AI解析予想 <span onclick="showHelpModal('solid')" class="help-tooltip-icon">?</span></h3>
+                        <button id="add-all-ai" onclick="addAllToCart('ai-focus')" class="hidden text-[10px] bg-slate-600 hover:bg-slate-500 text-white px-2 py-1 rounded font-bold transition-all">一括追加 🛒</button>
                     </div>
-                    <div class="text-[10px] text-slate-400 mb-1 flex items-center">シミュレーション1着率 <span
-                            onclick="showHelpModal('solid')" class="help-tooltip-icon">?</span></div>
+                    <div class="text-[10px] text-slate-400 mb-1 flex items-center">シミュレーション1着率 <span onclick="showHelpModal('solid')" class="help-tooltip-icon">?</span></div>
                     <div id="ai-win-probs" class="flex gap-1 mb-3"></div>
                     <div id="ai-focus" class="space-y-1 my-2"></div>
                     <p class="text-[10px] text-slate-500 text-center mt-1">非線形特徴量からの学習推論</p>
@@ -1133,27 +1049,19 @@
                     <h3 class="font-bold text-slate-300 mb-4 pb-2 border-b border-slate-700 text-sm">予想戦略モード</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 px-1">
                         <div>
-                            <label
-                                class="block text-slate-400 text-[10px] mb-2 font-bold uppercase tracking-wider">AI予想モード</label>
+                            <label class="block text-slate-400 text-[10px] mb-2 font-bold uppercase tracking-wider">AI予想モード</label>
                             <div class="grid grid-cols-3 gap-1 bg-slate-800 p-1 rounded-lg border border-slate-700">
-                                <button type="button" onclick="setAiMode(0)" id="ai-mode-btn-0"
-                                    class="py-1.5 text-[10px] font-bold rounded transition-all">本命</button>
-                                <button type="button" onclick="setAiMode(1)" id="ai-mode-btn-1"
-                                    class="py-1.5 text-[10px] font-bold rounded transition-all">中穴</button>
-                                <button type="button" onclick="setAiMode(2)" id="ai-mode-btn-2"
-                                    class="py-1.5 text-[10px] font-bold rounded transition-all">大穴</button>
+                                <button type="button" onclick="setAiMode(0)" id="ai-mode-btn-0" class="py-1.5 text-[10px] font-bold rounded transition-all">本命</button>
+                                <button type="button" onclick="setAiMode(1)" id="ai-mode-btn-1" class="py-1.5 text-[10px] font-bold rounded transition-all">中穴</button>
+                                <button type="button" onclick="setAiMode(2)" id="ai-mode-btn-2" class="py-1.5 text-[10px] font-bold rounded transition-all">大穴</button>
                             </div>
                         </div>
                         <div>
-                            <label
-                                class="block text-slate-400 text-[10px] mb-2 font-bold uppercase tracking-wider">カスタマイズ予想モード</label>
+                            <label class="block text-slate-400 text-[10px] mb-2 font-bold uppercase tracking-wider">カスタマイズ予想モード</label>
                             <div class="grid grid-cols-3 gap-1 bg-slate-800 p-1 rounded-lg border border-slate-700">
-                                <button type="button" onclick="setCustomMode(0)" id="custom-mode-btn-0"
-                                    class="py-1.5 text-[10px] font-bold rounded transition-all">本命</button>
-                                <button type="button" onclick="setCustomMode(1)" id="custom-mode-btn-1"
-                                    class="py-1.5 text-[10px] font-bold rounded transition-all">中穴</button>
-                                <button type="button" onclick="setCustomMode(2)" id="custom-mode-btn-2"
-                                    class="py-1.5 text-[10px] font-bold rounded transition-all">大穴</button>
+                                <button type="button" onclick="setCustomMode(0)" id="custom-mode-btn-0" class="py-1.5 text-[10px] font-bold rounded transition-all">本命</button>
+                                <button type="button" onclick="setCustomMode(1)" id="custom-mode-btn-1" class="py-1.5 text-[10px] font-bold rounded transition-all">中穴</button>
+                                <button type="button" onclick="setCustomMode(2)" id="custom-mode-btn-2" class="py-1.5 text-[10px] font-bold rounded transition-all">大穴</button>
                             </div>
                         </div>
                     </div>
@@ -1257,25 +1165,20 @@
                 <button onclick="resetSettingsToDefault(); refreshSidebarHits();"
                     class="bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-2 px-6 rounded-lg w-full transition-colors border border-slate-600 text-xs">設定を初期値に戻す</button>
                 <button
-                    onclick="document.getElementById('settings-modal').classList.add('hidden'); if(currentRaceId){requestPrediction();} refreshSidebarHits(); if(typeof currentExpectationDate !== 'undefined'){fetchExpectationRaces(currentExpectationDate);}else{fetchExpectationRaces();}"
+                    onclick="document.getElementById('settings-modal').classList.add('hidden'); if(currentRaceId){requestPrediction();} refreshSidebarHits();"
                     class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-lg w-full transition-colors shadow-lg">完了・反映する</button>
             </div>
         </div>
     </div>
 
     <!-- Welcome Screen -->
-    <div id="welcome-screen"
-        class="flex-1 flex flex-col items-center justify-center p-6 text-center bg-slate-900 overflow-y-auto">
+    <div id="welcome-screen" class="flex-1 flex flex-col items-center justify-center p-6 text-center bg-slate-900 overflow-y-auto">
         <img src="./logo.png" alt="Logo" class="w-24 h-24 mb-6 opacity-80 mt-10">
         <h2 class="text-2xl font-black text-slate-200 mb-2">Kyotei Advisor Dashboard</h2>
         <p class="text-sm text-slate-500 max-w-xs mb-8">左メニューから本日開催場を選択し、<br>レース番号をクリックしてください</p>
 
         <div class="bg-slate-800/80 border border-slate-700 p-4 rounded-xl text-left w-full max-w-sm mb-8">
-            <p class="font-bold flex items-center gap-2 mb-2 text-slate-200"><svg class="w-5 h-5 text-blue-400"
-                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg> まずはここから始めよう</p>
+            <p class="font-bold flex items-center gap-2 mb-2 text-slate-200"><svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> まずはここから始めよう</p>
             <ol class="list-decimal list-inside space-y-1.5 ml-1 text-sm text-slate-400">
                 <li>メニューから開催場を選ぶ</li>
                 <li>レースを選び「迷ったらコレ！（イチオシ買い目）」をチェック</li>
@@ -1329,7 +1232,7 @@
     <script>
         const APP_VERSION = '1.1.0';
         const API_BASE = '/api';
-
+        
         let supabaseClient = null;
         let currentUser = null;
 
@@ -1339,7 +1242,7 @@
                 const config = await res.json();
                 if (config.use_supabase && config.supabase_url && config.supabase_key) {
                     supabaseClient = supabase.createClient(config.supabase_url, config.supabase_key);
-
+                    
                     // 初期セッション取得
                     const { data: { session } } = await supabaseClient.auth.getSession();
                     currentUser = session?.user || null;
@@ -1359,13 +1262,13 @@
                         const params = new URLSearchParams(window.location.hash.replace('#', '?'));
                         const err = params.get('error') || '';
                         const errDesc = params.get('error_description') || '';
-
+                        
                         let message = `認証エラー: ${decodeURIComponent(errDesc || err)}`;
                         if (message.includes('Database error saving new user')) {
-                            message += '\n\n【DBエラー】サインアップ時のプロファイル作成に失敗しました。Supabaseの「Database -> Logs」または「Auth -> Logs」を確認してください。';
+                          message += '\n\n【DBエラー】サインアップ時のプロファイル作成に失敗しました。Supabaseの「Database -> Logs」または「Auth -> Logs」を確認してください。';
                         }
                         message += '\n\n【GCP設定の確認】Google Cloud(GCP)のOAuth設定が「テストモード」の場合、登録されていない別アカウントではログインできません。';
-
+                        
                         setTimeout(() => { alert(message); }, 500);
                         // URLをきれいに
                         window.history.replaceState(null, '', window.location.pathname);
@@ -1460,14 +1363,14 @@
             document.getElementById('welcome-screen').classList.remove('hidden');
             document.getElementById('main-content').classList.add('hidden');
             document.getElementById('race-header').classList.add('hidden');
-
+            
             // 下部タブバーはそのまま（または初期タブにリセット）
             if (window.innerWidth < 768) {
                 document.querySelectorAll('.tab-item').forEach(el => el.classList.remove('tab-active'));
                 const raceTab = document.getElementById('tab-race');
                 if (raceTab) raceTab.classList.add('tab-active');
             }
-
+            
             // 各セクションの非表示状態をリセット
             const sections = ['track-advisory', 'result-banner', 'odds-result-section'];
             sections.forEach(id => {
@@ -1484,7 +1387,7 @@
 
             const di = document.getElementById('debug-info');
             if (di) di.style.display = 'none';
-
+            
             currentRaceId = null;
             stopOddsAutoRefresh();
             stopCountdown();
@@ -1585,11 +1488,11 @@
                 hit_type: document.getElementById('setting-hit-type').value
             };
             localStorage.setItem('kyotei_v1_user_settings', JSON.stringify(settings));
-
+            
             // 的中結果分別が変わった場合、またはウェイト/点数が変わった場合は統計を再計算
             refreshSidebarHits(); // 常に全体を最新に
             updatePerformanceStats();
-
+            
             // 「一括追加」ボタンの表示制御
             const isResultVisible = !document.getElementById('result-banner').classList.contains('hidden');
             if (settings.hit_type === 'buy' && isResultVisible) {
@@ -1703,16 +1606,16 @@
 
         function setupSSE() {
             if (sseSource) sseSource.close();
-
+            
             sseSource = new EventSource(`${API_BASE}/events`);
-
+            
             console.log('[SSE] Connecting...');
-
+            
             sseSource.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
                     console.log('[SSE] received:', data);
-
+                    
                     if (data.type === 'race_update' || data.type === 'exhibition_update') {
                         if (currentRaceId === data.race_id) {
                             // 現在表示中のレースならサイレント更新
@@ -1733,7 +1636,7 @@
                     console.error('[SSE] parse error', e);
                 }
             };
-
+            
             sseSource.onerror = (e) => {
                 console.warn('[SSE] connection error, retrying in 10s...');
                 sseSource.close();
@@ -1745,7 +1648,6 @@
         function determineHitStatus(raceId, resultStr, preds) {
             if (!resultStr || resultStr === '--') return false;
             const hitType = document.getElementById('setting-hit-type')?.value || 'both';
-            const maxItems = parseInt(document.getElementById('setting-max-items')?.value || '8');
 
             // 1. 買い目的中 (カート内)
             if (hitType === 'buy') {
@@ -1765,17 +1667,17 @@
 
             // 2. AI予想的中
             if (hitType === 'ai') {
-                return (preds.ai_focus || []).slice(0, maxItems).some(item => isHit(item.pattern, resultStr));
+                return (preds.ai_focus || []).some(item => isHit(item.pattern, resultStr));
             }
 
             // 3. カスタマイズ予想的中
             if (hitType === 'custom') {
-                return (preds.rule_focus || []).slice(0, maxItems).some(item => isHit(item.pattern, resultStr));
+                return (preds.rule_focus || []).some(item => isHit(item.pattern, resultStr));
             }
 
             // 4. AI & カスタマイズ的中 (デフォルト)
-            return (preds.rule_focus || []).slice(0, maxItems).some(item => isHit(item.pattern, resultStr)) ||
-                (preds.ai_focus || []).slice(0, maxItems).some(item => isHit(item.pattern, resultStr));
+            return (preds.rule_focus || []).some(item => isHit(item.pattern, resultStr)) ||
+                (preds.ai_focus || []).some(item => isHit(item.pattern, resultStr));
         }
 
 
@@ -1942,13 +1844,13 @@
             const buttons = Array.from(container.querySelectorAll('[id^="race-btn-"]'));
             const currentIndex = buttons.findIndex(b => b.dataset.raceId == currentRaceId);
             if (currentIndex === -1) return;
-
+            
             const nextIndex = currentIndex + direction;
             if (nextIndex >= 0 && nextIndex < buttons.length) {
                 // アニメーションやフィードバック
                 const nextBtn = buttons[nextIndex];
                 nextBtn.click();
-
+                
                 // スムーズなスクロール
                 nextBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
@@ -1959,13 +1861,13 @@
             const prevBtn = document.getElementById('prev-race-nav');
             const nextBtn = document.getElementById('next-race-nav');
             if (!container || !prevBtn || !nextBtn) return;
-
+            
             const buttons = Array.from(container.querySelectorAll('[id^="race-btn-"]'));
             const currentIndex = buttons.findIndex(b => b.dataset.raceId == currentRaceId);
-
+            
             prevBtn.disabled = (currentIndex <= 0);
             nextBtn.disabled = (currentIndex === -1 || currentIndex >= buttons.length - 1);
-
+            
             // 無効時のスタイル補正（Tailwindのdisabledクラスが効いている前提だが、明示的にも）
             if (prevBtn.disabled) prevBtn.classList.add('opacity-10'); else prevBtn.classList.remove('opacity-10');
             if (nextBtn.disabled) nextBtn.classList.add('opacity-10'); else nextBtn.classList.remove('opacity-10');
@@ -1981,7 +1883,7 @@
                 div.className = 'bg-slate-700/60 rounded px-2 py-1.5 flex justify-between items-center text-xs';
                 const hitType = document.getElementById('setting-hit-type')?.value || 'both';
                 let isHitFlag = currentRaceResult ? isHit(item.pattern, currentRaceResult) : false;
-
+                
                 // 設定に応じた表示制御
                 if (hitType === 'buy') {
                     isHitFlag = false; // 予想リスト側では的中を表示しない
@@ -1990,7 +1892,7 @@
                 } else if (hitType === 'custom' && isAi) {
                     isHitFlag = false;
                 }
-
+                
                 const hitBadge = isHitFlag ? '<span class="ml-1 text-[9px] bg-yellow-400 text-black px-1 py-px rounded font-bold animate-pulse">的中</span>' : '';
                 const rankMedal = '';
                 // pattern に '-' または '=' が含まれない場合は、単勝として番号に背景色をつけるかシンプルにする
@@ -2058,7 +1960,7 @@
                 }
 
                 const reqBody = { weights: getWeights(), settings: getSettings() };
-
+                
                 // 開催場リストと的中結果(daily_hits)を並列でリクエスト
                 const dailyHitsPromise = fetch(`${API_BASE}/daily_hits?date=${dateStr}`, {
                     method: 'POST',
@@ -2066,14 +1968,14 @@
                     body: JSON.stringify(reqBody),
                     signal: controller.signal
                 }).then(res => res.ok ? res.json() : null)
-                    .catch(e => { console.warn('[Network] daily_hits failed', e); return null; });
+                  .catch(e => { console.warn('[Network] daily_hits failed', e); return null; });
 
                 const placesPromise = fetch(`${API_BASE}/places?date=${dateStr}`, { signal: controller.signal })
-                    .then(async res => {
-                        if (!res.ok) throw new Error(`Status ${res.status}`);
-                        return await res.json();
-                    })
-                    .catch(e => { console.error('[Network] places fetch failed', e); return null; });
+                  .then(async res => {
+                      if (!res.ok) throw new Error(`Status ${res.status}`);
+                      return await res.json();
+                  })
+                  .catch(e => { console.error('[Network] places fetch failed', e); return null; });
 
                 const [hits, places] = await Promise.all([dailyHitsPromise, placesPromise]);
                 clearTimeout(timeoutId);
@@ -2093,7 +1995,7 @@
                     } else {
                         updatePerformanceStats();
                     }
-
+                    
                     // 成功したら隣接日の先読みを開始（初回のみ）
                     if (relativeDate === 0 && !isRetry) {
                         setTimeout(() => prefetchAdjacentDates(), 2000);
@@ -2113,13 +2015,13 @@
                 }
 
                 return places;
-            } catch (e) {
+            } catch (e) { 
                 clearTimeout(timeoutId);
-                console.error('loadPlaces', e);
+                console.error('loadPlaces', e); 
                 if (e.name === 'AbortError') {
                     showToast('開催場の取得がタイムアウトしました。', 'warning');
                 }
-                return [];
+                return []; 
             }
         }
 
@@ -2155,7 +2057,7 @@
                 });
                 if (dhRes.ok) {
                     window.dailyHitsCache = await dhRes.json();
-
+                    
                     const hitType = document.getElementById('setting-hit-type')?.value || 'both';
                     document.querySelectorAll('[id^="race-btn-"]').forEach(btn => {
                         const raceId = String(btn.id.replace('race-btn-', ''));
@@ -2172,7 +2074,7 @@
                         }
                         applyFinishBadge(btn, isHitFlag);
                     });
-
+                    
                     updatePerformanceStats();
                 } else {
                     // API失敗時も的中キャッシュをリセットして統計を隠す
@@ -2184,11 +2086,11 @@
 
         function updatePerformanceStats() {
             if (!window.dailyHitsCache) return;
-
+            
             const hitType = document.getElementById('setting-hit-type')?.value || 'both';
             const settings = getSettings();
             const betAmountPerRace = settings.max_items * 100;
-
+            
             let totalRaces = 0;
             let totalHits = 0;
             let totalInvestment = 0;
@@ -2200,7 +2102,7 @@
             Object.entries(window.dailyHitsCache).forEach(([raceId, data]) => {
                 const place = data.place;
                 if (!venueStats[place]) venueStats[place] = { count: 0, hits: 0, invest: 0, payout: 0 };
-
+                
                 let isHitFlag = false;
                 let payout = 0;
                 let invest = 0;
@@ -2250,10 +2152,10 @@
             if (totalRaces > 0) {
                 summaryEl.classList.remove('hidden');
                 document.getElementById('total-race-count').textContent = totalRaces;
-
+                
                 const hrStr = ((totalHits / totalRaces) * 100).toFixed(1) + '%';
                 const rrStr = totalInvestment > 0 ? ((totalPayout / totalInvestment) * 100).toFixed(1) + '%' : '0.0%';
-
+                
                 document.getElementById('total-hit-rate').textContent = hrStr;
                 document.getElementById('total-return-rate').textContent = rrStr;
             } else {
@@ -2346,7 +2248,7 @@
         async function loadRaces(placeName, autoLoadFirst = false, retryCount = 0) {
             currentPlaceName = placeName;
             currentVenueCode = Object.keys(places_dict).find(key => places_dict[key] === placeName) || '';
-
+            
             // 他の場のコンテナを閉じる
             document.querySelectorAll('[id^="races-container-"]').forEach(el => {
                 if (el.id !== `races-container-${placeName}`) {
@@ -2563,28 +2465,28 @@
             currentRaceResult = null;
             lastPredictions = null;
             stopOddsAutoRefresh();
-
+            
             try {
                 await loadCart(); // カート内容をロード
             } catch (e) {
                 console.warn('loadCart error', e);
             }
-
+            
             // 画面を即座に切り替え
             document.getElementById('welcome-screen').classList.add('hidden');
             document.getElementById('main-content').classList.remove('hidden');
             document.getElementById('odds-result-section').classList.remove('hidden');
             document.getElementById('result-banner').classList.add('hidden');
-
+            
             // ナビゲーションボタンの状態を更新
             updateNavButtons();
-
+            
             const placeName = document.querySelector('[id^="races-container-"]:not(.hidden)')?.id.replace('races-container-', '') || '';
             const cachedResult = raceResultCache[raceId];
-
+            
             // 異常データのチェック: finished なのに ranking_str が不完全な場合はキャッシュから消して再取得させる
-            const isInvalidResult = cachedResult && cachedResult.result && cachedResult.result.finished &&
-                (!cachedResult.result.ranking_str || cachedResult.result.ranking_str === "--" || cachedResult.result.ranking_str.split('-').length < 3);
+            const isInvalidResult = cachedResult && cachedResult.result && cachedResult.result.finished && 
+                                   (!cachedResult.result.ranking_str || cachedResult.result.ranking_str === "--" || cachedResult.result.ranking_str.split('-').length < 3);
             if (isInvalidResult) {
                 console.warn("Incomplete result detected in cache. Forcing re-fetch.");
                 delete raceResultCache[raceId];
@@ -2592,7 +2494,7 @@
 
             const isFinished = cachedResult && cachedResult.result && cachedResult.result.finished && !isInvalidResult;
 
-            // ─ 終了済みの場合: 結果を即表示してバックグラウンド処理 (SWR) ─
+            // ─ 終了済みの場合: 結果を即表示してバックグラウンド処理なし ─
             if (isFinished) {
                 currentRaceResult = cachedResult.result.ranking_str || null;
 
@@ -2609,47 +2511,6 @@
                 showResultBanner(cachedResult);
                 document.getElementById('odds-content').innerHTML = '<p class="text-sm text-slate-500 text-center py-4">レース終了済み（最終オッズ）</p>';
                 if (cachedResult.odds && cachedResult.odds.all_odds) renderOdds(cachedResult.odds.all_odds);
-
-                // --- SWR: バックグラウンドで最新結果への更新を確認 ---
-                if (window.navigator.onLine) {
-                    fetch(`${API_BASE}/races/${raceId}/options`)
-                        .then(res => res.ok ? res.json() : null)
-                        .then(freshData => {
-                            if (!freshData || !freshData.result || !freshData.result.finished) return;
-                            const oldRanking = cachedResult.result.ranking_str || "";
-                            const newRanking = freshData.result.ranking_str || "";
-
-                            // 着順が変わっている場合、または不完全な状態から更新された場合のみ上書き反映
-                            if (newRanking !== oldRanking || (newRanking !== "--" && oldRanking === "--")) {
-                                console.log("Background SWR updated result for", raceId, oldRanking, "->", newRanking);
-                                raceResultCache[raceId] = freshData;
-                                saveCache('raceResultCache', raceResultCache);
-
-                                // 的中判定のやり直しとサイドバーの更新
-                                if (lastPredictionsCache[raceId]) {
-                                    const preds = lastPredictionsCache[raceId].predictions;
-                                    const hitFlag = determineHitStatus(raceId, newRanking, preds);
-                                    raceHitCache[raceId] = hitFlag;
-                                    saveCache('raceHitCache', raceHitCache);
-                                    if (window.dailyHitsCache) {
-                                        const oldData = window.dailyHitsCache[raceId] || {};
-                                        window.dailyHitsCache[raceId] = { hit: hitFlag, place: freshData.place_name || currentPlaceName, payout: oldData.payout || 0 };
-                                    }
-                                    const btn = document.getElementById(`race-btn-${raceId}`);
-                                    if (btn) applyFinishBadge(btn, hitFlag);
-                                    updatePerformanceStats();
-                                }
-
-                                // 開いているレースなら表示も更新
-                                if (currentRaceId === raceId) {
-                                    currentRaceResult = newRanking;
-                                    showResultBanner(freshData);
-                                    if (freshData.odds && freshData.odds.all_odds) renderOdds(freshData.odds.all_odds);
-                                    showToast("最新の確定結果に更新しました");
-                                }
-                            }
-                        }).catch(() => { });
-                }
                 return;
             }
 
@@ -2662,7 +2523,7 @@
                 // バックグラウンドで結果とオッズを非同期更新
                 loadRaceOptions().then(() => startOddsAutoRefresh());
                 // さらに予想データもサイレントに最新化
-                requestPrediction('both', false, false, true);
+                requestPrediction('both', false, false, true); 
             } else {
                 const mc = document.getElementById('main-content');
                 mc.style.opacity = '0.4';
@@ -2738,45 +2599,45 @@
             if (current > max) current = max;
             el.value = current.toFixed(1);
             valEl.textContent = el.value;
-
+            
             // Instant reflection: re-calculate locally if we have players data
             if (currentRaceId && currentPlayersData && currentPlayersData.length > 0) {
                 simulateCustomPrediction();
             }
-
+            
             saveUserSettings();
             // サーバー側へのリクエストは少し遅延させて負荷軽減（デバウンス的な）
             if (window.weightTimeout) clearTimeout(window.weightTimeout);
             window.weightTimeout = setTimeout(() => {
-                if (currentRaceId) requestPrediction('custom', false, false, true);
+                if (currentRaceId) requestPrediction('custom');
             }, 800);
         }
 
         // クライアント側での簡易スコアリングシミュレーション
         function simulateCustomPrediction() {
             if (!currentPlayersData || currentPlayersData.length === 0) return;
-
+            
             const w = getWeights();
             const players = currentPlayersData.map(p => {
                 // Backendの計算ロジックを簡略化して再現
                 let score = 0;
                 score += (p.global_win_rate || 0) * w.win_rate;
                 score += ((p.motor_2_quinella || 0) / 10) * w.motor;
-
+                
                 // 展示タイム (速いほど良い)
                 const ex = p.calc_ex || 6.80;
                 score += (7.5 - ex) * 10 * w.exhibition;
-
+                
                 // ST (早いほど良い)
                 const st = p.calc_st || 0.15;
                 score += (0.5 - st) * 10 * w.st;
-
+                
                 // 枠順 (内枠有利)
                 const course = p.calc_course || p.boat_number;
                 if (course === 1) score += 5 * w.course;
                 else if (course === 2) score += 3 * w.course;
                 else if (course === 3) score += 2 * w.course;
-
+                
                 return { boat: p.boat_number, score: score };
             });
 
@@ -2788,13 +2649,13 @@
 
             // スコア順にソート
             activePlayers.sort((a, b) => b.score - a.score);
-
+            
             // 簡易的に上位3人の組み合わせを生成
             if (activePlayers.length < 3) return;
-
+            
             const top = activePlayers.slice(0, 4);
             const simPatterns = [];
-
+            
             // 3連単の組み合わせ (1-2-3, 1-2-4, ...)
             for (let i = 0; i < top.length; i++) {
                 for (let j = 0; j < top.length; j++) {
@@ -2810,12 +2671,12 @@
                     }
                 }
             }
-
+            
             simPatterns.sort((a, b) => b.prob - a.prob);
-
+            
             // UIに即時反映
             renderList('rule-focus', simPatterns.slice(0, 10), false);
-
+            
             // 選手テーブルのマークも更新
             const marks = ['◎', '○', '▲', '△', '×', ''];
             activePlayers.forEach((p, idx) => {
@@ -2828,7 +2689,7 @@
                         if (markSpan) markSpan.textContent = mark;
                     }
                 });
-
+                
                 // モバイルカードも更新
                 const cards = document.querySelectorAll('#player-cards-mobile > div');
                 cards.forEach(card => {
@@ -2838,7 +2699,7 @@
                         if (markSpan) markSpan.textContent = mark;
                     }
                 });
-
+                
                 // データ本体も更新
                 const pd = currentPlayersData.find(d => d.boat_number === p.boat);
                 if (pd) pd.rule_mark = mark;
@@ -2848,7 +2709,7 @@
         ['setting-bet-type', 'setting-max-items'].forEach(id => {
             document.getElementById(id).addEventListener('change', () => {
                 saveUserSettings();
-                if (currentRaceId) requestPrediction('both', false, false, true);
+                if (currentRaceId) requestPrediction();
             });
         });
 
@@ -2873,7 +2734,7 @@
             isSettingsLoading = false;
             saveUserSettings();
             showToast('設定を初期値にリセットしました。');
-            if (currentRaceId) requestPrediction('both', false, false, true);
+            if (currentRaceId) requestPrediction();
         }
 
         function toggleFixedHead(boatNum) {
@@ -2882,7 +2743,7 @@
             } else {
                 activeFixedHead = boatNum;
             }
-            if (currentRaceId) requestPrediction('both', false, false, true);
+            if (currentRaceId) requestPrediction();
         }
 
         async function requestPrediction(target = 'both', recalculateAi = false, ignoreExhibition = false, silent = false) {
@@ -2890,7 +2751,7 @@
                 // サイレント時はローディング表示をスキップ
                 const mc = document.getElementById('main-content');
                 if (!silent) {
-                    // 手動更新時はトースト等を出しても良いが、現状は opacity 制御（呼び出し側）
+                     // 手動更新時はトースト等を出しても良いが、現状は opacity 制御（呼び出し側）
                 }
 
                 // ローカル保存されている上書き情報の取得
@@ -2938,12 +2799,10 @@
                 // もし終了済みのレースなら、新しい予想で的中したかをチェックしてサイドバーを更新
                 if (data.race.is_finished && data.race.ranking_str) {
                     const preds = lastPredictions;
-                    const isHitFlag = determineHitStatus(data.race.id, data.race.ranking_str, preds);
+                    const isHitFlag = preds.rule_focus.some(p => isHit(p.pattern, data.race.ranking_str)) ||
+                        preds.ai_focus.some(p => isHit(p.pattern, data.race.ranking_str));
 
-                    if (window.dailyHitsCache) {
-                        const oldData = window.dailyHitsCache[currentRaceId] || {};
-                        window.dailyHitsCache[currentRaceId] = { hit: isHitFlag, place: data.race.place_name || currentPlaceName, payout: oldData.payout || 0 };
-                    }
+                    if (window.dailyHitsCache) window.dailyHitsCache[currentRaceId] = isHitFlag;
                     const btn = document.getElementById(`race-btn-${currentRaceId}`);
                     if (btn) applyFinishBadge(btn, isHitFlag);
                 }
@@ -3019,7 +2878,7 @@
                 const top3t = predictions.ai_focus.find(x => x.type === '3t' || x.type === '3連単' || typeof x === 'string');
                 if (top3t) {
                     const pattern = top3t.pattern || top3t;
-                    const exLbl = top3t.exLabel || (top3t.expectation ? Math.round(top3t.expectation) + '%' : null);
+                    const exLbl = top3t.exLabel || (top3t.expectation ? Math.round(top3t.expectation)+ '%' : null);
                     topPickContent.innerHTML = `<button onclick="quickAddToCart('${pattern}')" class="px-5 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-400 hover:to-indigo-400 text-white font-black text-lg rounded-xl shadow-[0_0_10px_rgba(59,130,246,0.5)] transform transition-all active:scale-95 flex items-center gap-2 border border-blue-400/50">
                         ${pattern} <span class="text-xs font-normal border-l border-white/30 pl-2">カートへ 🛒</span>
                     </button>
@@ -3255,7 +3114,7 @@
                 document.getElementById('add-all-custom').classList.add('hidden');
                 document.getElementById('add-all-ai').classList.add('hidden');
             }
-
+            
             // カート内の的中バッジ表示を更新
             renderCart();
 
@@ -3787,7 +3646,7 @@
         });
 
         // ─── Racer Search ──────────────────────────────────────────────────────
-        (function () {
+        (function() {
             const searchBtn = document.getElementById('racer-search-btn');
             const searchInput = document.getElementById('racer-search-input');
             if (searchBtn) {
@@ -3899,8 +3758,8 @@
                     html += `<tr><td colspan="4" class="py-10 text-slate-500 italic">過去成績データがありません</td></tr>`;
                 } else {
                     past.slice(0, 20).forEach(p => {
-                        const rankCls = p.rank == 1 ? 'bg-amber-400 text-black font-black rounded-full w-5 h-5 flex items-center justify-center mx-auto shadow-lg' :
-                            (p.rank <= 3 ? 'text-slate-100 font-bold' : 'text-slate-500');
+                        const rankCls = p.rank == 1 ? 'bg-amber-400 text-black font-black rounded-full w-5 h-5 flex items-center justify-center mx-auto shadow-lg' : 
+                                      (p.rank <= 3 ? 'text-slate-100 font-bold' : 'text-slate-500');
                         html += `
                             <tr class="hover:bg-slate-700/30 transition-colors">
                                 <td class="px-2 py-2 text-left text-slate-400 font-mono">${p.race_date} ${p.race_no}R</td>
@@ -4073,7 +3932,7 @@
 
                     // オッズも更新
                     if (typeof loadRaceOptions === 'function') {
-                        try { await loadRaceOptions(true); } catch (_) { }
+                        try { await loadRaceOptions(true); } catch (_) {}
                     }
                 }
 
@@ -4236,24 +4095,24 @@
         function saveCart() {
             if (currentRaceId) {
                 saveCache('cart_' + currentRaceId, betCart);
-
+                
                 // 全統計用の集約データも更新
                 const allCart = JSON.parse(localStorage.getItem('kyotei_v1_cart') || '{}');
                 allCart[currentRaceId] = Object.keys(betCart);
                 localStorage.setItem('kyotei_v1_cart', JSON.stringify(allCart));
-
+                
                 if (supabaseClient && currentUser) {
                     supabaseClient.from('cart_items').upsert([{
                         user_id: currentUser.id,
                         race_id: currentRaceId,
                         cart_json: betCart
-                    }], { onConflict: 'user_id, race_id' }).then(({ error }) => {
+                    }], { onConflict: 'user_id, race_id' }).then(({error}) => {
                         if (error) console.warn('Supabase saveCart error', error);
                     });
                 }
-
+                
                 updateCartResultDisplay();
-
+                
                 // 的中判定の即時反映
                 const hitType = document.getElementById('setting-hit-type')?.value || 'both';
                 if (hitType === 'buy') {
@@ -4279,12 +4138,12 @@
                         }
                     } catch (e) { console.warn('Supabase loadCart error', e); }
                 }
-
+                
                 if (!loadedCart) {
                     const localData = localStorage.getItem(CACHE_PREFIX + 'cart_' + currentRaceId);
                     if (localData) Object.assign(loadedCart || (loadedCart = {}), JSON.parse(localData));
                 }
-
+                
                 betCart = loadedCart || {};
             }
             renderCart();
@@ -4314,7 +4173,7 @@
                 } else {
                     displayPat = `<span class="inline-block w-4 h-4 text-center rounded text-[10px] text-white border ${boatColors[parseInt(pat) - 1] || 'bg-slate-700'}">${pat}</span>`;
                 }
-
+                
                 const isHitFlag = (currentRaceId && currentRaceResult) ? isHit(pat, currentRaceResult) : false;
                 const hitBadge = isHitFlag ? '<span class="ml-2 text-[9px] bg-yellow-400 text-black px-1 py-px rounded font-bold animate-pulse">的中</span>' : '';
 
@@ -4605,10 +4464,10 @@
             const adv = document.getElementById('track-advisory');
             const advText = document.getElementById('track-advisory-text');
             if (!adv || !advText) return;
-
+            
             let staticMsg = TRACK_ADVISORIES[placeName] || '';
             let dynamicMsg = '';
-
+            
             if (raceData) {
                 const wp = raceData.wind_speed || 0;
                 const wd = raceData.wind_direction || '';
@@ -4959,10 +4818,10 @@
         async function performSearch() {
             const q = document.getElementById('modal-search-input').value.trim();
             if (!q) return;
-
+            
             const container = document.getElementById('search-results-area');
             container.innerHTML = '<div class="text-center py-12"><div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mb-2"></div><p class="text-slate-400 text-xs">検索中...</p></div>';
-
+            
             try {
                 const res = await fetch(`${API_BASE}/search/racers?q=${encodeURIComponent(q)}`);
                 const data = await res.json();
@@ -4977,7 +4836,7 @@
                 container.innerHTML = '<p class="text-slate-500 text-center py-16 text-sm">該当する選手は見つかりませんでした</p>';
                 return;
             }
-
+            
             let html = '<div class="grid grid-cols-1 gap-3 pb-4">';
             results.forEach(r => {
                 html += `
@@ -5004,16 +4863,16 @@
                             <span class="w-1 h-3 bg-blue-500 rounded-full"></span>近日出場予定
                         </p>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        ${r.scheduled_races.length > 0 ?
-                        r.scheduled_races.map(sr => `
+                        ${r.scheduled_races.length > 0 ? 
+                            r.scheduled_races.map(sr => `
                             <button onclick="closeSearchModal(); goToRace('${sr.place}', ${sr.race_id}, '${sr.date}')" 
                                 class="flex justify-between items-center bg-slate-800 hover:bg-blue-900/40 p-3 rounded-xl border border-slate-700 transition-all text-xs group">
                                 <span class="font-bold text-slate-300 group-hover:text-blue-300">${sr.date.split('-').slice(1).join('/')} ${sr.place} ${sr.race_no}R</span>
                                 <span class="bg-slate-700 px-2 py-1 rounded-lg text-slate-400 text-[10px]">${sr.boat_no}号艇</span>
                             </button>
-                            `).join('') :
-                        '<p class="text-xs text-slate-600 col-span-2 py-2">※本日・明日の出場予定はありません</p>'
-                    }
+                            `).join('') : 
+                            '<p class="text-xs text-slate-600 col-span-2 py-2">※本日・明日の出場予定はありません</p>'
+                        }
                         </div>
                     </div>
                 </div>`;
@@ -5021,74 +4880,41 @@
             html += '</div>';
             container.innerHTML = html;
         }
-        let currentExpectationDate = null;
-
-        async function fetchExpectationRaces(targetDate = null) {
-            if (!targetDate) {
-                targetDate = getTargetDateStr(0);
-            }
-            currentExpectationDate = targetDate;
+        async function fetchExpectationRaces() {
             const container = document.getElementById('high-expectation-results');
             container.innerHTML = '<div class="text-center py-12"><div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-amber-500 mb-2"></div><p class="text-slate-400 text-xs">的中期待値を解析中...</p></div>';
-
+            
             try {
-                const reqBody = { weights: getWeights(), settings: getSettings(), overrides: null };
-                const [res, hitRes] = await Promise.all([
-                    fetch(`${API_BASE}/search/high_expectation?date=${targetDate}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(reqBody)
-                    }),
-                    fetch(`${API_BASE}/daily_hits?date=${targetDate}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ weights: getWeights(), settings: getSettings(), overrides: null })
-                    }).catch(() => ({ json: () => ({}) })) // Ignore hits error if any
-                ]);
-
+                const res = await fetch(`${API_BASE}/search/high_expectation`);
                 const data = await res.json();
-                const hitData = hitRes.ok ? await hitRes.json() : await hitRes.json();
-                renderExpectationResults(data, targetDate, hitData);
+                renderExpectationResults(data);
             } catch (e) {
                 container.innerHTML = '<p class="text-red-400 text-center py-12 text-sm">取得に失敗しました</p>';
             }
         }
-        function renderExpectationResults(data, targetDate, hitDataMap) {
+        function renderExpectationResults(data) {
             const container = document.getElementById('high-expectation-results');
             const solidRaces = data.solid || [];
             const valueRaces = data.value || [];
 
-            const todayStr = getTargetDateStr(0);
-            const ydayStr = getTargetDateStr(-1);
-
-            let navHtml = `
-            <div class="flex items-center justify-between bg-slate-800 rounded-lg p-2 mb-3 border border-slate-700 shadow-sm">
-                <button onclick="fetchExpectationRaces('${ydayStr}')" class="text-xs px-3 py-1.5 rounded font-bold transition-all ${targetDate === ydayStr ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-slate-700 text-slate-200 hover:bg-slate-600'}" ${targetDate === ydayStr ? 'disabled' : ''}>← 昨日の結果</button>
-                <div class="flex flex-col text-center">
-                    <span class="text-xs font-bold text-emerald-400">${targetDate} の予想/結果</span>
-                </div>
-                <button onclick="fetchExpectationRaces('${todayStr}')" class="text-xs px-3 py-1.5 rounded font-bold transition-all ${targetDate === todayStr ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-slate-700 text-slate-200 hover:bg-slate-600'}" ${targetDate === todayStr ? 'disabled' : ''}>本日の予想 →</button>
-            </div>
-            `;
-
             if (solidRaces.length === 0 && valueRaces.length === 0) {
-                container.innerHTML = navHtml + '<p class="text-slate-500 text-center py-16 text-sm">現在、条件に合うレースはありません</p>';
+                container.innerHTML = '<p class="text-slate-500 text-center py-16 text-sm">現在、条件に合うレースはありません</p>';
                 return;
             }
-
-            let html = navHtml + `
+            
+            let html = `
             <div class="flex p-1 bg-slate-900 rounded-lg border border-slate-700 mb-4">
                 <button id="subtab-solid" onclick="switchExpectationSubTab('solid')" class="flex-1 py-1.5 text-xs font-bold rounded-md bg-emerald-600 text-white shadow-sm flex items-center justify-center gap-1 transition-all">🎯 的中率重視</button>
                 <button id="subtab-value" onclick="switchExpectationSubTab('value')" class="flex-1 py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-slate-200 flex items-center justify-center gap-1 transition-all">💰 期待値重視</button>
             </div>
             `;
-
+            
             // 🎯 的中率重視 (Solid) Container
             html += `<div id="subcontent-solid" class="space-y-4 pb-4 animate-in fade-in duration-200">`;
             if (solidRaces.length > 0) {
                 html += `<div class="bg-emerald-900/10 border border-emerald-900/30 p-3 rounded-xl text-emerald-400 text-xs shadow-inner">1号艇の勝率が非常に高い、イン逃げ鉄板のレースをピックアップしています。</div>`;
                 html += `<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">`;
-                solidRaces.forEach(r => html += createRaceCardHTML(r, 'solid', '大本命・イン逃げ推奨', targetDate, hitDataMap));
+                solidRaces.forEach(r => html += createRaceCardHTML(r, 'solid', '大本命・イン逃げ推奨'));
                 html += `</div>`;
             } else {
                 html += `<p class="text-slate-500 text-center py-10 text-xs">現在、条件に合う的中率重視レースはありません</p>`;
@@ -5100,7 +4926,7 @@
             if (valueRaces.length > 0) {
                 html += `<div class="bg-amber-900/10 border border-amber-900/30 p-3 rounded-xl text-amber-400 text-xs shadow-inner">1号艇の勝率が低く、中穴〜大穴展開が望めるレースをピックアップしています。</div>`;
                 html += `<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">`;
-                valueRaces.forEach(r => html += createRaceCardHTML(r, 'value', '中穴・大穴展開推奨', targetDate, hitDataMap));
+                valueRaces.forEach(r => html += createRaceCardHTML(r, 'value', '中穴・大穴展開推奨'));
                 html += `</div>`;
             } else {
                 html += `<p class="text-slate-500 text-center py-10 text-xs">現在、条件に合う期待値重視レースはありません</p>`;
@@ -5110,7 +4936,7 @@
             container.innerHTML = html;
         }
 
-        window.switchExpectationSubTab = function (tab) {
+        window.switchExpectationSubTab = function(tab) {
             const solidBtn = document.getElementById('subtab-solid');
             const valueBtn = document.getElementById('subtab-value');
             const solidContent = document.getElementById('subcontent-solid');
@@ -5131,28 +4957,28 @@
             }
         };
 
-        function createRaceCardHTML(r, colorTheme, desc, targetDateStr, scopedHitData) {
-            const hitData = (scopedHitData && r.is_finished) ? scopedHitData[r.id] : null;
+        function createRaceCardHTML(r, colorTheme, desc) {
+            const hitData = (window.dailyHitsCache && r.is_finished) ? window.dailyHitsCache[r.id] : null;
             const hitBadge = (hitData && hitData.hit) ? `<span class="ml-1 text-[10px] bg-red-500 border border-red-400/50 px-2 py-0.5 rounded text-white font-bold animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]">🎯的中</span>` : '';
-            const payoutHtml = (hitData && hitData.hit && hitData.payout > 0)
+            const payoutHtml = (hitData && hitData.hit && hitData.payout > 0) 
                 ? `<div class="text-[10px] font-bold text-emerald-400 mt-2.5 flex items-center gap-1.5 bg-emerald-900/40 border border-emerald-800/50 px-2.5 py-1.5 rounded w-full">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     払戻金: ¥${hitData.payout.toLocaleString()}
-                   </div>`
+                   </div>` 
                 : '';
 
             const isSolid = colorTheme === 'solid';
             const hoverBorderCls = isSolid ? 'hover:border-emerald-500/50' : 'hover:border-amber-500/50';
             const textCls = isSolid ? 'text-emerald-400' : 'text-amber-400';
-            const svgIcon = isSolid ?
-                `<svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>` :
+            const svgIcon = isSolid ? 
+                `<svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>` : 
                 `<svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>`;
 
             const badgeCls = r.is_finished ? 'bg-slate-700/80 text-slate-400 border border-slate-600/50' : 'bg-blue-600/20 text-blue-400 border border-blue-500/50 animate-pulse';
             const badgeText = r.is_finished ? '終了' : '発売中';
 
             return `
-            <button onclick="closeSearchModal(); goToRace('${r.place}', ${r.id}, '${targetDateStr || getTargetDateStr(0)}')" 
+            <button onclick="closeSearchModal(); goToRace('${r.place}', ${r.id}, '${getTargetDateStr(0)}')" 
                 class="flex flex-col items-start bg-slate-800/60 border border-slate-700/60 ${hoverBorderCls} hover:bg-slate-700/40 p-4 rounded-xl transition-all text-left relative overflow-hidden group shadow w-full">
                 
                 <div class="flex justify-between w-full items-center mb-2">
@@ -5177,24 +5003,21 @@
             if (targetDate) {
                 const today = getTargetDateStr(0);
                 const tomorrow = getTargetDateStr(1);
-                const yday = getTargetDateStr(-1);
                 if (targetDate === today && relativeDate !== 0) {
                     await navigateDate(0 - relativeDate);
                 } else if (targetDate === tomorrow && relativeDate !== 1) {
                     await navigateDate(1 - relativeDate);
-                } else if (targetDate === yday && relativeDate !== -1) {
-                    await navigateDate(-1 - relativeDate);
                 }
             }
-
+            
             // 1. 場を選択してレースリストを表示 (async/await で読み込み完了を待つ)
             currentPlaceName = placeName;
             currentVenueCode = Object.keys(places_dict).find(key => places_dict[key] === placeName) || '';
             await loadRaces(placeName);
-
+            
             // 2. レース詳細をロード (非同期)
             loadRaceDetail(raceId);
-
+            
             // 3. サイドバーのボタンを選択状態にする (レンダリング完了を待つためにリトライを導入)
             let attempts = 0;
             const maxAttempts = 30; // 最大3秒間リトライ
@@ -5211,7 +5034,7 @@
                 }
                 attempts++;
             }, 100);
-
+            
             // モバイルならドロワーを閉じる
             if (window.innerWidth < 768) {
                 const dr = document.getElementById('drawer');
@@ -5225,7 +5048,7 @@
             const racerTabBtn = document.getElementById('search-tab-racer');
             const favTabBtn = document.getElementById('search-tab-fav');
             const highTabBtn = document.getElementById('search-tab-high');
-
+            
             const racerContent = document.getElementById('search-content-racer');
             const favContent = document.getElementById('search-content-fav');
             const highContent = document.getElementById('search-content-high');
@@ -5258,7 +5081,7 @@
                     if (e.key === 'Enter') performSearch();
                 });
             }
-
+            
             // SSE接続開始
             setupSSE();
 
@@ -5340,7 +5163,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ toban, name, active: nextActive })
                 });
-
+                
                 if (res.ok) {
                     showToast(nextActive ? 'お気に入りに登録しました' : 'お気に入りを解除しました', 'info');
                 } else {
@@ -5378,7 +5201,7 @@
         async function refreshFavorites() {
             const container = document.getElementById('favorite-list-area');
             container.innerHTML = '<div class="text-center py-10"><div class="inline-block animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500 mb-2"></div><p class="text-slate-500 text-[10px]">読み込み中...</p></div>';
-
+            
             try {
                 let favs = [];
                 if (supabaseClient && currentUser) {
@@ -5388,26 +5211,26 @@
                         .select('toban, name')
                         .eq('user_id', currentUser.id)
                         .order('created_at', { ascending: false });
-
+                    
                     if (error) throw error;
-
+                    
                     // 出場予定は別途APIで取得するか、フロントエンドで解決する
                     // ここでは既存のロジックに合わせて、出場予定を追加で取得
                     favs = await Promise.all(data.map(async f => {
                         try {
-                            const res = await fetch(`${API_BASE}/racer_stats/${f.toban}`);
-                            const stats = await res.json();
-                            // APIを叩いて出場予定を補完
-                            const scheduledRes = await fetch(`${API_BASE}/favorites?toban=${f.toban}`);
-                            const sData = await scheduledRes.json();
-                            const match = sData.find(x => x.toban === f.toban);
-                            return {
-                                toban: f.toban,
-                                name: f.name,
-                                scheduled_races: match ? match.scheduled_races : []
-                            };
+                           const res = await fetch(`${API_BASE}/racer_stats/${f.toban}`);
+                           const stats = await res.json();
+                           // APIを叩いて出場予定を補完
+                           const scheduledRes = await fetch(`${API_BASE}/favorites?toban=${f.toban}`);
+                           const sData = await scheduledRes.json();
+                           const match = sData.find(x => x.toban === f.toban);
+                           return {
+                               toban: f.toban,
+                               name: f.name,
+                               scheduled_races: match ? match.scheduled_races : []
+                           };
                         } catch (e) {
-                            return { toban: f.toban, name: f.name, scheduled_races: [] };
+                           return { toban: f.toban, name: f.name, scheduled_races: [] };
                         }
                     }));
                 } else {
@@ -5415,12 +5238,12 @@
                     const res = await fetch(`${API_BASE}/favorites`);
                     favs = await res.json();
                 }
-
+                
                 if (favs.length === 0) {
                     container.innerHTML = '<p class="text-center text-slate-500 text-xs py-10">お気に入りに登録された選手はいません。<br>★マークを押して登録してください。</p>';
                     return;
                 }
-
+                
                 let html = '<div class="grid grid-cols-1 gap-3 pb-4">';
                 favs.forEach(f => {
                     const safeName = f.name.replace(/'/g, "\\'");
@@ -5447,16 +5270,16 @@
                                 <span class="w-1 h-3 bg-emerald-500 rounded-full"></span>近日出場予定
                             </p>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            ${f.scheduled_races && f.scheduled_races.length > 0 ?
-                            f.scheduled_races.map(sr => `
+                            ${f.scheduled_races && f.scheduled_races.length > 0 ? 
+                                f.scheduled_races.map(sr => `
                                 <button onclick="closeSearchModal(); goToRace('${sr.place}', ${sr.race_id}, '${sr.date}')" 
                                     class="flex justify-between items-center bg-slate-800 hover:bg-emerald-900/40 p-3 rounded-xl border border-slate-700 transition-all text-xs group">
                                     <span class="font-bold text-slate-300 group-hover:text-emerald-300">${sr.date.split('-').slice(1).join('/')} ${sr.place} ${sr.race_no}R</span>
                                     <span class="bg-slate-700 px-2 py-1 rounded-lg text-slate-400 text-[10px]">${sr.boat_no}号艇</span>
                                 </button>
-                                `).join('') :
-                            '<p class="text-xs text-slate-600 col-span-2 py-2">※本日・明日の出場予定はありません</p>'
-                        }
+                                `).join('') : 
+                                '<p class="text-xs text-slate-600 col-span-2 py-2">※本日・明日の出場予定はありません</p>'
+                            }
                             </div>
                         </div>
                     </div>`;
@@ -5506,10 +5329,10 @@
             toast.className = `min-w-[250px] p-3 rounded-lg shadow-xl text-white text-sm font-bold flex items-center gap-2 transform transition-all translate-x-full opacity-0 ${bg}`;
             toast.innerHTML = `<span>${type === 'alert' ? '🔔' : type === 'success' ? '✅' : 'ℹ️'}</span><span>${msg}</span>`;
             container.appendChild(toast);
-
+            
             // Animate in
             setTimeout(() => { toast.classList.remove('translate-x-full', 'opacity-0'); }, 10);
-
+            
             // Animate out
             setTimeout(() => {
                 toast.classList.add('translate-x-full', 'opacity-0');
@@ -5553,20 +5376,20 @@
             checkTutorial();
             // Setup Offline logic
             setupOfflineHandlers();
-
+            
             // Auto Refresh Polling (Every 60s)
             setInterval(async () => {
                 if (!currentVenueCode || !currentRaceId) return;
                 // Only auto-refresh if page is visible to save bandwidth
                 if (document.hidden) return;
-
+                
                 try {
                     // Refresh data silently
                     const dateStr = getTargetDateStr(relativeDate);
                     const res = await fetch(`${API_BASE}/places/${encodeURIComponent(currentPlaceName)}/races?date=${dateStr}`);
                     if (!res.ok) return;
                     const races = await res.json();
-
+                    
                     // Check if current race odds or status shifted
                     const r = races.find(x => x.id === currentRaceId);
                     if (r) {
@@ -5588,7 +5411,7 @@
                             race.notified5min = true; // Mark as notified in logical memory, handled loosely
                         }
                     });
-                } catch (e) { console.error('Auto refresh failed (offline?)'); }
+                } catch(e) { console.error('Auto refresh failed (offline?)'); }
             }, 60000); // 1 min
 
             // Also check for deadline locally every 30 seconds
@@ -5613,15 +5436,15 @@
                 if (!aiStr) return;
                 const ai = typeof aiStr === 'string' ? JSON.parse(aiStr) : aiStr;
                 const expectations = ai.expected_values || {};
-
+                
                 // If it has decent expectation, notify
-                const maxEx = Math.max(...Object.values(expectations).map(x => parseFloat(x) || 0));
+                const maxEx = Math.max(...Object.values(expectations).map(x=>parseFloat(x)||0));
                 if (maxEx > 130) {
                     showToast(`🔔 ${r.place} ${r.race_no}R まもなく締切（5分前）！\n高期待値（Value）レースです🚀`, 'alert');
                 } else if (maxEx > 0) {
                     // showToast(`🔔 ${r.place} ${r.race_no}R 締切5分前です`, 'info');
                 }
-            } catch (e) { }
+            } catch(e) {}
         }
 
         function silentRefreshRacesList(racesData) {
@@ -5631,88 +5454,13 @@
         }
 
         // Previous duplicate updateTrackAdvisory was here - removed.
-
+        
         // Let's hook up initUXFeatures securely
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', initUXFeatures);
         } else {
             initUXFeatures();
         }
-
-        // --- Android Back Button Handling Setup ---
-        (function setupBackButtonHandling() {
-            // Initial dummy state to guard against immediate exit
-            history.pushState({ appRoot: true }, document.title, location.href);
-
-            window.addEventListener('popstate', function (event) {
-                if (window.__allowExit) {
-                    // Force native exit
-                    setTimeout(() => { history.back(); }, 10);
-                    return;
-                }
-
-                let closedSomething = false;
-
-                // 1. Drawer
-                const drawer = document.getElementById('drawer');
-                const overlay = document.getElementById('drawer-overlay');
-                if (drawer && drawer.classList.contains('drawer-open')) {
-                    drawer.classList.remove('drawer-open');
-                    if (overlay) overlay.classList.add('hidden');
-                    closedSomething = true;
-                }
-
-                // 2. All standard modals + exit-modal
-                const modals = [
-                    'settings-modal',
-                    'search-modal',
-                    'player-modal',
-                    'keypad-modal',
-                    'help-modal',
-                    'offline-modal',
-                    'tutorial-overlay',
-                    'exit-modal'
-                ];
-
-                for (const id of modals) {
-                    const el = document.getElementById(id);
-                    if (el && !el.classList.contains('hidden')) {
-                        el.classList.add('hidden');
-                        if (id === 'tutorial-overlay') el.style.display = 'none';
-                        closedSomething = true;
-                    }
-                }
-
-                if (closedSomething) {
-                    // Restore the dummy state so back button works again for next action
-                    history.pushState({ appRoot: true }, document.title, location.href);
-                } else {
-                    // No UI was open. Show exit confirmation modal.
-                    const exitModal = document.getElementById('exit-modal');
-                    if (exitModal) {
-                        exitModal.classList.remove('hidden');
-                    }
-                    // Restore the dummy state so they can press back to close this very modal
-                    history.pushState({ appRoot: true }, document.title, location.href);
-                }
-            });
-
-            // Global functions for the exit modal buttons
-            window.closeExitModal = function () {
-                const m = document.getElementById('exit-modal');
-                if (m) m.classList.add('hidden');
-            };
-
-            window.confirmExitApp = function () {
-                const m = document.getElementById('exit-modal');
-                if (m) m.classList.add('hidden');
-
-                window.__allowExit = true;
-                // history.back() will trigger the popstate event above, which will 
-                // read __allowExit = true and invoke another history.back() to fully exit.
-                history.back();
-            };
-        })();
     </script>
 
 
@@ -5765,8 +5513,7 @@
     <!-- Search Modal -->
     <div id="search-modal"
         class="fixed inset-0 z-[110] hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-        <div
-            class="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
             <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/90 rounded-t-2xl">
                 <h3 class="font-bold text-slate-200 flex items-center gap-2">
                     <span>🔍 検索 / 期待値</span>
@@ -5774,16 +5521,13 @@
                 <button onclick="document.getElementById('search-modal').classList.add('hidden');"
                     class="text-slate-400 hover:text-white p-2">✕</button>
             </div>
-
+            
             <div class="p-4 space-y-4 overflow-y-auto custom-scrollbar">
                 <!-- Tab headers -->
                 <div class="flex p-1 bg-slate-900 rounded-lg border border-slate-700">
-                    <button id="search-tab-racer" onclick="switchSearchTab('racer')"
-                        class="flex-1 py-1.5 text-xs font-bold rounded-md bg-blue-600 text-white shadow-sm">選手検索</button>
-                    <button id="search-tab-fav" onclick="switchSearchTab('fav')"
-                        class="flex-1 py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-slate-200">お気に入り</button>
-                    <button id="search-tab-high" onclick="switchSearchTab('high')"
-                        class="flex-1 py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-slate-200">的中期待値</button>
+                    <button id="search-tab-racer" onclick="switchSearchTab('racer')" class="flex-1 py-1.5 text-xs font-bold rounded-md bg-blue-600 text-white shadow-sm">選手検索</button>
+                    <button id="search-tab-fav" onclick="switchSearchTab('fav')" class="flex-1 py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-slate-200">お気に入り</button>
+                    <button id="search-tab-high" onclick="switchSearchTab('high')" class="flex-1 py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-slate-200">的中期待値</button>
                 </div>
 
                 <!-- Racer Search Section -->
@@ -5791,14 +5535,12 @@
                     <div class="relative">
                         <input id="modal-search-input" type="text" placeholder="選手名 または 登番を入力..."
                             class="w-full bg-slate-700 border border-slate-600 rounded-xl pl-10 pr-4 py-3 text-slate-100 outline-none focus:border-blue-500 shadow-inner">
-                        <svg class="w-5 h-5 absolute left-3 top-3.5 text-slate-500" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        <svg class="w-5 h-5 absolute left-3 top-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
                     </div>
                     <div id="search-results-area" class="min-h-[100px] max-h-[400px] overflow-y-auto space-y-2">
-                        <p class="text-center text-slate-500 text-xs py-10">選手名や番号を入力して検索してください</p>
+                         <p class="text-center text-slate-500 text-xs py-10">選手名や番号を入力して検索してください</p>
                     </div>
                 </div>
 
@@ -5816,22 +5558,17 @@
                             AIが分析した、本日の全レースの中から的中期待値（AI信頼度高 × 枠順優位）が高いものをピックアップします。
                         </p>
                     </div>
-                    <button onclick="fetchExpectationRaces()"
-                        class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-sm transition-all shadow-lg active:scale-95">期待値レースを抽出</button>
+                    <button onclick="fetchExpectationRaces()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-sm transition-all shadow-lg active:scale-95">期待値レースを抽出</button>
                     <div id="high-expectation-results" class="space-y-2 max-h-[350px] overflow-y-auto pt-2"></div>
                 </div>
             </div>
         </div>
-    </div>
     <!-- Toast Notifications Container -->
     <div id="toast-container" class="fixed top-4 right-4 z-[200] flex flex-col gap-2"></div>
 
     <!-- Help Tooltip Modal -->
-    <div id="help-modal"
-        class="fixed inset-0 z-[120] hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-        onclick="closeHelpModal()">
-        <div class="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col animate-in zoom-in-95 duration-200"
-            onclick="event.stopPropagation()">
+    <div id="help-modal" class="fixed inset-0 z-[120] hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onclick="closeHelpModal()">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col animate-in zoom-in-95 duration-200" onclick="event.stopPropagation()">
             <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/90 rounded-t-2xl">
                 <h3 class="font-bold text-slate-200 flex items-center gap-2" id="help-modal-title">
                     <span>💡 用語解説</span>
@@ -5845,74 +5582,38 @@
     </div>
 
     <!-- Offline Modal -->
-    <div id="offline-modal"
-        class="fixed inset-0 z-[150] hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-        <div
-            class="bg-slate-800 border-2 border-red-500/50 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col items-center p-6 text-center animate-in zoom-in-95 duration-200">
-            <svg class="w-16 h-16 text-red-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
+    <div id="offline-modal" class="fixed inset-0 z-[150] hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-800 border-2 border-red-500/50 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col items-center p-6 text-center animate-in zoom-in-95 duration-200">
+            <svg class="w-16 h-16 text-red-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
             <h3 class="font-black text-xl text-white mb-2">通信エラー</h3>
             <p class="text-sm text-slate-300 mb-6">電波状況が悪いか、オフラインです。<br>電波の良い場所で再読み込みしてください。</p>
-            <button onclick="window.location.reload()"
-                class="w-full py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl shadow-lg transition-all active:scale-95">再読み込みする</button>
+            <button onclick="window.location.reload()" class="w-full py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl shadow-lg transition-all active:scale-95">再読み込みする</button>
         </div>
     </div>
 
     <!-- Tutorial Overlay -->
-    <div id="tutorial-overlay"
-        class="fixed inset-0 z-[130] hidden bg-black/80 flex-col items-center justify-center p-4 text-center">
+    <div id="tutorial-overlay" class="fixed inset-0 z-[130] hidden bg-black/80 flex-col items-center justify-center p-4 text-center">
         <img src="./logo.png" alt="Logo" class="w-20 h-20 mb-6 animate-bounce">
         <h2 class="text-2xl font-black text-white mb-2 flex items-center gap-2">Kyotei Advisorへようこそ！</h2>
-        <p class="text-sm text-blue-200 mb-8 max-w-xs leading-relaxed">これさえ見ればOK！<br>AIが本日の「勝負レース」と「期待値買い目」をアドバイスします。
-        </p>
-
+        <p class="text-sm text-blue-200 mb-8 max-w-xs leading-relaxed">これさえ見ればOK！<br>AIが本日の「勝負レース」と「期待値買い目」をアドバイスします。</p>
+        
         <div class="space-y-4 max-w-xs w-full text-left mb-8">
             <div class="bg-slate-800/80 p-4 border border-slate-600 rounded-xl flex gap-3 items-center">
-                <div
-                    class="w-8 h-8 rounded-full bg-blue-600 font-black flex justify-center items-center text-white shrink-0">
-                    1</div>
+                <div class="w-8 h-8 rounded-full bg-blue-600 font-black flex justify-center items-center text-white shrink-0">1</div>
                 <div class="text-sm text-slate-200">右側（スマホは左上）のメニューから今のレースを選ぶ</div>
             </div>
             <div class="bg-slate-800/80 p-4 border border-slate-600 rounded-xl flex gap-3 items-center">
-                <div
-                    class="w-8 h-8 rounded-full bg-blue-600 font-black flex justify-center items-center text-white shrink-0">
-                    2</div>
+                <div class="w-8 h-8 rounded-full bg-blue-600 font-black flex justify-center items-center text-white shrink-0">2</div>
                 <div class="text-sm text-slate-200">「迷ったらコレ！（推奨買い目）」をチェック</div>
             </div>
             <div class="bg-slate-800/80 p-4 border border-slate-600 rounded-xl flex gap-3 items-center">
-                <div
-                    class="w-8 h-8 rounded-full bg-blue-600 font-black flex justify-center items-center text-white shrink-0">
-                    3</div>
+                <div class="w-8 h-8 rounded-full bg-blue-600 font-black flex justify-center items-center text-white shrink-0">3</div>
                 <div class="text-sm text-slate-200">テレボートで舟券を購入！</div>
             </div>
         </div>
-        <button onclick="finishTutorial()"
-            class="w-full max-w-xs py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl shadow-[0_0_15px_rgba(37,99,235,0.5)] transition-all active:scale-95 text-lg">
+        <button onclick="finishTutorial()" class="w-full max-w-xs py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl shadow-[0_0_15px_rgba(37,99,235,0.5)] transition-all active:scale-95 text-lg">
             はじめる！
         </button>
-    </div>
-
-    <!-- Exit Confirmation Modal -->
-    <div id="exit-modal"
-        class="fixed inset-0 z-[150] hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-        <div
-            class="bg-slate-800 rounded-2xl w-full max-w-xs border border-slate-700 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div class="p-6 text-center">
-                <div
-                    class="w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center mx-auto mb-4 border border-slate-600">
-                    <span class="text-2xl">👋</span>
-                </div>
-                <h3 class="text-lg font-black text-slate-200 mb-2">アプリを終了しますか？</h3>
-            </div>
-            <div class="flex border-t border-slate-700 bg-slate-900/50 hidden-mobile-tap-highlight">
-                <button onclick="closeExitModal()"
-                    class="flex-1 py-4 text-center text-slate-400 font-bold hover:bg-slate-800 transition-colors border-r border-slate-700 cursor-pointer">いいえ</button>
-                <button onclick="confirmExitApp()"
-                    class="flex-1 py-4 text-center text-red-500 font-bold hover:bg-slate-800 transition-colors cursor-pointer">はい</button>
-            </div>
-        </div>
     </div>
 </body>
 
