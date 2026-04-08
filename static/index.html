@@ -1423,6 +1423,32 @@ window.addEventListener('unhandledrejection', function(event) {
             history.replaceState({ view: 'home', relativeDate: 0 }, "");
         }
 
+        function openDrawer() {
+            const dr = document.getElementById('drawer');
+            const ov = document.getElementById('drawer-overlay');
+            if (dr) dr.classList.add('drawer-open');
+            if (ov) ov.classList.remove('hidden');
+            pushPageState({ 
+                view: (typeof currentRaceId !== 'undefined' && currentRaceId) ? 'race' : 'home', 
+                raceId: (typeof currentRaceId !== 'undefined') ? currentRaceId : null,
+                placeName: (typeof currentPlaceName !== 'undefined') ? currentPlaceName : null,
+                relativeDate: relativeDate,
+                targetDate: getTargetDateStr(relativeDate),
+                activeTab: typeof currentTab !== 'undefined' ? currentTab : 'race',
+                modal: 'drawer' 
+            });
+        }
+
+        function closeDrawer() {
+            const dr = document.getElementById('drawer');
+            const ov = document.getElementById('drawer-overlay');
+            if (dr) dr.classList.remove('drawer-open');
+            if (ov) ov.classList.add('hidden');
+            if (history.state && history.state.modal === 'drawer') {
+                history.back();
+            }
+        }
+
         function pushPageState(state, title = "") {
             // 現在のステートと同じならプッシュしない（型変換を含めて比較）
             const curr = history.state || {};
@@ -1491,6 +1517,11 @@ window.addEventListener('unhandledrejection', function(event) {
                     if (el) el.classList.remove('hidden');
                 }
             }
+
+            // 4. アクティブタブの復元
+            if (state && state.activeTab) {
+                switchTab(state.activeTab, true);
+            }
         });
 
         // （削除）window.addEventListener('load' ... 箇所を削除（上で実行済みのため）
@@ -1505,6 +1536,7 @@ window.addEventListener('unhandledrejection', function(event) {
                     placeName: (typeof currentPlaceName !== 'undefined') ? currentPlaceName : null,
                     relativeDate: relativeDate,
                     targetDate: getTargetDateStr(relativeDate),
+                    activeTab: currentTab,
                     modal: id 
                 });
             }
@@ -1540,7 +1572,8 @@ window.addEventListener('unhandledrejection', function(event) {
                     view: currentRaceId ? 'race' : 'home', 
                     raceId: currentRaceId, 
                     relativeDate: relativeDate,
-                    targetDate: getTargetDateStr(relativeDate) 
+                    targetDate: getTargetDateStr(relativeDate),
+                    activeTab: currentTab
                 });
             }
 
@@ -2048,25 +2081,13 @@ window.addEventListener('unhandledrejection', function(event) {
         const overlay = document.getElementById('drawer-overlay');
         document.getElementById('menu-btn').addEventListener('click', () => {
             if (drawer.classList.contains('drawer-open')) {
-                drawer.classList.remove('drawer-open');
-                overlay.classList.add('hidden');
-                if (history.state && history.state.modal === 'drawer') history.back();
+                closeDrawer();
             } else {
-                drawer.classList.add('drawer-open');
-                overlay.classList.remove('hidden');
-                pushPageState({ 
-                    view: (typeof currentRaceId !== 'undefined' && currentRaceId) ? 'race' : 'home', 
-                    raceId: (typeof currentRaceId !== 'undefined') ? currentRaceId : null,
-                    placeName: (typeof currentPlaceName !== 'undefined') ? currentPlaceName : null,
-                    targetDate: getTargetDateStr(relativeDate),
-                    modal: 'drawer' 
-                });
+                openDrawer();
             }
         });
         overlay.addEventListener('click', () => {
-            drawer.classList.remove('drawer-open');
-            overlay.classList.add('hidden');
-            if (history.state && history.state.modal === 'drawer') history.back();
+            closeDrawer();
         });
 
         // ─── Load Places ───────────────────────────────────────────────────────
@@ -4037,16 +4058,28 @@ window.addEventListener('unhandledrejection', function(event) {
             setting: 'setting-section',
         };
 
-        function switchTab(tab) {
+        function switchTab(tab, skipHistory = false) {
             if (tab === 'venue') {
-                drawer.classList.add('drawer-open');
-                overlay.classList.remove('hidden');
+                openDrawer();
                 return;
             }
             if (tab === 'settings') {
-                document.getElementById('settings-modal').classList.remove('hidden');
+                showModal('settings-modal');
                 return;
             }
+            
+            // 履歴に追加
+            if (!skipHistory) {
+                pushPageState({ 
+                    view: (typeof currentRaceId !== 'undefined' && currentRaceId) ? 'race' : 'home', 
+                    raceId: (typeof currentRaceId !== 'undefined') ? currentRaceId : null,
+                    placeName: (typeof currentPlaceName !== 'undefined') ? currentPlaceName : null,
+                    relativeDate: relativeDate,
+                    targetDate: getTargetDateStr(relativeDate),
+                    activeTab: tab
+                });
+            }
+
             currentTab = tab;
             document.querySelectorAll('.tab-item').forEach(el => el.classList.remove('tab-active'));
             const activeBtn = document.getElementById(`tab-${tab}`);
@@ -5241,7 +5274,8 @@ window.addEventListener('unhandledrejection', function(event) {
                     raceId, 
                     placeName, 
                     targetDate: effectiveDate,
-                    relativeDate: relativeDate
+                    relativeDate: relativeDate,
+                    activeTab: currentTab
                 });
             }
 
