@@ -1388,7 +1388,11 @@ window.addEventListener('unhandledrejection', function(event) {
             const di = document.getElementById('debug-info');
             if (di) di.style.display = 'none';
             
+            // 状態のリセット
             currentRaceId = null;
+            currentPlaceName = '';
+            currentVenueCode = '';
+            
             stopOddsAutoRefresh();
             stopCountdown();
             stopActiveRaceTimer();
@@ -1416,7 +1420,7 @@ window.addEventListener('unhandledrejection', function(event) {
 
         // 初回ロード時に現在の状態を即座に replaceState しておく
         if (!history.state) {
-            history.replaceState({ view: 'home' }, "");
+            history.replaceState({ view: 'home', relativeDate: 0 }, "");
         }
 
         function pushPageState(state, title = "") {
@@ -1425,7 +1429,8 @@ window.addEventListener('unhandledrejection', function(event) {
             const isSame = curr.view === state.view && 
                            String(curr.raceId || '') === String(state.raceId || '') && 
                            curr.modal === state.modal &&
-                           curr.targetDate === state.targetDate;
+                           curr.targetDate === state.targetDate &&
+                           curr.relativeDate === state.relativeDate; // relativeDateも比較対象に
             
             if (isSame) {
                 console.log('[History] Skipping duplicate pushState', state);
@@ -1458,6 +1463,11 @@ window.addEventListener('unhandledrejection', function(event) {
             closeAllModalsDirect();
 
             // 2. 画面表示の切り替え
+            if (state && typeof state.relativeDate !== 'undefined') {
+                // 保存された日付を復元して画面を更新 (履歴戻る時は pushState しない)
+                navigateDate(state.relativeDate - relativeDate, true);
+            }
+
             if (!state || state.view === 'home') {
                 resetMainView();
             } else if (state.view === 'race' && state.raceId) {
@@ -1493,6 +1503,7 @@ window.addEventListener('unhandledrejection', function(event) {
                     view: (typeof currentRaceId !== 'undefined' && currentRaceId) ? 'race' : 'home', 
                     raceId: (typeof currentRaceId !== 'undefined') ? currentRaceId : null,
                     placeName: (typeof currentPlaceName !== 'undefined') ? currentPlaceName : null,
+                    relativeDate: relativeDate,
                     targetDate: getTargetDateStr(relativeDate),
                     modal: id 
                 });
@@ -1518,10 +1529,20 @@ window.addEventListener('unhandledrejection', function(event) {
             return getTargetDateStr(rel);
         }
 
-        async function navigateDate(delta) {
+        async function navigateDate(delta, skipHistory = false) {
             const next = relativeDate + delta;
             if (next < -1 || next > 1) return;
             relativeDate = next;
+
+            // 履歴に追加
+            if (!skipHistory) {
+                pushPageState({ 
+                    view: currentRaceId ? 'race' : 'home', 
+                    raceId: currentRaceId, 
+                    relativeDate: relativeDate,
+                    targetDate: getTargetDateStr(relativeDate) 
+                });
+            }
 
             // UI更新
             const titleEl = document.getElementById('sidebar-date-label');
@@ -5215,7 +5236,13 @@ window.addEventListener('unhandledrejection', function(event) {
             // 履歴に追加
             if (!skipHistory) {
                 const effectiveDate = targetDate || getTargetDateStr(relativeDate);
-                pushPageState({ view: 'race', raceId, placeName, targetDate: effectiveDate });
+                pushPageState({ 
+                    view: 'race', 
+                    raceId, 
+                    placeName, 
+                    targetDate: effectiveDate,
+                    relativeDate: relativeDate
+                });
             }
 
             if (targetDate) {
