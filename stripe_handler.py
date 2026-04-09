@@ -81,6 +81,7 @@ def update_user_premium_status(user_id: str, status: str):
         
         data = {
             "subscription_status": status,
+            "is_premium": True if status == "premium" else False,
             "subscription_ends_at": ends_at if status == "premium" else None,
             "updated_at": datetime.now(timezone.utc).isoformat()
         }

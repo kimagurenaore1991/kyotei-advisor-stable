@@ -1318,25 +1318,35 @@ window.addEventListener('unhandledrejection', function(event) {
 
         async function startCheckout(planType) {
             if (!currentUser) {
-                showToast('ログイン後にプレミアム登録が可能です', 'warn');
+                showToast('ログインが必要です。Googleログイン画面を開きます...', 'info');
+                setTimeout(() => loginWithGoogle(), 1200);
                 return;
             }
             try {
+                // セッションからJWTトークンを取得して認証ヘッダーに含める
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                const token = session?.access_token;
+
                 const res = await fetch(`${API_BASE}/create-checkout-session`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
                     body: JSON.stringify({ 
-                        user_id: currentUser.id,
-                        plan_type: planType 
+                        plan: planType, // バックエンドの 'plan' キーに合わせる
+                        success_url: window.location.origin,
+                        cancel_url: window.location.origin
                     })
                 });
                 const data = await res.json();
                 if (data.url) {
                     window.location.href = data.url;
                 } else {
-                    showToast('決済セッションの作成に失敗しました', 'error');
+                    showToast(data.detail || '決済セッションの作成に失敗しました', 'error');
                 }
             } catch (e) {
+                console.error('Checkout error:', e);
                 showToast('エラーが発生しました', 'error');
             }
         }
