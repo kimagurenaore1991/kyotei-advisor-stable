@@ -108,13 +108,19 @@ async def startup_event():
         except:
             pass
     
-    # SSEコールバックをスクレイパーに登録
+    # SSEコールバックをスクレイパーに登録 (スレッドから安全にメインのループにタスクを投げる)
+    main_loop = asyncio.get_event_loop()
     def _sync_sse_push(event_type: str, data: dict):
         try:
-            loop = asyncio.get_event_loop()
-            asyncio.run_coroutine_threadsafe(sse_push(event_type, data), loop)
+            if main_loop and main_loop.is_running():
+                asyncio.run_coroutine_threadsafe(sse_push(event_type, data), main_loop)
+            else:
+                # ループがまだ/既に動いていない場合はスキップ（シャットダウン時など）
+                pass
         except Exception as e:
-            print(f"[SSE BRIDGE ERROR] {e}")
+            # 頻繁なエラーログを避けるため、致命的な場合のみ出力
+            if "Event loop is closed" not in str(e):
+                print(f"[SSE BRIDGE ERROR] {e}")
     
     scraper.sse_broadcast_callback = _sync_sse_push
     
