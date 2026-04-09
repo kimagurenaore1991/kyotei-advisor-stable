@@ -4,10 +4,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>K-Predict Pro</title>
-    <!-- Version: 1.1.0 (Paywall Integration) -->
-    <meta property="og:title" content="K-Predict Pro">
-    <meta property="og:description" content="究極の競艇AI予想 — K-Predict Pro">
+    <title>Kyotei Advisor</title>
+    <!-- Version: 1.0.8 (Audit Cleanup) -->
+    <meta property="og:title" content="Kyotei Advisor">
+    <meta property="og:description" content="競艇データ分析＆AI予想アドバイザー">
     <meta property="og:image" content="./logo.png">
     <meta property="og:type" content="website">
     <meta name="twitter:card" content="summary_large_image">
@@ -300,54 +300,6 @@
         .stats-value.hit-rate { color: #fbbf24; }
         .stats-value.return-rate { color: #34d399; }
         .stats-value.race-count { color: #94a3b8; }
-
-        /* Premium UI */
-        .premium-locked {
-            filter: blur(8px);
-            user-select: none;
-            opacity: 0.5;
-            position: relative;
-        }
-
-        .premium-locked-clickable {
-            cursor: pointer;
-            filter: blur(8px);
-            user-select: none;
-            opacity: 0.6;
-            transition: all 0.3s;
-        }
-        .premium-locked-clickable:hover {
-            opacity: 0.8;
-            background: rgba(59, 130, 246, 0.1);
-        }
-
-        .teaser-item {
-            position: relative;
-            overflow: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .lock-badge {
-            font-size: 10px;
-            background: rgba(15, 23, 42, 0.8);
-            border: 1px solid rgba(59, 130, 246, 0.5);
-            padding: 2px 6px;
-            border-radius: 4px;
-            color: #60a5fa;
-            font-weight: 800;
-        }
-
-        .premium-gradient {
-            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
-        }
-
-        .premium-text-gradient {
-            background: linear-gradient(135deg, #60a5fa 0%, #a5b4fc 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
 
         .odds-chevron {
             transition: transform 0.2s;
@@ -821,7 +773,7 @@ window.addEventListener('unhandledrejection', function(event) {
                 <!-- Custom -->
                 <div class="bg-gradient-to-br from-slate-800 to-blue-900/40 p-4 rounded-xl border border-blue-800/50">
                     <div class="flex justify-between items-center mb-2 pb-2 border-b border-blue-800/50">
-                        <h3 class="font-bold text-blue-300 text-sm flex items-center">Custom Predict <span onclick="showHelpModal('custom')" class="help-tooltip-icon">?</span></h3>
+                        <h3 class="font-bold text-blue-300 text-sm flex items-center">カスタム予想 <span onclick="showHelpModal('custom')" class="help-tooltip-icon">?</span></h3>
                         <button id="add-all-custom" onclick="addAllToCart('rule-focus')" class="hidden text-[10px] bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded font-bold transition-all">一括追加 🛒</button>
                     </div>
                     <div id="rule-focus" class="space-y-1 my-2"></div>
@@ -830,7 +782,7 @@ window.addEventListener('unhandledrejection', function(event) {
                 <!-- AI -->
                 <div class="bg-gradient-to-br from-slate-800 to-slate-900 p-4 rounded-xl border border-slate-600">
                     <div class="flex justify-between items-center mb-2 pb-2 border-b border-slate-600">
-                        <h3 class="font-bold premium-text-gradient text-sm flex items-center">K-Predict Pro <span onclick="showHelpModal('solid')" class="help-tooltip-icon">?</span></h3>
+                        <h3 class="font-bold text-slate-300 text-sm flex items-center">AI解析予想 <span onclick="showHelpModal('solid')" class="help-tooltip-icon">?</span></h3>
                         <button id="add-all-ai" onclick="addAllToCart('ai-focus')" class="hidden text-[10px] bg-slate-600 hover:bg-slate-500 text-white px-2 py-1 rounded font-bold transition-all">一括追加 🛒</button>
                     </div>
                     <div class="text-[10px] text-slate-400 mb-1 flex items-center">シミュレーション1着率 <span onclick="showHelpModal('solid')" class="help-tooltip-icon">?</span></div>
@@ -1097,7 +1049,7 @@ window.addEventListener('unhandledrejection', function(event) {
                     <h3 class="font-bold text-slate-300 mb-4 pb-2 border-b border-slate-700 text-sm">予想戦略モード</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 px-1">
                         <div>
-                            <label class="block text-slate-400 text-[10px] mb-2 font-bold uppercase tracking-wider">K-Predict Pro モード</label>
+                            <label class="block text-slate-400 text-[10px] mb-2 font-bold uppercase tracking-wider">AI予想モード</label>
                             <div class="grid grid-cols-3 gap-1 bg-slate-800 p-1 rounded-lg border border-slate-700">
                                 <button type="button" onclick="setAiMode(0)" id="ai-mode-btn-0" class="py-1.5 text-[10px] font-bold rounded transition-all">本命</button>
                                 <button type="button" onclick="setAiMode(1)" id="ai-mode-btn-1" class="py-1.5 text-[10px] font-bold rounded transition-all">中穴</button>
@@ -1105,7 +1057,7 @@ window.addEventListener('unhandledrejection', function(event) {
                             </div>
                         </div>
                         <div>
-                            <label class="block text-slate-400 text-[10px] mb-2 font-bold uppercase tracking-wider">Custom Predict モード</label>
+                            <label class="block text-slate-400 text-[10px] mb-2 font-bold uppercase tracking-wider">カスタマイズ予想モード</label>
                             <div class="grid grid-cols-3 gap-1 bg-slate-800 p-1 rounded-lg border border-slate-700">
                                 <button type="button" onclick="setCustomMode(0)" id="custom-mode-btn-0" class="py-1.5 text-[10px] font-bold rounded transition-all">本命</button>
                                 <button type="button" onclick="setCustomMode(1)" id="custom-mode-btn-1" class="py-1.5 text-[10px] font-bold rounded transition-all">中穴</button>
@@ -1119,9 +1071,9 @@ window.addEventListener('unhandledrejection', function(event) {
                         <select id="setting-hit-type"
                             class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-slate-200 outline-none focus:border-blue-500">
                             <option value="buy">買い目的中</option>
-                            <option value="ai">K-Predict Pro の的中</option>
-                            <option value="custom">Custom Predict の的中</option>
-                            <option value="both" selected>K-Predict &amp; Custom 的中</option>
+                            <option value="ai">AI予想目の的中</option>
+                            <option value="custom">カスタマイズ予想的中</option>
+                            <option value="both" selected>AI&amp;カスタマイズ予想的中</option>
                         </select>
                         <p class="text-[10px] text-slate-500 mt-2">サイドバーの的中バッジ表示条件を選択した項目に限定します。</p>
                     </div>
@@ -1222,7 +1174,7 @@ window.addEventListener('unhandledrejection', function(event) {
     <!-- Welcome Screen -->
     <div id="welcome-screen" class="flex-1 flex flex-col items-center justify-center p-6 text-center bg-slate-900 overflow-y-auto">
         <img src="./logo.png" alt="Logo" class="w-24 h-24 mb-6 opacity-80 mt-10">
-        <h2 class="text-2xl font-black text-slate-200 mb-2">K-Predict Pro Dashboard</h2>
+        <h2 class="text-2xl font-black text-slate-200 mb-2">Kyotei Advisor Dashboard</h2>
         <p class="text-sm text-slate-500 max-w-xs mb-8">左メニューから本日開催場を選択し、<br>レース番号をクリックしてください</p>
 
         <div class="bg-slate-800/80 border border-slate-700 p-4 rounded-xl text-left w-full max-w-sm mb-8">
@@ -1295,61 +1247,6 @@ window.addEventListener('unhandledrejection', function(event) {
         
         let supabaseClient = null;
         let currentUser = null;
-        let is_premium = false;
-
-        async function checkPremiumStatus() {
-            if (!currentUser) {
-                is_premium = false;
-                return;
-            }
-            try {
-                const { data, error } = await supabaseClient
-                    .from('profiles')
-                    .select('is_premium')
-                    .eq('id', currentUser.id)
-                    .single();
-                if (data) {
-                    is_premium = !!data.is_premium;
-                }
-            } catch (e) {
-                console.error('checkPremiumStatus error', e);
-            }
-        }
-
-        async function startCheckout(planType) {
-            if (!currentUser) {
-                showToast('ログインが必要です。Googleログイン画面を開きます...', 'info');
-                setTimeout(() => loginWithGoogle(), 1200);
-                return;
-            }
-            try {
-                // セッションからJWTトークンを取得して認証ヘッダーに含める
-                const { data: { session } } = await supabaseClient.auth.getSession();
-                const token = session?.access_token;
-
-                const res = await fetch(`${API_BASE}/create-checkout-session`, {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ 
-                        plan: planType, // バックエンドの 'plan' キーに合わせる
-                        success_url: window.location.origin,
-                        cancel_url: window.location.origin
-                    })
-                });
-                const data = await res.json();
-                if (data.url) {
-                    window.location.href = data.url;
-                } else {
-                    showToast(data.detail || '決済セッションの作成に失敗しました', 'error');
-                }
-            } catch (e) {
-                console.error('Checkout error:', e);
-                showToast('エラーが発生しました', 'error');
-            }
-        }
 
         async function initSupabase() {
             try {
@@ -1361,14 +1258,11 @@ window.addEventListener('unhandledrejection', function(event) {
                     // 初期セッション取得
                     const { data: { session } } = await supabaseClient.auth.getSession();
                     currentUser = session?.user || null;
-                    if (currentUser) await checkPremiumStatus();
                     updateAuthUI();
 
                     // 認証状態の変更検知
-                    supabaseClient.auth.onAuthStateChange(async (event, session) => {
+                    supabaseClient.auth.onAuthStateChange((event, session) => {
                         currentUser = session?.user || null;
-                        if (currentUser) await checkPremiumStatus();
-                        else is_premium = false;
                         updateAuthUI();
                         // ログイン状態が変わったらお気に入りとカートを再ロード
                         initFavorites();
@@ -2000,20 +1894,9 @@ window.addEventListener('unhandledrejection', function(event) {
             if (!el) return;
             el.innerHTML = '';
             const maxItems = parseInt(document.getElementById('setting-max-items')?.value || '8');
-            
-            // Teaser limit for non-premium users (show only TOP 1 except for sample races 1R/12R)
-            const isSampleRace = (currentRaceNumber == 1 || currentRaceNumber == 12);
-            const teaserLimit = (!is_premium && !isSampleRace) ? 1 : 999;
-
             list.slice(0, maxItems).forEach((item, idx) => {
-                const isLocked = idx >= teaserLimit;
                 const div = document.createElement('div');
-                div.className = 'bg-slate-700/60 rounded px-2 py-1.5 flex justify-between items-center text-xs relative overflow-hidden transition-all';
-                if (isLocked) {
-                    div.classList.add('cursor-pointer', 'hover:bg-slate-700');
-                    div.onclick = () => document.getElementById('subscription-modal').classList.remove('hidden');
-                }
-
+                div.className = 'bg-slate-700/60 rounded px-2 py-1.5 flex justify-between items-center text-xs';
                 const hitType = document.getElementById('setting-hit-type')?.value || 'both';
                 let isHitFlag = currentRaceResult ? isHit(item.pattern, currentRaceResult) : false;
                 
@@ -2027,12 +1910,11 @@ window.addEventListener('unhandledrejection', function(event) {
                 }
                 
                 const hitBadge = isHitFlag ? '<span class="ml-1 text-[9px] bg-yellow-400 text-black px-1 py-px rounded font-bold animate-pulse">的中</span>' : '';
-                
+                const rankMedal = '';
+                // pattern に '-' または '=' が含まれない場合は、単勝として番号に背景色をつけるかシンプルにする
                 let patternHtml = item.pattern;
-                if (item.pattern === '??-??-??') {
-                    // Masked pattern from backend teaser
-                    patternHtml = '<span class="text-slate-500 font-bold tracking-widest text-[10px]">LOCKED</span>';
-                } else if (item.pattern.includes('-') || item.pattern.includes('=')) {
+                if (item.pattern.includes('-') || item.pattern.includes('=')) {
+                    // split and colorize combinations
                     const sep = item.pattern.includes('-') ? '-' : '=';
                     const parts = item.pattern.split(sep);
                     patternHtml = parts.map(num => `<span class="inline-block w-4 h-4 text-center rounded text-[10px] text-white border ${boatColors[num - 1]}">${num}</span>`).join(sep === '=' ? '<span class="text-slate-500 mx-0.5">=</span>' : '<span class="text-slate-500 mx-0.5">-</span>');
@@ -2042,19 +1924,14 @@ window.addEventListener('unhandledrejection', function(event) {
                         patternHtml = `<span class="inline-block w-4 h-4 text-center rounded text-[10px] text-white border mx-1 ${boatColors[num - 1]}">${num}</span>`;
                     }
                 }
-
-                const innerContent = `
-                    <div class="flex items-center ${isLocked ? 'blur-[3px] opacity-40 select-none' : ''}">
-                        <span class="font-bold flex items-center"><div class="flex items-center ml-1">${patternHtml}</div> ${hitBadge}</span>
+                div.innerHTML = `
+                    <div class="flex items-center">
+                        <span class="font-bold flex items-center">${rankMedal} <div class="flex items-center ml-1">${patternHtml}</div> ${hitBadge}</span>
                     </div>
-                    <div class="flex items-center gap-3 ${isLocked ? 'blur-[3px] opacity-40 select-none' : ''}">
-                        <span class="text-slate-400">${item.prob === '??' ? '--' : item.prob + '%'}</span>
-                        <button class="w-6 h-6 rounded bg-slate-600 hover:bg-emerald-600 active:bg-emerald-700 text-white flex items-center justify-center text-xs transition" onclick="event.stopPropagation(); addToCart('${item.pattern}')">➕</button>
-                    </div>
-                    ${isLocked ? `<div class="absolute inset-0 flex items-center justify-center bg-black/10"><span class="lock-badge">Pro機能</span></div>` : ''}
-                `;
-                
-                div.innerHTML = innerContent;
+                    <div class="flex items-center gap-3">
+                        <span class="text-slate-400">${item.prob}%</span>
+                        <button class="w-6 h-6 rounded bg-slate-600 hover:bg-emerald-600 active:bg-emerald-700 text-white flex items-center justify-center text-xs transition" onclick="addToCart('${item.pattern}')">➕</button>
+                    </div>`;
                 if (isHitFlag) div.classList.add('border', 'border-yellow-400', 'bg-yellow-900/30');
                 el.appendChild(div);
             });
@@ -2476,26 +2353,18 @@ window.addEventListener('unhandledrejection', function(event) {
                 btn.id = `race-btn-${r.id}`;
                 btn.dataset.raceId = r.id;
                 btn.className = 'py-1.5 rounded text-xs font-bold transition-all hover:bg-blue-600 bg-slate-700 border border-slate-600 flex flex-col items-center gap-0.5 leading-tight relative';
-                const isRaceLocked = !is_premium && (r.race_number >= 2 && r.race_number <= 11);
-                btn.innerHTML = `<span class="${isRaceLocked ? 'opacity-30' : 'text-slate-100 font-black'}">${r.race_number}R</span>` +
-                    (r.scheduled_time ? `<span class="text-[9px] ${isRaceLocked ? 'opacity-20' : 'text-slate-400'} font-mono">${r.scheduled_time}</span>` : '') +
-                    `${r.race_title ? gradeBadge(g.label, g.cls, true) : ''}` +
-                    (isRaceLocked ? `<span class="absolute inset-0 flex items-center justify-center text-blue-500/80 text-sm">🔒</span>` : '');
-                
-                if (isRaceLocked) {
-                    btn.classList.add('bg-slate-800/50', 'border-slate-700', 'cursor-pointer');
-                    btn.onclick = () => document.getElementById('subscription-modal').classList.remove('hidden');
-                } else {
-                    btn.onclick = () => {
-                        document.querySelectorAll('[id^="race-btn-"]').forEach(b => b.classList.remove('ring-2', 'ring-blue-400'));
-                        btn.classList.add('ring-2', 'ring-blue-400');
-                        loadRaceDetail(r.id);
-                        if (window.innerWidth < 768) {
-                            drawer.classList.remove('drawer-open');
-                            overlay.classList.add('hidden');
-                        }
-                    };
-                }
+                btn.innerHTML = `<span class="text-slate-100 font-black">${r.race_number}R</span>` +
+                    (r.scheduled_time ? `<span class="text-[9px] text-slate-400 font-mono">${r.scheduled_time}</span>` : '') +
+                    `${r.race_title ? gradeBadge(g.label, g.cls, true) : ''}`;
+                btn.onclick = () => {
+                    document.querySelectorAll('[id^="race-btn-"]').forEach(b => b.classList.remove('ring-2', 'ring-blue-400'));
+                    btn.classList.add('ring-2', 'ring-blue-400');
+                    loadRaceDetail(r.id);
+                    if (window.innerWidth < 768) {
+                        drawer.classList.remove('drawer-open');
+                        overlay.classList.add('hidden');
+                    }
+                };
                 if (r.is_finished) {
                     let isHitFlag = false;
                     const hitType = document.getElementById('setting-hit-type')?.value || 'both';
@@ -2925,11 +2794,6 @@ window.addEventListener('unhandledrejection', function(event) {
                 if (!res.ok) throw new Error(`API ${res.status}`);
                 const data = await res.json();
 
-                // Sync premium status from server
-                if (data.is_premium !== undefined) {
-                    is_premium = data.is_premium;
-                }
-
                 // データ更新
                 const oldDataHash = lastPredictionsCache[currentRaceId] ? JSON.stringify(lastPredictionsCache[currentRaceId].predictions) : '';
                 const newDataHash = JSON.stringify(data.predictions);
@@ -2988,7 +2852,6 @@ window.addEventListener('unhandledrejection', function(event) {
         }
 
         function renderRace(race, players, predictions) {
-            currentRaceNumber = race.race_number;
             document.getElementById('welcome-screen').classList.add('hidden');
             document.getElementById('race-header').classList.remove('hidden');
 
@@ -3064,16 +2927,11 @@ window.addEventListener('unhandledrejection', function(event) {
                     const ringCls = isSelected ? 'ring-2 ring-blue-400 bg-slate-700' : 'bg-slate-800 hover:bg-slate-750';
                     const dimCls = (isOtherSelected || isAbsent) ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer';
                     const cc = boatColors[b - 1];
-                    let probRaw = predictions.ai_win_probs[b];
-                    let prob = isAbsent ? '--' : (probRaw === '??' ? '??%' : (probRaw || 0) + '%');
-                    
-                    const isSampleRace = (currentRaceNumber == 1 || currentRaceNumber == 12);
-                    const isLocked = !is_premium && !isSampleRace && probRaw === '??';
+                    const prob = isAbsent ? '--' : (predictions.ai_win_probs[b] || 0) + '%';
 
-                    const clickHandler = isAbsent ? '' : (isLocked ? "document.getElementById('subscription-modal').classList.remove('hidden')" : `toggleFixedHead(${b})`);
-                    return `<button onclick="${clickHandler}" class="flex-1 text-center rounded py-1 border border-slate-700 transition-all ${ringCls} ${dimCls}" ${isAbsent ? 'disabled' : ''}>
+                    return `<button onclick="${isAbsent ? '' : `toggleFixedHead(${b})`}" class="flex-1 text-center rounded py-1 border border-slate-700 transition-all ${ringCls} ${dimCls}" ${isAbsent ? 'disabled' : ''}>
                       <div class="w-4 h-4 mx-auto rounded flex items-center justify-center text-[10px] font-bold mb-0.5 ${cc}">${b}</div>
-                      <div class="text-[10px] font-mono ${isSelected ? 'text-blue-300 font-bold' : (isLocked ? 'text-blue-500 blur-[2px]' : 'text-slate-300')}">${prob}</div>
+                      <div class="text-[10px] font-mono ${isSelected ? 'text-blue-300 font-bold' : 'text-slate-300'}">${prob}</div>
                     </button>`;
                 }).join('');
             }
@@ -3081,24 +2939,9 @@ window.addEventListener('unhandledrejection', function(event) {
             const sbox = document.getElementById('scenario-box');
             if (predictions.scenario && predictions.scenario.active) {
                 sbox.classList.remove('hidden');
-                const isSampleRace = (currentRaceNumber == 1 || currentRaceNumber == 12);
-                const isLocked = !is_premium && !isSampleRace && predictions.scenario.probability === '??';
                 document.getElementById('makuri-prob').textContent = predictions.scenario.probability;
                 document.getElementById('scenario-text').textContent = predictions.scenario.text;
                 document.getElementById('scenario-focus').textContent = predictions.scenario.focus;
-                
-                if (isLocked) {
-                    sbox.classList.add('cursor-pointer');
-                    sbox.onclick = () => document.getElementById('subscription-modal').classList.remove('hidden');
-                    document.getElementById('scenario-text').classList.add('blur-[3px]', 'select-none', 'opacity-50');
-                    document.getElementById('scenario-focus').classList.add('blur-[3px]', 'select-none', 'opacity-50');
-                    // Add lock indicator if needed
-                } else {
-                    sbox.classList.remove('cursor-pointer');
-                    sbox.onclick = null;
-                    document.getElementById('scenario-text').classList.remove('blur-[3px]', 'select-none', 'opacity-50');
-                    document.getElementById('scenario-focus').classList.remove('blur-[3px]', 'select-none', 'opacity-50');
-                }
             } else { sbox.classList.add('hidden'); }
 
             const tb = document.getElementById('player-table-body');
@@ -3120,10 +2963,7 @@ window.addEventListener('unhandledrejection', function(event) {
                         <div class="w-7 h-7 rounded flex items-center justify-center font-bold text-sm border shrink-0 ${cc}">${p.boat_number}</div>
                         <div class="flex flex-col">
                             <div class="flex items-center gap-2">
-                                <span class="font-bold text-base ${isAbs ? 'line-through text-slate-500' : 'text-slate-100'} ${(!is_premium && currentRaceNumber != 1 && currentRaceNumber != 12) ? 'premium-locked-clickable' : ''}" 
-                                      onclick="${(!is_premium && currentRaceNumber != 1 && currentRaceNumber != 12) ? "event.stopPropagation(); document.getElementById('subscription-modal').classList.remove('hidden')" : ''}">
-                                    ${p.racer_name || '--'}
-                                </span>
+                                <span class="font-bold text-base ${isAbs ? 'line-through text-slate-500' : 'text-slate-100'}">${p.racer_name || '--'}</span>
                                 ${isAbs ? '<span class="text-[10px] px-1 py-px bg-red-900/60 text-red-200 border border-red-700 rounded font-bold">欠場</span>' : `<span class="text-[10px] px-1 py-px bg-slate-700 text-slate-300 rounded">${p.racer_class || '-'}</span>`}
                             </div>
                         </div>
@@ -3192,10 +3032,7 @@ window.addEventListener('unhandledrejection', function(event) {
                 <td class="px-3 py-2 cursor-pointer" onclick="${isAbs ? '' : `openPlayerModal('${p.racer_id || p.toban || ''}','${(p.racer_name || '').replace(/'/g, "\\'")}')`}">
                     <div class="flex items-center gap-1 justify-between">
                         <div class="flex items-center gap-1">
-                            <div class="font-bold ${isAbs ? 'line-through' : 'text-slate-200'} ${(!is_premium && currentRaceNumber != 1 && currentRaceNumber != 12) ? 'premium-locked-clickable' : ''}" 
-                                 onclick="${(!is_premium && currentRaceNumber != 1 && currentRaceNumber != 12) ? "event.stopPropagation(); document.getElementById('subscription-modal').classList.remove('hidden')" : ''}">
-                                ${p.racer_name || '--'}
-                            </div>
+                            <div class="font-bold ${isAbs ? 'line-through' : 'text-slate-200'}">${p.racer_name || '--'}</div>
                             ${isAbs ? '<span class="text-[9px] px-1 bg-red-900/40 text-red-400 border border-red-900/60 rounded not-italic font-bold">欠場</span>' : ''}
                         </div>
                         <button onclick="toggleFavorite('${p.racer_id || p.toban}', '${(p.racer_name || '').replace(/'/g, "\\'")}', event)" 
@@ -5387,6 +5224,7 @@ window.addEventListener('unhandledrejection', function(event) {
             const rowBtn = document.getElementById(`fav-row-btn-${toban}`);
             if (rowBtn) {
                 rowBtn.className = `text-sm px-1 transition-all ${active ? 'text-yellow-400' : 'text-slate-600 hover:text-slate-400'}`;
+                rowBtn.textContent = active ? '★' : '☆';
             }
             // モバイルカード内のボタン
             const mobileBtn = document.getElementById(`fav-mobile-btn-${toban}`);
@@ -5395,6 +5233,7 @@ window.addEventListener('unhandledrejection', function(event) {
                 mobileBtn.querySelector('span').textContent = active ? '★' : '☆';
             }
         }
+
         async function refreshFavorites() {
             const container = document.getElementById('favorite-list-area');
             container.innerHTML = '<div class="text-center py-10"><div class="inline-block animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500 mb-2"></div><p class="text-slate-500 text-[10px]">読み込み中...</p></div>';
@@ -5504,10 +5343,10 @@ window.addEventListener('unhandledrejection', function(event) {
             const bodyEl = document.getElementById('help-modal-body');
             const dict = {
                 'expectation': { t: '期待値（回収率）とは？', d: '100円の舟券を買ったときに、平均していくら戻ってくるかを示すAIの予測値です。100%を超えれば「買う価値がある（儲かる確率が高い）」と判断できます。' },
-                'solid': { t: 'K-Predict Pro とは？', d: 'AIが分析した結果、1着、あるいは上位の組み合わせが非常に堅い（当たる確率が高い）と予想されるレースです。安定した的中を狙いたい初心者におすすめです。' },
+                'solid': { t: '鉄板（Solid）とは？', d: 'AIが分析した結果、1着、あるいは上位の組み合わせが非常に堅い（当たる確率が高い）と予想されるレースです。安定した的中を狙いたい初心者におすすめです。' },
                 'value': { t: '穴（Value）とは？', d: '勝率は少し下がりますが、オッズ（配当）が高く、当たった時のリターンが極めて大きいレースです。ハイリスク・ハイリターンを狙う際におすすめです。' },
                 'exhibition': { t: '展示タイムとは？', d: 'レース直前に行われる予行演習でのタイムです。このタイムが速いほど、モーターの直線スピードが出ている証拠となります。' },
-                'custom': { t: 'Custom Predictとは？', d: '右上の「設定ボタン」から、あなたが重視する要素（選手の勝率やモーター、展示タイムなど）の比重を自由に変更し、あなただけのオリジナル予想を作り出せる機能です。' }
+                'custom': { t: 'カスタム予想とは？', d: '右上の「設定ボタン」から、あなたが重視する要素（選手の勝率やモーター、展示タイムなど）の比重を自由に変更し、あなただけのAI予想を作り出せる機能です。' }
             };
             const info = dict[key] || { t: '解説', d: '詳細がありません' };
             titleEl.innerHTML = `<span>💡 ${info.t}</span>`;
@@ -5720,65 +5559,8 @@ window.addEventListener('unhandledrejection', function(event) {
         }
     </script>
 
-    <!-- Subscription / Pricing Modal -->
-    <div id="subscription-modal" class="fixed inset-0 z-[160] hidden bg-black/80 backdrop-blur-md flex items-center justify-center p-4" onclick="this.classList.add('hidden')">
-        <div class="bg-slate-800 border-2 border-blue-500/50 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200" onclick="event.stopPropagation()">
-            <!-- Header -->
-            <div class="bg-gradient-to-r from-blue-700 to-indigo-800 p-6 text-center relative">
-                <div class="absolute top-4 right-4 text-white/50 hover:text-white cursor-pointer" onclick="document.getElementById('subscription-modal').classList.add('hidden')">✕</div>
-                <div class="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-white/20">
-                    <span class="text-3xl">🚀</span>
-                </div>
-                <h3 class="text-2xl font-black text-white mb-1 italic tracking-wider">K-Predict Pro</h3>
-                <p class="text-blue-100 text-sm font-bold opacity-80 uppercase tracking-widest">Premium Membership</p>
-            </div>
-            
-            <div class="p-8 space-y-6">
-                <!-- Benefit List -->
-                <ul class="space-y-4">
-                    <li class="flex items-center gap-3 text-slate-200">
-                        <div class="w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center text-[10px] text-white shrink-0">✓</div>
-                        <span class="text-sm font-bold">全レースのAI推奨買い目を完全公開</span>
-                    </li>
-                    <li class="flex items-center gap-3 text-slate-200">
-                        <div class="w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center text-[10px] text-white shrink-0">✓</div>
-                        <span class="text-sm font-bold">展開アラート・期待値詳細の無制限解放</span>
-                    </li>
-                    <li class="flex items-center gap-3 text-slate-200">
-                        <div class="w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center text-[10px] text-white shrink-0">✓</div>
-                        <span class="text-sm font-bold">選手詳細分析・プロフェッショナル指標</span>
-                    </li>
-                </ul>
 
-                <!-- Pricing Plans -->
-                <div class="grid grid-cols-1 gap-4">
-                    <!-- Trial Plan -->
-                    <button onclick="startCheckout('monthly')" class="group relative bg-slate-900 border-2 border-blue-600 rounded-2xl p-5 text-left transition-all hover:bg-slate-850 active:scale-95 shadow-xl">
-                        <div class="absolute -top-3 right-4 bg-emerald-500 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg animate-bounce">3日間無料体験！</div>
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="text-white font-black text-lg">月額プラン</span>
-                            <span class="text-blue-400 font-black text-xl">¥2,980<span class="text-xs text-slate-500 font-bold">/月</span></span>
-                        </div>
-                        <p class="text-slate-500 text-xs">期間内ならいつでもキャンセル可能</p>
-                    </button>
-
-                    <!-- 90 Day Plan -->
-                    <button onclick="startCheckout('90day')" class="bg-slate-700/50 border border-slate-600 rounded-2xl p-4 text-left transition-all hover:bg-slate-700 active:scale-95">
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="text-slate-200 font-bold">90日間お得プラン</span>
-                            <span class="text-slate-300 font-bold">¥7,800</span>
-                        </div>
-                        <p class="text-slate-500 text-[10px]">1ヶ月あたり ¥2,600（約13%おトク！）</p>
-                    </button>
-                </div>
-                
-                <p class="text-[10px] text-slate-500 text-center leading-relaxed">
-                    ※決済はGoogle/Stripeによって安全に保護されます。<br>
-                    ※無料体験終了後は自動更新となります。
-                </p>
-            </div>
-        </div>
-    </div>
+    <!-- Numeric Keypad Modal -->
     <div id="keypad-modal" class="fixed inset-0 z-[100] hidden flex flex-col justify-end">
         <div
             class="bg-slate-800 border-t border-slate-700 rounded-t-3xl shadow-2xl safe-area-bottom w-full max-w-lg mx-auto overflow-hidden animate-in slide-in-from-bottom duration-200">
