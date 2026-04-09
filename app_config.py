@@ -16,7 +16,11 @@ USE_SUPABASE = os.environ.get("USE_SUPABASE", "True").lower() == "true"
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://rngzcwztmshadaevaxqz.supabase.co")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJuZ3pjd3p0bXNoYWRhZXZheHF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzNjE1MDMsImV4cCI6MjA4OTkzNzUwM30.YY8Q_7h_UwKQNOlpCPNTqMjL8iW8ZuxW70yuy7dHUk4")
 # Note: Service role key is not usually needed for the client, but keeping it as an environment option if needed.
-# SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+# Stripe configuration
+STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY", "sk_test_placeholder")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "whsec_placeholder")
+STRIPE_PRICE_ID_MONTHLY = os.environ.get("STRIPE_PRICE_ID_MONTHLY", "price_1...")
+STRIPE_PRICE_ID_90DAY = os.environ.get("STRIPE_PRICE_ID_90DAY", "price_2...")
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
