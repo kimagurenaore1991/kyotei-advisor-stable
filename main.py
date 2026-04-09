@@ -29,12 +29,22 @@ import asyncio
 from app_config import (
     JST, LOCK_FILE, STATIC_DIR, LAST_SCRAPE_FILE, 
     SUPABASE_URL, SUPABASE_KEY, USE_SUPABASE,
-    STRIPE_PRICE_ID_MONTHLY, STRIPE_PRICE_ID_90DAY
+    STRIPE_PRICE_ID_MONTHLY, STRIPE_PRICE_ID_90DAY,
+    CORS_ALLOW_ORIGINS
 )
 from database import get_db_connection, init_db, cleanup_old_data, sync_from_supabase
 from supabase_client import get_supabase_client
 
 app = FastAPI(title="Kyotei Advisor MVP")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ALLOW_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 init_db()
 
 # 選手プロフィールのメモリキャッシュ (toban -> {data, timestamp})
