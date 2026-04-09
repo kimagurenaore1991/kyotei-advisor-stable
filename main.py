@@ -1776,7 +1776,8 @@ def get_custom_predict(race_id: int, req: PredictRequest, is_premium: bool = Dep
                 print(f"[CACHE ERROR] Failed to save AI cache: {e}")
 
         # ── プレミアム向けコンテンツ制限（ティーザーモード） ──
-        if not is_premium:
+        is_sample_race = race_dict.get("race_number") in [1, 12]
+        if not is_premium and not is_sample_race:
             # 1. AI 勝率の制限（上位1件以外を伏せる）
             if "ai_win_probs" in predictions:
                 probs = predictions["ai_win_probs"]
@@ -1790,21 +1791,22 @@ def get_custom_predict(race_id: int, req: PredictRequest, is_premium: bool = Dep
                         new_probs[b] = "??" # 伏せる
                 predictions["ai_win_probs"] = new_probs
             
-            # 2. 推奨買い目 (ai_focus) の制限（上位1件以外をマスク）
-            if "ai_focus" in predictions:
-                focus = predictions["ai_focus"]
-                new_focus = []
-                for idx, item in enumerate(focus):
-                    if idx < 1:
-                        new_focus.append(item)
-                    else:
-                        # 2件目以降は内容を隠蔽
-                        masked_item = item.copy() if hasattr(item, "copy") else {"pattern": "??-??-??", "prob": "??"}
-                        masked_item["pattern"] = "??-??-??"
-                        masked_item["prob"] = "??"
-                        masked_item["expectation"] = 0
-                        new_focus.append(masked_item)
-                predictions["ai_focus"] = new_focus
+            # 2. 推奨買い目 (ai_focus / rule_focus) の制限（上位1件以外をマスク）
+            for focus_key in ["ai_focus", "rule_focus"]:
+                if focus_key in predictions:
+                    focus = predictions[focus_key]
+                    new_focus = []
+                    for idx, item in enumerate(focus):
+                        if idx < 1:
+                            new_focus.append(item)
+                        else:
+                            # 2件目以降は内容を隠蔽
+                            masked_item = item.copy() if hasattr(item, "copy") else {"pattern": "??-??-??", "prob": "??"}
+                            masked_item["pattern"] = "??-??-??"
+                            masked_item["prob"] = "??"
+                            masked_item["expectation"] = 0
+                            new_focus.append(masked_item)
+                    predictions[focus_key] = new_focus
 
             # 3. 展開（シナリオ）の制限
             if "scenario" in predictions and predictions["scenario"].get("active"):
