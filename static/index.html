@@ -303,10 +303,22 @@
 
         /* Premium UI */
         .premium-locked {
-            filter: blur(5px);
+            filter: blur(8px);
             user-select: none;
-            pointer-events: none;
+            opacity: 0.5;
             position: relative;
+        }
+
+        .premium-locked-clickable {
+            cursor: pointer;
+            filter: blur(8px);
+            user-select: none;
+            opacity: 0.6;
+            transition: all 0.3s;
+        }
+        .premium-locked-clickable:hover {
+            opacity: 0.8;
+            background: rgba(59, 130, 246, 0.1);
         }
 
         .teaser-item {
@@ -1979,8 +1991,8 @@ window.addEventListener('unhandledrejection', function(event) {
             el.innerHTML = '';
             const maxItems = parseInt(document.getElementById('setting-max-items')?.value || '8');
             
-            // Teaser limit for non-premium users on AI focus
-            const teaserLimit = (isAi && !is_premium) ? 3 : 999;
+            // Teaser limit for non-premium users on AI focus (show only TOP 1)
+            const teaserLimit = (isAi && !is_premium) ? 1 : 999;
 
             list.slice(0, maxItems).forEach((item, idx) => {
                 const isLocked = idx >= teaserLimit;
@@ -3085,7 +3097,10 @@ window.addEventListener('unhandledrejection', function(event) {
                         <div class="w-7 h-7 rounded flex items-center justify-center font-bold text-sm border shrink-0 ${cc}">${p.boat_number}</div>
                         <div class="flex flex-col">
                             <div class="flex items-center gap-2">
-                                <span class="font-bold text-base ${isAbs ? 'line-through text-slate-500' : 'text-slate-100'}">${p.racer_name || '--'}</span>
+                                <span class="font-bold text-base ${isAbs ? 'line-through text-slate-500' : 'text-slate-100'} ${!is_premium ? 'premium-locked-clickable' : ''}" 
+                                      onclick="${!is_premium ? "event.stopPropagation(); document.getElementById('subscription-modal').classList.remove('hidden')" : ''}">
+                                    ${p.racer_name || '--'}
+                                </span>
                                 ${isAbs ? '<span class="text-[10px] px-1 py-px bg-red-900/60 text-red-200 border border-red-700 rounded font-bold">欠場</span>' : `<span class="text-[10px] px-1 py-px bg-slate-700 text-slate-300 rounded">${p.racer_class || '-'}</span>`}
                             </div>
                         </div>
@@ -3154,7 +3169,10 @@ window.addEventListener('unhandledrejection', function(event) {
                 <td class="px-3 py-2 cursor-pointer" onclick="${isAbs ? '' : `openPlayerModal('${p.racer_id || p.toban || ''}','${(p.racer_name || '').replace(/'/g, "\\'")}')`}">
                     <div class="flex items-center gap-1 justify-between">
                         <div class="flex items-center gap-1">
-                            <div class="font-bold ${isAbs ? 'line-through' : 'text-slate-200'}">${p.racer_name || '--'}</div>
+                            <div class="font-bold ${isAbs ? 'line-through' : 'text-slate-200'} ${!is_premium ? 'premium-locked-clickable' : ''}" 
+                                 onclick="${!is_premium ? "event.stopPropagation(); document.getElementById('subscription-modal').classList.remove('hidden')" : ''}">
+                                ${p.racer_name || '--'}
+                            </div>
                             ${isAbs ? '<span class="text-[9px] px-1 bg-red-900/40 text-red-400 border border-red-900/60 rounded not-italic font-bold">欠場</span>' : ''}
                         </div>
                         <button onclick="toggleFavorite('${p.racer_id || p.toban}', '${(p.racer_name || '').replace(/'/g, "\\'")}', event)" 
@@ -5346,7 +5364,6 @@ window.addEventListener('unhandledrejection', function(event) {
             const rowBtn = document.getElementById(`fav-row-btn-${toban}`);
             if (rowBtn) {
                 rowBtn.className = `text-sm px-1 transition-all ${active ? 'text-yellow-400' : 'text-slate-600 hover:text-slate-400'}`;
-                rowBtn.textContent = active ? '★' : '☆';
             }
             // モバイルカード内のボタン
             const mobileBtn = document.getElementById(`fav-mobile-btn-${toban}`);
@@ -5355,7 +5372,6 @@ window.addEventListener('unhandledrejection', function(event) {
                 mobileBtn.querySelector('span').textContent = active ? '★' : '☆';
             }
         }
-
         async function refreshFavorites() {
             const container = document.getElementById('favorite-list-area');
             container.innerHTML = '<div class="text-center py-10"><div class="inline-block animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500 mb-2"></div><p class="text-slate-500 text-[10px]">読み込み中...</p></div>';
@@ -5681,8 +5697,65 @@ window.addEventListener('unhandledrejection', function(event) {
         }
     </script>
 
+    <!-- Subscription / Pricing Modal -->
+    <div id="subscription-modal" class="fixed inset-0 z-[160] hidden bg-black/80 backdrop-blur-md flex items-center justify-center p-4" onclick="this.classList.add('hidden')">
+        <div class="bg-slate-800 border-2 border-blue-500/50 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200" onclick="event.stopPropagation()">
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-blue-700 to-indigo-800 p-6 text-center relative">
+                <div class="absolute top-4 right-4 text-white/50 hover:text-white cursor-pointer" onclick="document.getElementById('subscription-modal').classList.add('hidden')">✕</div>
+                <div class="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-white/20">
+                    <span class="text-3xl">🚀</span>
+                </div>
+                <h3 class="text-2xl font-black text-white mb-1 italic tracking-wider">K-Predict Pro</h3>
+                <p class="text-blue-100 text-sm font-bold opacity-80 uppercase tracking-widest">Premium Membership</p>
+            </div>
+            
+            <div class="p-8 space-y-6">
+                <!-- Benefit List -->
+                <ul class="space-y-4">
+                    <li class="flex items-center gap-3 text-slate-200">
+                        <div class="w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center text-[10px] text-white shrink-0">✓</div>
+                        <span class="text-sm font-bold">全レースのAI推奨買い目を完全公開</span>
+                    </li>
+                    <li class="flex items-center gap-3 text-slate-200">
+                        <div class="w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center text-[10px] text-white shrink-0">✓</div>
+                        <span class="text-sm font-bold">展開アラート・期待値詳細の無制限解放</span>
+                    </li>
+                    <li class="flex items-center gap-3 text-slate-200">
+                        <div class="w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center text-[10px] text-white shrink-0">✓</div>
+                        <span class="text-sm font-bold">選手詳細分析・プロフェッショナル指標</span>
+                    </li>
+                </ul>
 
-    <!-- Numeric Keypad Modal -->
+                <!-- Pricing Plans -->
+                <div class="grid grid-cols-1 gap-4">
+                    <!-- Trial Plan -->
+                    <button onclick="startCheckout('monthly')" class="group relative bg-slate-900 border-2 border-blue-600 rounded-2xl p-5 text-left transition-all hover:bg-slate-850 active:scale-95 shadow-xl">
+                        <div class="absolute -top-3 right-4 bg-emerald-500 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg animate-bounce">3日間無料体験！</div>
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-white font-black text-lg">月額プラン</span>
+                            <span class="text-blue-400 font-black text-xl">¥2,980<span class="text-xs text-slate-500 font-bold">/月</span></span>
+                        </div>
+                        <p class="text-slate-500 text-xs">期間内ならいつでもキャンセル可能</p>
+                    </button>
+
+                    <!-- 90 Day Plan -->
+                    <button onclick="startCheckout('90day')" class="bg-slate-700/50 border border-slate-600 rounded-2xl p-4 text-left transition-all hover:bg-slate-700 active:scale-95">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-slate-200 font-bold">90日間お得プラン</span>
+                            <span class="text-slate-300 font-bold">¥7,800</span>
+                        </div>
+                        <p class="text-slate-500 text-[10px]">1ヶ月あたり ¥2,600（約13%おトク！）</p>
+                    </button>
+                </div>
+                
+                <p class="text-[10px] text-slate-500 text-center leading-relaxed">
+                    ※決済はGoogle/Stripeによって安全に保護されます。<br>
+                    ※無料体験終了後は自動更新となります。
+                </p>
+            </div>
+        </div>
+    </div>
     <div id="keypad-modal" class="fixed inset-0 z-[100] hidden flex flex-col justify-end">
         <div
             class="bg-slate-800 border-t border-slate-700 rounded-t-3xl shadow-2xl safe-area-bottom w-full max-w-lg mx-auto overflow-hidden animate-in slide-in-from-bottom duration-200">
