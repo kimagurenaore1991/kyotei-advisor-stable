@@ -1991,8 +1991,9 @@ window.addEventListener('unhandledrejection', function(event) {
             el.innerHTML = '';
             const maxItems = parseInt(document.getElementById('setting-max-items')?.value || '8');
             
-            // Teaser limit for non-premium users on AI focus (show only TOP 1)
-            const teaserLimit = (isAi && !is_premium) ? 1 : 999;
+            // Teaser limit for non-premium users (show only TOP 1 except for sample races 1R/12R)
+            const isSampleRace = (currentRaceNumber == 1 || currentRaceNumber == 12);
+            const teaserLimit = (!is_premium && !isSampleRace) ? 1 : 999;
 
             list.slice(0, maxItems).forEach((item, idx) => {
                 const isLocked = idx >= teaserLimit;
@@ -2465,18 +2466,26 @@ window.addEventListener('unhandledrejection', function(event) {
                 btn.id = `race-btn-${r.id}`;
                 btn.dataset.raceId = r.id;
                 btn.className = 'py-1.5 rounded text-xs font-bold transition-all hover:bg-blue-600 bg-slate-700 border border-slate-600 flex flex-col items-center gap-0.5 leading-tight relative';
-                btn.innerHTML = `<span class="text-slate-100 font-black">${r.race_number}R</span>` +
-                    (r.scheduled_time ? `<span class="text-[9px] text-slate-400 font-mono">${r.scheduled_time}</span>` : '') +
-                    `${r.race_title ? gradeBadge(g.label, g.cls, true) : ''}`;
-                btn.onclick = () => {
-                    document.querySelectorAll('[id^="race-btn-"]').forEach(b => b.classList.remove('ring-2', 'ring-blue-400'));
-                    btn.classList.add('ring-2', 'ring-blue-400');
-                    loadRaceDetail(r.id);
-                    if (window.innerWidth < 768) {
-                        drawer.classList.remove('drawer-open');
-                        overlay.classList.add('hidden');
-                    }
-                };
+                const isRaceLocked = !is_premium && (r.race_number >= 2 && r.race_number <= 11);
+                btn.innerHTML = `<span class="${isRaceLocked ? 'opacity-30' : 'text-slate-100 font-black'}">${r.race_number}R</span>` +
+                    (r.scheduled_time ? `<span class="text-[9px] ${isRaceLocked ? 'opacity-20' : 'text-slate-400'} font-mono">${r.scheduled_time}</span>` : '') +
+                    `${r.race_title ? gradeBadge(g.label, g.cls, true) : ''}` +
+                    (isRaceLocked ? `<span class="absolute inset-0 flex items-center justify-center text-blue-500/80 text-sm">🔒</span>` : '');
+                
+                if (isRaceLocked) {
+                    btn.classList.add('bg-slate-800/50', 'border-slate-700', 'cursor-pointer');
+                    btn.onclick = () => document.getElementById('subscription-modal').classList.remove('hidden');
+                } else {
+                    btn.onclick = () => {
+                        document.querySelectorAll('[id^="race-btn-"]').forEach(b => b.classList.remove('ring-2', 'ring-blue-400'));
+                        btn.classList.add('ring-2', 'ring-blue-400');
+                        loadRaceDetail(r.id);
+                        if (window.innerWidth < 768) {
+                            drawer.classList.remove('drawer-open');
+                            overlay.classList.add('hidden');
+                        }
+                    };
+                }
                 if (r.is_finished) {
                     let isHitFlag = false;
                     const hitType = document.getElementById('setting-hit-type')?.value || 'both';
@@ -2969,6 +2978,7 @@ window.addEventListener('unhandledrejection', function(event) {
         }
 
         function renderRace(race, players, predictions) {
+            currentRaceNumber = race.race_number;
             document.getElementById('welcome-screen').classList.add('hidden');
             document.getElementById('race-header').classList.remove('hidden');
 
@@ -3047,9 +3057,11 @@ window.addEventListener('unhandledrejection', function(event) {
                     let probRaw = predictions.ai_win_probs[b];
                     let prob = isAbsent ? '--' : (probRaw === '??' ? '??%' : (probRaw || 0) + '%');
                     
-                    const isLocked = !is_premium && probRaw === '??';
+                    const isSampleRace = (currentRaceNumber == 1 || currentRaceNumber == 12);
+                    const isLocked = !is_premium && !isSampleRace && probRaw === '??';
 
-                    return `<button onclick="${isAbsent ? '' : (isLocked ? "document.getElementById('subscription-modal').classList.remove('hidden')" : `toggleFixedHead(${b})`)}" class="flex-1 text-center rounded py-1 border border-slate-700 transition-all ${ringCls} ${dimCls}" ${isAbsent ? 'disabled' : ''}>
+                    const clickHandler = isAbsent ? '' : (isLocked ? "document.getElementById('subscription-modal').classList.remove('hidden')" : `toggleFixedHead(${b})`);
+                    return `<button onclick="${clickHandler}" class="flex-1 text-center rounded py-1 border border-slate-700 transition-all ${ringCls} ${dimCls}" ${isAbsent ? 'disabled' : ''}>
                       <div class="w-4 h-4 mx-auto rounded flex items-center justify-center text-[10px] font-bold mb-0.5 ${cc}">${b}</div>
                       <div class="text-[10px] font-mono ${isSelected ? 'text-blue-300 font-bold' : (isLocked ? 'text-blue-500 blur-[2px]' : 'text-slate-300')}">${prob}</div>
                     </button>`;
@@ -3059,7 +3071,8 @@ window.addEventListener('unhandledrejection', function(event) {
             const sbox = document.getElementById('scenario-box');
             if (predictions.scenario && predictions.scenario.active) {
                 sbox.classList.remove('hidden');
-                const isLocked = !is_premium && predictions.scenario.probability === '??';
+                const isSampleRace = (currentRaceNumber == 1 || currentRaceNumber == 12);
+                const isLocked = !is_premium && !isSampleRace && predictions.scenario.probability === '??';
                 document.getElementById('makuri-prob').textContent = predictions.scenario.probability;
                 document.getElementById('scenario-text').textContent = predictions.scenario.text;
                 document.getElementById('scenario-focus').textContent = predictions.scenario.focus;
@@ -3097,8 +3110,8 @@ window.addEventListener('unhandledrejection', function(event) {
                         <div class="w-7 h-7 rounded flex items-center justify-center font-bold text-sm border shrink-0 ${cc}">${p.boat_number}</div>
                         <div class="flex flex-col">
                             <div class="flex items-center gap-2">
-                                <span class="font-bold text-base ${isAbs ? 'line-through text-slate-500' : 'text-slate-100'} ${!is_premium ? 'premium-locked-clickable' : ''}" 
-                                      onclick="${!is_premium ? "event.stopPropagation(); document.getElementById('subscription-modal').classList.remove('hidden')" : ''}">
+                                <span class="font-bold text-base ${isAbs ? 'line-through text-slate-500' : 'text-slate-100'} ${(!is_premium && currentRaceNumber != 1 && currentRaceNumber != 12) ? 'premium-locked-clickable' : ''}" 
+                                      onclick="${(!is_premium && currentRaceNumber != 1 && currentRaceNumber != 12) ? "event.stopPropagation(); document.getElementById('subscription-modal').classList.remove('hidden')" : ''}">
                                     ${p.racer_name || '--'}
                                 </span>
                                 ${isAbs ? '<span class="text-[10px] px-1 py-px bg-red-900/60 text-red-200 border border-red-700 rounded font-bold">欠場</span>' : `<span class="text-[10px] px-1 py-px bg-slate-700 text-slate-300 rounded">${p.racer_class || '-'}</span>`}
@@ -3169,8 +3182,8 @@ window.addEventListener('unhandledrejection', function(event) {
                 <td class="px-3 py-2 cursor-pointer" onclick="${isAbs ? '' : `openPlayerModal('${p.racer_id || p.toban || ''}','${(p.racer_name || '').replace(/'/g, "\\'")}')`}">
                     <div class="flex items-center gap-1 justify-between">
                         <div class="flex items-center gap-1">
-                            <div class="font-bold ${isAbs ? 'line-through' : 'text-slate-200'} ${!is_premium ? 'premium-locked-clickable' : ''}" 
-                                 onclick="${!is_premium ? "event.stopPropagation(); document.getElementById('subscription-modal').classList.remove('hidden')" : ''}">
+                            <div class="font-bold ${isAbs ? 'line-through' : 'text-slate-200'} ${(!is_premium && currentRaceNumber != 1 && currentRaceNumber != 12) ? 'premium-locked-clickable' : ''}" 
+                                 onclick="${(!is_premium && currentRaceNumber != 1 && currentRaceNumber != 12) ? "event.stopPropagation(); document.getElementById('subscription-modal').classList.remove('hidden')" : ''}">
                                 ${p.racer_name || '--'}
                             </div>
                             ${isAbs ? '<span class="text-[9px] px-1 bg-red-900/40 text-red-400 border border-red-900/60 rounded not-italic font-bold">欠場</span>' : ''}
