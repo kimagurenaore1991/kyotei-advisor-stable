@@ -657,6 +657,22 @@ window.addEventListener('unhandledrejection', function(event) {
 
     <!-- Main Content -->
     <div class="flex-1 flex flex-col h-full bg-slate-900 mt-14 md:mt-0 overflow-y-auto">
+    <!-- Welcome Screen -->
+    <div id="welcome-screen" class="flex-1 flex flex-col items-center justify-center p-6 text-center bg-slate-900 overflow-y-auto">
+        <img src="./logo.png" alt="Logo" class="w-24 h-24 mb-6 opacity-80 mt-10">
+        <h2 class="text-2xl font-black text-slate-200 mb-2">K-Predict Pro Dashboard</h2>
+        <p class="text-sm text-slate-500 max-w-xs mb-8">左メニューから本日開催場を選択し、<br>レース番号をクリックしてください</p>
+
+        <div class="bg-slate-800/80 border border-slate-700 p-4 rounded-xl text-left w-full max-w-sm mb-8">
+            <p class="font-bold flex items-center gap-2 mb-2 text-slate-200"><svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> まずはここから始めよう</p>
+            <ol class="list-decimal list-inside space-y-1.5 ml-1 text-sm text-slate-400">
+                <li>メニューから開催場を選ぶ</li>
+                <li>レースを選び「迷ったらコレ！（イチオシ買い目）」をチェック</li>
+                <li>オッズと期待値を見極めて舟券を購入</li>
+            </ol>
+        </div>
+    </div>
+
 
 
         <!-- Race Header -->
@@ -1224,21 +1240,6 @@ window.addEventListener('unhandledrejection', function(event) {
         </div>
     </div>
 
-    <!-- Welcome Screen -->
-    <div id="welcome-screen" class="flex-1 flex flex-col items-center justify-center p-6 text-center bg-slate-900 overflow-y-auto">
-        <img src="./logo.png" alt="Logo" class="w-24 h-24 mb-6 opacity-80 mt-10">
-        <h2 class="text-2xl font-black text-slate-200 mb-2">K-Predict Pro Dashboard</h2>
-        <p class="text-sm text-slate-500 max-w-xs mb-8">左メニューから本日開催場を選択し、<br>レース番号をクリックしてください</p>
-
-        <div class="bg-slate-800/80 border border-slate-700 p-4 rounded-xl text-left w-full max-w-sm mb-8">
-            <p class="font-bold flex items-center gap-2 mb-2 text-slate-200"><svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> まずはここから始めよう</p>
-            <ol class="list-decimal list-inside space-y-1.5 ml-1 text-sm text-slate-400">
-                <li>メニューから開催場を選ぶ</li>
-                <li>レースを選び「迷ったらコレ！（イチオシ買い目）」をチェック</li>
-                <li>オッズと期待値を見極めて舟券を購入</li>
-            </ol>
-        </div>
-    </div>
 
     <!-- Mobile Bottom Tab Bar -->
     <div id="mobile-tab-bar" class="md:hidden fixed bottom-0 left-0 right-0 flex z-[30]">
@@ -3983,7 +3984,16 @@ window.addEventListener('unhandledrejection', function(event) {
             }
         }
 
-        function closeModal() { document.getElementById('player-modal').classList.add('hidden'); }
+        function closeModal() {
+            const el = document.getElementById('player-modal');
+            if (el && !el.classList.contains('hidden')) {
+                if (history.state && history.state.type === 'modal' && history.state.id === 'player-modal') {
+                    history.back();
+                } else {
+                    el.classList.add('hidden');
+                }
+            }
+        }
 
         let lastScrapingState = false;
         let isFirstStatusCheck = true;
@@ -4241,8 +4251,11 @@ window.addEventListener('unhandledrejection', function(event) {
         function closeKeypad() {
             const el = document.getElementById('keypad-modal');
             if (el && !el.classList.contains('hidden')) {
-                el.classList.add('hidden');
-                if (history.state && history.state.type === 'modal' && history.state.id === 'keypad-modal') history.back();
+                if (history.state && history.state.type === 'modal' && history.state.id === 'keypad-modal') {
+                    history.back();
+                } else {
+                    el.classList.add('hidden');
+                }
             }
         }
 
@@ -5002,8 +5015,11 @@ window.addEventListener('unhandledrejection', function(event) {
         function closeSearchModal() {
             const el = document.getElementById('search-modal');
             if (el && !el.classList.contains('hidden')) {
-                el.classList.add('hidden');
-                if (history.state && history.state.type === 'modal' && history.state.id === 'search-modal') history.back();
+                if (history.state && history.state.type === 'modal' && history.state.id === 'search-modal') {
+                    history.back();
+                } else {
+                    el.classList.add('hidden');
+                }
             }
         }
         async function performSearch() {
@@ -5511,8 +5527,11 @@ window.addEventListener('unhandledrejection', function(event) {
         function closeHelpModal() {
             const el = document.getElementById('help-modal');
             if (el && !el.classList.contains('hidden')) {
-                el.classList.add('hidden');
-                if (history.state && history.state.type === 'modal' && history.state.id === 'help-modal') history.back();
+                if (history.state && history.state.type === 'modal' && history.state.id === 'help-modal') {
+                    history.back();
+                } else {
+                    el.classList.add('hidden');
+                }
             }
         }
 
@@ -5545,9 +5564,12 @@ window.addEventListener('unhandledrejection', function(event) {
             localStorage.setItem('tutorialDone', 'true');
             const el = document.getElementById('tutorial-overlay');
             if (el && !el.classList.contains('hidden')) {
-                el.classList.add('hidden');
-                el.style.display = 'none';
-                if (history.state && history.state.type === 'modal' && history.state.id === 'tutorial-overlay') history.back();
+                if (history.state && history.state.type === 'modal' && history.state.id === 'tutorial-overlay') {
+                    history.back();
+                } else {
+                    el.classList.add('hidden');
+                    el.style.display = 'none';
+                }
             }
         }
 
@@ -5621,8 +5643,11 @@ window.addEventListener('unhandledrejection', function(event) {
             window.closeSettingsModal = function() {
                 const el = document.getElementById('settings-modal');
                 if (el && !el.classList.contains('hidden')) {
-                    el.classList.add('hidden');
-                    if (history.state && history.state.type === 'modal' && history.state.id === 'settings-modal') history.back();
+                    if (history.state && history.state.type === 'modal' && history.state.id === 'settings-modal') {
+                        history.back();
+                    } else {
+                        el.classList.add('hidden');
+                    }
                 }
             };
             
