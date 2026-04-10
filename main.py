@@ -1,6 +1,6 @@
 import math
 import itertools
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from pydantic import BaseModel
 import random
@@ -8,7 +8,8 @@ import os
 import json
 import concurrent.futures
 import hashlib
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Body
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Body, Depends, Request
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from live_scraper import (
@@ -18,15 +19,32 @@ from live_scraper import (
 import scraper
 from scraper import (
     scrape_index, scrape_race_syusso, update_exhibition, update_result, 
-    update_all_active_races, get_racer_results_stats, search_racers_global
+    update_all_active_races, get_racer_results_stats, search_racers_global,
+    scrape_today, scrape_missing_today
 )
+import stripe_handler
 import time
 import asyncio
 
-from app_config import JST, LOCK_FILE, STATIC_DIR, LAST_SCRAPE_FILE, SUPABASE_URL, SUPABASE_KEY, USE_SUPABASE
+from app_config import (
+    JST, LOCK_FILE, STATIC_DIR, LAST_SCRAPE_FILE, 
+    SUPABASE_URL, SUPABASE_KEY, USE_SUPABASE,
+    STRIPE_PRICE_ID_MONTHLY, STRIPE_PRICE_ID_90DAY,
+    CORS_ALLOW_ORIGINS
+)
 from database import get_db_connection, init_db, cleanup_old_data, sync_from_supabase
+from supabase_client import get_supabase_client
 
 app = FastAPI(title="Kyotei Advisor MVP")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ALLOW_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 init_db()
 
 # 選手プロフィールのメモリキャッシュ (toban -> {data, timestamp})
@@ -90,13 +108,19 @@ async def startup_event():
         except:
             pass
     
-    # SSEコールバックをスクレイパーに登録
+    # SSEコールバックをスクレイパーに登録 (スレッドから安全にメインのループにタスクを投げる)
+    main_loop = asyncio.get_event_loop()
     def _sync_sse_push(event_type: str, data: dict):
         try:
-            loop = asyncio.get_event_loop()
-            asyncio.run_coroutine_threadsafe(sse_push(event_type, data), loop)
+            if main_loop and main_loop.is_running():
+                asyncio.run_coroutine_threadsafe(sse_push(event_type, data), main_loop)
+            else:
+                # ループがまだ/既に動いていない場合はスキップ（シャットダウン時など）
+                pass
         except Exception as e:
-            print(f"[SSE BRIDGE ERROR] {e}")
+            # 頻繁なエラーログを避けるため、致命的な場合のみ出力
+            if "Event loop is closed" not in str(e):
+                print(f"[SSE BRIDGE ERROR] {e}")
     
     scraper.sse_broadcast_callback = _sync_sse_push
     
@@ -200,6 +224,90 @@ class NoCacheStaticMiddleware(BaseHTTPMiddleware):
         return response
 
 app.add_middleware(NoCacheStaticMiddleware)
+
+# ── Auth & Security Dependencies ──
+security = HTTPBearer(auto_error=False)
+
+async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+    """SupabaseのJWTトークンを検証し、ユーザー情報を取得する"""
+    if not USE_SUPABASE:
+        return {"id": "local_user", "email": "local@example.com"}
+    
+    if not credentials:
+        return None
+    
+    token = credentials.credentials
+    supabase = get_supabase_client()
+    if not supabase:
+        return None
+        
+    try:
+        # Supabase Auth APIでトークンを検証
+        res = supabase.auth.get_user(token)
+        if res and res.user:
+            return res.user
+    except Exception as e:
+        print(f"[AUTH ERROR] Token validation failed: {e}")
+    
+    return None
+
+async def check_premium(user = Depends(get_current_user)):
+    """ユーザーがプレミアム会員（またはトライアル中）かチェックする"""
+    # 【審査待ち対応】現在は一時的に全員をプレミアム扱いにする
+    return True
+    
+    # 以前の判定ロジック（バックアップ用コメントアウトは省略）
+
+def require_premium(is_premium: bool = Depends(check_premium)):
+    """プレミアム権限を必須にするためのガード"""
+    if not is_premium:
+        raise HTTPException(
+            status_code=402, 
+            detail="Premium subscription required to access this feature."
+        )
+    return True
+
+# ── Stripe Payment Endpoints ──
+
+class CheckoutRequest(BaseModel):
+    plan: str # 'monthly' or '90day'
+    success_url: str
+    cancel_url: str
+
+@app.post("/api/create-checkout-session")
+async def create_checkout(req: CheckoutRequest, user = Depends(get_current_user)):
+    """Stripeの決済セッションを作成する"""
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+        
+    price_id = STRIPE_PRICE_ID_MONTHLY if req.plan == 'monthly' else STRIPE_PRICE_ID_90DAY
+    
+    res = stripe_handler.create_subscription_session(
+        user_id=user.id,
+        user_email=user.email,
+        price_id=price_id,
+        success_url=req.success_url,
+        cancel_url=req.cancel_url
+    )
+    
+    if "error" in res:
+        raise HTTPException(status_code=500, detail=res["error"])
+    return res
+
+@app.post("/api/webhooks/stripe")
+async def stripe_webhook(request: Request):
+    """Stripeからの支払い・更新通知を受信"""
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature")
+    
+    if not sig_header:
+        raise HTTPException(status_code=400, detail="Missing signature")
+        
+    success = stripe_handler.handle_stripe_webhook(payload, sig_header)
+    if not success:
+        raise HTTPException(status_code=400, detail="Webhook handling failed")
+        
+    return {"status": "success"}
 
 @app.get("/")
 def read_root():
@@ -593,8 +701,12 @@ def get_racer_detail(toban: str, place_code: Optional[str] = Query(None)):
     }
 
 
-@app.post("/api/scrape/today")
-def trigger_scrape_today(background_tasks: BackgroundTasks, date: Optional[str] = Query(None)):
+@app.get("/api/scrape/today")
+def scrape_today_api(background_tasks: BackgroundTasks, is_premium: bool = Depends(check_premium), date: Optional[str] = Query(None)):
+    """本日の全レースデータを手動スクレイピング (Admin/Premiumのみ許可)"""
+    if not is_premium:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+    
     if LOCK_FILE.exists():
         raise HTTPException(status_code=400, detail="既にデータ取得処理が実行中です。")
     
@@ -1516,7 +1628,7 @@ def get_race_detail(race_id: int):
 
 
 @app.post("/api/races/{race_id}/predict")
-def get_custom_predict(race_id: int, req: PredictRequest):
+def get_custom_predict(race_id: int, req: PredictRequest, is_premium: bool = Depends(check_premium)):
     conn = get_db_connection()
     try:
         race = conn.execute('SELECT * FROM races WHERE id = ?', (race_id,)).fetchone()
@@ -1651,12 +1763,59 @@ def get_custom_predict(race_id: int, req: PredictRequest):
             except Exception as e:
                 print(f"[CACHE ERROR] Failed to save AI cache: {e}")
 
+        # ── プレミアム向けコンテンツ制限（ティーザーモード） ──
+        is_sample_race = race_dict.get("race_number") in [1, 12]
+        if not is_premium and not is_sample_race:
+            # 1. AI 勝率の制限（上位1件以外を伏せる）
+            if "ai_win_probs" in predictions:
+                probs = predictions["ai_win_probs"]
+                sorted_probs = sorted(probs.items(), key=lambda x: x[1], reverse=True)
+                top_1_boat = sorted_probs[0][0] if sorted_probs else None
+                new_probs = {}
+                for b, p in probs.items():
+                    if b == top_1_boat:
+                        new_probs[b] = p
+                    else:
+                        new_probs[b] = "??" # 伏せる
+                predictions["ai_win_probs"] = new_probs
+            
+            # 2. 推奨買い目 (ai_focus / rule_focus) の制限（上位1件以外をマスク）
+            for focus_key in ["ai_focus", "rule_focus"]:
+                if focus_key in predictions:
+                    focus = predictions[focus_key]
+                    new_focus = []
+                    for idx, item in enumerate(focus):
+                        if idx < 1:
+                            new_focus.append(item)
+                        else:
+                            # 2件目以降は内容を隠蔽
+                            masked_item = item.copy() if hasattr(item, "copy") else {"pattern": "??-??-??", "prob": "??"}
+                            masked_item["pattern"] = "??-??-??"
+                            masked_item["prob"] = "??"
+                            masked_item["expectation"] = 0
+                            new_focus.append(masked_item)
+                    predictions[focus_key] = new_focus
+
+            # 3. 展開（シナリオ）の制限
+            if "scenario" in predictions and predictions["scenario"].get("active"):
+                # 内容を半分隠す
+                predictions["scenario"]["probability"] = "??" 
+                predictions["scenario"]["focus"] = "??-??"
+                predictions["scenario"]["text"] = "【Pro限定】この先はプレミアムプランで公開中"
+                
+            # 4. その他、AI詳細スコアなどを一部マスク
+            for p in scored_players:
+                if p.get("ai_mark") not in ["◎", "○"]: 
+                    p["ai_score"] = 0.0
+                    p["ai_mark"] = "Pro"
+
         return {
             "race": race_dict,
             "players": scored_players,
             "predictions": predictions,
             "current_weights": req.weights.dict(),
             "current_settings": req.settings.dict(),
+            "is_premium": is_premium # フロントエンドでの表示制御用
         }
     finally:
         conn.close()

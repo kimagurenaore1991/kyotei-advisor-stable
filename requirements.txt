@@ -6,3 +6,4 @@ beautifulsoup4==4.12.3
 python-multipart==0.0.9
 supabase>=2.13.0
 websockets>=14.0
+stripe==10.12.0
