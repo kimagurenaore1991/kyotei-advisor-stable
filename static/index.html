@@ -879,21 +879,8 @@ window.addEventListener('unhandledrejection', function(event) {
             <!-- [2.5] 仮想カート & テレボート (mobile:order-4) -->
             <div id="cart-section"
                 class="order-4 lg:col-span-3 bg-slate-800 rounded-xl border border-slate-700 overflow-hidden scroll-mt-20">
-                <div class="px-4 py-3 bg-slate-750 border-b border-slate-700 flex flex-col gap-2">
-                    <div class="flex justify-between items-center">
-                        <h3 class="font-bold text-slate-300 text-sm">🛒 投票カート（仮想収支）</h3>
-                    </div>
-                    <!-- Main Actions -->
-                    <div class="flex items-center gap-2">
-                        <button onclick="showFundDistribution()"
-                            class="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-white py-2 px-3 rounded shadow-md transition-all">
-                            💰 資金配分
-                        </button>
-                        <button onclick="copyAndOpenTeleboat()"
-                            class="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white py-2 px-3 rounded shadow-md transition-all">
-                            📋 テレボートへ
-                        </button>
-                    </div>
+                <div class="px-4 py-3 bg-slate-750 border-b border-slate-700">
+                    <h3 class="font-bold text-slate-300 text-sm">🛒 投票カート（仮想収支）</h3>
                 </div>
 
                 <!-- 手動フォーメーションUI -->
@@ -966,12 +953,20 @@ window.addEventListener('unhandledrejection', function(event) {
                                 class="w-full py-1 rounded border border-slate-600 bg-slate-700 text-slate-300 font-bold text-xs mt-1 hover:opacity-80 transition-colors">全</button>
                         </div>
                     </div>
-                    <div class="mt-3 flex justify-end gap-2">
+                    <div class="mt-3 grid grid-cols-4 gap-2">
                         <button onclick="clearManualBetOptions()"
-                            class="px-4 py-1.5 text-xs bg-slate-600 hover:bg-slate-500 active:bg-slate-700 rounded text-white shadow font-bold transition">クリア</button>
+                            class="col-span-1 py-2 text-xs bg-slate-600 hover:bg-slate-500 active:bg-slate-700 rounded text-white shadow font-bold transition">クリア</button>
                         <button onclick="addManualBetsToCart()"
-                            class="px-4 py-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 rounded text-white shadow font-bold flex items-center gap-1 transition">➕
+                            class="col-span-1 py-2 text-xs bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 rounded text-white shadow font-bold flex items-center justify-center gap-1 transition">➕
                             追加</button>
+                        <button onclick="showFundDistribution()"
+                            class="col-span-1 flex items-center justify-center gap-1.5 text-xs font-bold bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-white py-2 rounded shadow-md transition-all">
+                            💰 資金
+                        </button>
+                        <button onclick="copyAndOpenTeleboat()"
+                            class="col-span-1 flex items-center justify-center gap-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white py-2 rounded shadow-md transition-all">
+                            📋 投票
+                        </button>
                     </div>
                 </div>
 
@@ -4047,7 +4042,7 @@ window.addEventListener('unhandledrejection', function(event) {
             setting: 'setting-section',
         };
 
-        function switchTab(tab) {
+        window.switchTab = function(tab) {
             if (tab === 'venue') {
                 // Trigger sidebar button click to ensure history logic runs
                 document.getElementById('menu-btn').click();
@@ -4070,7 +4065,7 @@ window.addEventListener('unhandledrejection', function(event) {
             if (target) {
                 setTimeout(() => target.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
             }
-        }
+        };
 
         // Service Worker
         if ('serviceWorker' in navigator) {
