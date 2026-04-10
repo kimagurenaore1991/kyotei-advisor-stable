@@ -113,7 +113,7 @@ async def startup_event():
     def _sync_sse_push(event_type: str, data: dict):
         try:
             if main_loop and main_loop.is_running():
-                asyncio.run_coroutine_threadsafe(sse_push(event_type, data), main_loop)
+                main_loop.call_soon_threadsafe(lambda: main_loop.create_task(sse_push(event_type, data)))
             else:
                 # ループがまだ/既に動いていない場合はスキップ（シャットダウン時など）
                 pass
