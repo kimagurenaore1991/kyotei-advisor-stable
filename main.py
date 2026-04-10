@@ -1647,7 +1647,6 @@ def get_custom_predict(race_id: int, req: PredictRequest, is_premium: bool = Dep
         # 保存済みの結果データを精査し、選手名に金額や不要な文字列が混じっている場合も再取得対象にする
         if not is_incomplete and race_dict.get("result_json"):
             try:
-                import json
                 res_data = json.loads(race_dict["result_json"])
                 rank_list = res_data.get("ranking", [])
                 for r in rank_list:
