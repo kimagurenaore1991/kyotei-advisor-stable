@@ -1595,10 +1595,27 @@ window.addEventListener('unhandledrejection', function(event) {
             };
             localStorage.setItem('kyotei_v1_user_settings', JSON.stringify(settings));
             
-            // 的中結果分別が変わった場合、またはウェイト/点数が変わった場合は統計を再計算
-            refreshSidebarHits(); // 常に全体を最新に
+            // 的中判定キャッシュをクリアして再計算を強制
+            window.dailyHitsCache = null;
+            window.expectationHitsCache = null;
+            lastExpectationFetched = false;
+
+            refreshSidebarHits(); 
             updatePerformanceStats();
             
+            // 期待値タブが表示されている場合は即座に再取得して表示を更新
+            const searchModal = document.getElementById('search-modal');
+            if (searchModal && !searchModal.classList.contains('hidden')) {
+                const activeTabBtn = document.getElementById('search-tab-high');
+                if (activeTabBtn && activeTabBtn.classList.contains('bg-blue-600')) {
+                    fetchExpectationRaces();
+                }
+            } else {
+                // 非表示時は次回開いたときに確実に再取得されるようUIをリセット
+                const expContainer = document.getElementById('high-expectation-results');
+                if (expContainer) expContainer.innerHTML = '';
+            }
+
             // 「一括追加」ボタンの表示制御
             const isResultVisible = !document.getElementById('result-banner').classList.contains('hidden');
             if (settings.hit_type === 'buy' && isResultVisible) {
@@ -2848,11 +2865,14 @@ window.addEventListener('unhandledrejection', function(event) {
             });
         }
 
-        ['setting-bet-type', 'setting-max-items'].forEach(id => {
-            document.getElementById(id).addEventListener('change', () => {
-                saveUserSettings();
-                if (currentRaceId) requestPrediction();
-            });
+        ['setting-bet-type', 'setting-max-items', 'setting-hit-type'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('change', () => {
+                    saveUserSettings();
+                    if (currentRaceId) requestPrediction();
+                });
+            }
         });
 
         function resetSettingsToDefault() {
@@ -2885,6 +2905,7 @@ window.addEventListener('unhandledrejection', function(event) {
             } else {
                 activeFixedHead = boatNum;
             }
+            saveUserSettings();
             if (currentRaceId) requestPrediction();
         }
 
@@ -4750,7 +4771,6 @@ window.addEventListener('unhandledrejection', function(event) {
             el.href = `https://boatcast.jp/?jcd=${placeCode}&rno=${raceNumber}&hd=${d}`;
             el.classList.remove('hidden');
         }
-
         // ===================================================================
         // === Phase 1 Feature: Exhibition Evaluation Arrows =================
         // ===================================================================
@@ -5082,19 +5102,51 @@ window.addEventListener('unhandledrejection', function(event) {
             html += '</div>';
             container.innerHTML = html;
         }
+        let currentExpectationOffset = 0;
+        
+        window.switchExpectationDate = function(offset) {
+            currentExpectationOffset = offset;
+            const btns = {
+                '-1': document.getElementById('exp-date-prev'),
+                '0': document.getElementById('exp-date-today'),
+                '1': document.getElementById('exp-date-next')
+            };
+            const activeCls = 'flex-1 py-1.5 text-xs font-bold rounded-md bg-blue-600 text-white shadow-sm';
+            const inactiveCls = 'flex-1 py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-slate-200';
+            Object.keys(btns).forEach(key => {
+                if(btns[key]) btns[key].className = (parseInt(key) === offset) ? activeCls : inactiveCls;
+            });
+            fetchExpectationRaces();
+        };
+
         async function fetchExpectationRaces() {
             const container = document.getElementById('high-expectation-results');
             container.innerHTML = '<div class="text-center py-12"><div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-amber-500 mb-2"></div><p class="text-slate-400 text-xs">的中期待値を解析中...</p></div>';
             
+            const dateStr = getTargetDateStr(currentExpectationOffset);
+            
             try {
-                const res = await fetch(`${API_BASE}/search/high_expectation`);
+                // Fetch daily hits specifically for expectation context
+                const reqBody = { weights: getWeights(), settings: getSettings() };
+                const dhRes = await fetch(`${API_BASE}/daily_hits?date=${dateStr}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(reqBody)
+                });
+                if (dhRes.ok) {
+                    window.expectationHitsCache = await dhRes.json();
+                } else {
+                    window.expectationHitsCache = null;
+                }
+
+                const res = await fetch(`${API_BASE}/search/high_expectation?date=${dateStr}`);
                 const data = await res.json();
-                renderExpectationResults(data);
+                renderExpectationResults(data, dateStr);
             } catch (e) {
                 container.innerHTML = '<p class="text-red-400 text-center py-12 text-sm">取得に失敗しました</p>';
             }
         }
-        function renderExpectationResults(data) {
+        function renderExpectationResults(data, targetDateStr) {
             const container = document.getElementById('high-expectation-results');
             const solidRaces = data.solid || [];
             const valueRaces = data.value || [];
@@ -5116,7 +5168,7 @@ window.addEventListener('unhandledrejection', function(event) {
             if (solidRaces.length > 0) {
                 html += `<div class="bg-emerald-900/10 border border-emerald-900/30 p-3 rounded-xl text-emerald-400 text-xs shadow-inner">1号艇の勝率が非常に高い、イン逃げ鉄板のレースをピックアップしています。</div>`;
                 html += `<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">`;
-                solidRaces.forEach(r => html += createRaceCardHTML(r, 'solid', '大本命・イン逃げ推奨'));
+                solidRaces.forEach(r => html += createRaceCardHTML(r, 'solid', '大本命・イン逃げ推奨', targetDateStr));
                 html += `</div>`;
             } else {
                 html += `<p class="text-slate-500 text-center py-10 text-xs">現在、条件に合う的中率重視レースはありません</p>`;
@@ -5128,7 +5180,7 @@ window.addEventListener('unhandledrejection', function(event) {
             if (valueRaces.length > 0) {
                 html += `<div class="bg-amber-900/10 border border-amber-900/30 p-3 rounded-xl text-amber-400 text-xs shadow-inner">1号艇の勝率が低く、中穴〜大穴展開が望めるレースをピックアップしています。</div>`;
                 html += `<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">`;
-                valueRaces.forEach(r => html += createRaceCardHTML(r, 'value', '中穴・大穴展開推奨'));
+                valueRaces.forEach(r => html += createRaceCardHTML(r, 'value', '中穴・大穴展開推奨', targetDateStr));
                 html += `</div>`;
             } else {
                 html += `<p class="text-slate-500 text-center py-10 text-xs">現在、条件に合う期待値重視レースはありません</p>`;
@@ -5159,13 +5211,31 @@ window.addEventListener('unhandledrejection', function(event) {
             }
         };
 
-        function createRaceCardHTML(r, colorTheme, desc) {
-            const hitData = (window.dailyHitsCache && r.is_finished) ? window.dailyHitsCache[r.id] : null;
-            const hitBadge = (hitData && hitData.hit) ? `<span class="ml-1 text-[10px] bg-red-500 border border-red-400/50 px-2 py-0.5 rounded text-white font-bold animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]">🎯的中</span>` : '';
-            const payoutHtml = (hitData && hitData.hit && hitData.payout > 0) 
+        function createRaceCardHTML(r, colorTheme, desc, targetDateStr) {
+            const hitType = document.getElementById('setting-hit-type')?.value || 'both';
+            let isHitFlag = false;
+            let hitPayout = 0;
+            
+            if (r.is_finished) {
+                if (hitType === 'buy') {
+                    const resultStr = r.ranking_str || (window.expectationHitsCache && window.expectationHitsCache[r.id] ? window.expectationHitsCache[r.id].ranking : null);
+                    if (resultStr) {
+                        const raceCart = historyCarts[r.id] || {};
+                        const cartItems = Object.keys(raceCart);
+                        isHitFlag = cartItems.some(pat => isHit(pat, resultStr));
+                    }
+                } else {
+                    const cacheData = window.expectationHitsCache ? window.expectationHitsCache[r.id] : null;
+                    isHitFlag = cacheData ? cacheData.hit : false;
+                    hitPayout = cacheData ? cacheData.payout : 0;
+                }
+            }
+
+            const hitBadge = isHitFlag ? `<span class="ml-1 text-[10px] bg-red-500 border border-red-400/50 px-2 py-0.5 rounded text-white font-bold animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]">🎯的中</span>` : '';
+            const payoutHtml = (isHitFlag && hitPayout > 0) 
                 ? `<div class="text-[10px] font-bold text-emerald-400 mt-2.5 flex items-center gap-1.5 bg-emerald-900/40 border border-emerald-800/50 px-2.5 py-1.5 rounded w-full">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    払戻金: ¥${hitData.payout.toLocaleString()}
+                    払戻金: ¥${hitPayout.toLocaleString()}
                    </div>` 
                 : '';
 
@@ -5180,7 +5250,7 @@ window.addEventListener('unhandledrejection', function(event) {
             const badgeText = r.is_finished ? '終了' : '発売中';
 
             return `
-            <button onclick="closeSearchModal(); goToRace('${r.place}', ${r.id}, '${getTargetDateStr(0)}')" 
+            <button onclick="closeSearchModal(); goToRace('${r.place}', ${r.id}, '${targetDateStr}')" 
                 class="flex flex-col items-start bg-slate-800/60 border border-slate-700/60 ${hoverBorderCls} hover:bg-slate-700/40 p-4 rounded-xl transition-all text-left relative overflow-hidden group shadow w-full">
                 
                 <div class="flex justify-between w-full items-center mb-2">
@@ -5881,9 +5951,16 @@ window.addEventListener('unhandledrejection', function(event) {
                 <div id="search-content-high" class="hidden space-y-3">
                     <div class="p-3 bg-blue-900/20 border border-blue-800/50 rounded-lg">
                         <p class="text-[10px] text-blue-300 leading-relaxed">
-                            AIが分析した、本日の全レースの中から的中期待値（AI信頼度高 × 枠順優位）が高いものをピックアップします。
+                            AIが分析した全レースの中から的中期待値が高いものをピックアップします。<br>※設定した予想（AI/カスタム/カート買目）の出目で🎯的中バッジが表示されます。
                         </p>
                     </div>
+                    
+                    <div class="flex p-1 bg-slate-900 rounded-lg border border-slate-700 mb-2">
+                        <button id="exp-date-prev" onclick="switchExpectationDate(-1)" class="flex-1 py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-slate-200">昨日</button>
+                        <button id="exp-date-today" onclick="switchExpectationDate(0)" class="flex-1 py-1.5 text-xs font-bold rounded-md bg-blue-600 text-white shadow-sm">本日</button>
+                        <button id="exp-date-next" onclick="switchExpectationDate(1)" class="flex-1 py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-slate-200">明日</button>
+                    </div>
+
                     <button onclick="fetchExpectationRaces()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-sm transition-all shadow-lg active:scale-95">期待値レースを抽出</button>
                     <div id="high-expectation-results" class="space-y-2 max-h-[350px] overflow-y-auto pt-2"></div>
                 </div>

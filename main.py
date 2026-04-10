@@ -75,8 +75,10 @@ async def startup_event():
     try:
         if last_scrape_date != today_iso:
             print(f"[STARTUP] {today_iso} の初回起動です。Supabaseから今日のデータを先行取得し、公式からもバックグラウンドで更新します...")
-            # 1. 今日のデータをSupabaseから最優先で取得 (UI即時表示のため)
+            # 1. 昨日や今日のデータをSupabaseから最優先で取得 (UI即時表示のため)
             from database import sync_specific_date_from_supabase
+            yesterday_iso = (now_jst - timedelta(days=1)).strftime('%Y-%m-%d')
+            await loop.run_in_executor(None, sync_specific_date_from_supabase, yesterday_iso)
             await loop.run_in_executor(None, sync_specific_date_from_supabase, today_iso)
 
             # 2. 残りの同期と公式スクレイピングはバックグラウンドで実行
@@ -88,9 +90,13 @@ async def startup_event():
             except: pass
         else:
             print(f"[STARTUP] 本日2回目以降の起動です。バックグラウンドで同期・補填を行います...")
-            # 今日・明日のデータをSupabaseから先行取得
+            # 昨日・今日・明日のデータをSupabaseから先行取得
             from database import sync_specific_date_from_supabase
+            yesterday_iso = (now_jst - timedelta(days=1)).strftime('%Y-%m-%d')
+            tomorrow_iso = (now_jst + timedelta(days=1)).strftime('%Y-%m-%d')
+            asyncio.create_task(asyncio.to_thread(sync_specific_date_from_supabase, yesterday_iso))
             asyncio.create_task(asyncio.to_thread(sync_specific_date_from_supabase, today_iso))
+            asyncio.create_task(asyncio.to_thread(sync_specific_date_from_supabase, tomorrow_iso))
             
             asyncio.create_task(asyncio.to_thread(sync_from_supabase, 1))
             asyncio.create_task(asyncio.to_thread(scraper.scrape_missing_today, now_jst))
@@ -817,16 +823,16 @@ AI_RESULT_CACHE = {}
 def compute_settings_hash(weights: CustomWeights, settings: PredictSettings) -> str:
     """予測設定（重み、モード、券種等）をハッシュ化する"""
     s_dict = {
-        "w": weights.dict(),
-        "m": settings.max_items,
+        "w": weights.dict() if hasattr(weights, 'dict') else weights,
+        "m": int(settings.max_items),
         "bt": settings.bet_type,
-        "f1": settings.fixed_1st,
+        "f1": int(settings.fixed_1st),
         "ht": settings.hit_type,
-        "am": settings.ai_prediction_mode,
-        "cm": settings.custom_prediction_mode
+        "am": int(settings.ai_prediction_mode),
+        "cm": int(settings.custom_prediction_mode)
     }
     s_json = json.dumps(s_dict, sort_keys=True)
-    return hashlib.mdsafe_hex_digest(s_json.encode()).hexdigest() if hasattr(hashlib, 'mdsafe_hex_digest') else hashlib.md5(s_json.encode()).hexdigest()
+    return hashlib.md5(s_json.encode()).hexdigest()
 
 def compute_players_hash(race_data: dict, players_data: List[dict], weights: CustomWeights = None, settings: PredictSettings = None) -> str:
     """AIの計算に影響する項目のみを抽出してハッシュ化する"""
@@ -1311,7 +1317,7 @@ def calculate_predictions(race_data, players_data, weights: CustomWeights, setti
         return results[start_idx : end_idx]
 
     predictions = {
-        "rule_focus": generate_rule_combinations(rule_probs, settings.bet_type, settings.max_items, 0),
+        "rule_focus": generate_rule_combinations(rule_probs, settings.bet_type, settings.max_items, settings.fixed_1st),
         "ai_focus": generate_ai_combinations(ai_pattern_counts, settings.bet_type, settings.max_items, NUM_SIMS, settings.fixed_1st),
         "ai_default_focus": generate_ai_combinations(ai_pattern_counts, "3連単", 8, NUM_SIMS, 0),
         "ai_win_probs": ai_win_probs,
@@ -1493,20 +1499,19 @@ def get_daily_hits(req: PredictRequest, date: str = Query(...)):
         _, preds = calculate_predictions(rdict, players, req.weights, req.settings)
         
         ranking = rdict.get("ranking_str", "")
-        hit = False
         ht = req.settings.hit_type
-        hit_count = 0
         if ht == "custom":
-            hit_count = 1 if any(is_hit(p["pattern"], ranking) for p in preds["rule_focus"]) else 0
+            hit = any(is_hit(p["pattern"], ranking) for p in preds["rule_focus"])
         elif ht == "ai":
-            hit_count = 1 if any(is_hit(p["pattern"], ranking) for p in preds["ai_focus"]) else 0
-        else: # "both" or "buy"
-            # AIとカスタムを個別に的中判定し、的中したセット数をカウント（両方の場合は2倍の払戻）
-            hit_custom = 1 if any(is_hit(p["pattern"], ranking) for p in preds["rule_focus"]) else 0
-            hit_ai = 1 if any(is_hit(p["pattern"], ranking) for p in preds["ai_focus"]) else 0
-            hit_count = hit_custom + hit_ai
+            hit = any(is_hit(p["pattern"], ranking) for p in preds["ai_focus"])
+        elif ht == "both" or ht == "buy":
+            # BothまたはBuy時はAIかカスタムのいずれかがヒットすれば的中
+            hit = any(is_hit(p["pattern"], ranking) for p in preds["rule_focus"]) or \
+                  any(is_hit(p["pattern"], ranking) for p in preds["ai_focus"])
+        else:
+            hit = False
             
-        hit = (hit_count > 0)
+        hit_count = 1 if hit else 0
         
         # 払戻金の抽出
         payout = 0
@@ -2004,22 +2009,22 @@ def search_racers(q: str):
         conn.close()
 
 @app.get("/api/search/high_expectation")
-def search_high_expectation():
+def search_high_expectation(date: Optional[str] = Query(default=None)):
     """AI予想に基づき、1号艇の勝率が高い『的中率重視』と、他艇の勝率が高い『期待値重視』のレースを抽出する"""
     conn = get_db_connection()
     try:
-        today_iso = datetime.now(JST).strftime('%Y-%m-%d')
-        # 本日の全レースをスキャン
+        target_iso = date if date else datetime.now(JST).strftime('%Y-%m-%d')
+        # 対象日の全レースをスキャン
         rows = conn.execute(
             "SELECT * "
             "FROM races WHERE race_date = ?",
-            (today_iso,)
+            (target_iso,)
         ).fetchall()
         
         # 選手のデータを取得
         entries = conn.execute(
             "SELECT * FROM entries WHERE race_id IN (SELECT id FROM races WHERE race_date = ?)",
-            (today_iso,)
+            (target_iso,)
         ).fetchall()
         
         entries_by_race = {}
@@ -2064,7 +2069,8 @@ def search_high_expectation():
                     "race_no": race_dict["race_number"],
                     "reason": f"1号勝率 {prob_1:.0f}%",
                     "prob": prob_1,
-                    "is_finished": is_finished
+                    "is_finished": is_finished,
+                    "ranking_str": race_dict.get("ranking_str", "")
                 })
             # 💰 期待値重視 (Value): 1号艇勝率50%未満（本命が飛びやすい） & 2~6号のいずれかが20%以上
             elif prob_1 < 50:
@@ -2083,7 +2089,8 @@ def search_high_expectation():
                         "race_no": race_dict["race_number"],
                         "reason": f"{max_other_boat}号勝率 {max_other_prob:.0f}%",
                         "prob": max_other_prob,
-                        "is_finished": is_finished
+                        "is_finished": is_finished,
+                        "ranking_str": race_dict.get("ranking_str", "")
                     })
         
         # ソート: 未終了(False)を上(0), 終了(True)を下(1)にする。その後確率順。
