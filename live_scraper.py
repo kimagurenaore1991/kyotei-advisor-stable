@@ -602,9 +602,14 @@ def fetch_match_result(place_code: str, race_number: int, date_str: str):
                                 result["race_times"][boat_val] = entry.get("time", "")
 
         # 3着まで確定しているかどうかの厳密なチェック
-        ranking_boats = [str(r["boat"]) for r in sorted(result["ranking"], key=lambda x: x["rank"])]
-        if len(ranking_boats) >= 3:
-            result["ranking_str"] = "-".join(ranking_boats[:3])
+        import unicodedata
+        def _get_rank_val(r):
+            val = unicodedata.normalize('NFKC', str(r.get("rank", "")))
+            return int(val) if val.isdigit() else 999
+            
+        valid_3 = [r for r in result["ranking"] if _get_rank_val(r) <= 3]
+        if len(valid_3) >= 3:
+            result["ranking_str"] = "-".join([str(r["boat"]) for r in sorted(valid_3, key=_get_rank_val)[:3]])
         else:
             result["ranking_str"] = "--"
             result["finished"] = False # 3着まで確定していなければ不完全とみなす
@@ -616,8 +621,8 @@ def fetch_match_result(place_code: str, race_number: int, date_str: str):
             # フォールバック: すべてのテーブルから配当らしきものを探す
             betting_tables = soup.find_all("table")
 
-        BET_TYPES = {"3連単", "3連複", "2連単", "2連複", "単勝", "複勝"}
-        seen_types = set()
+        BET_TYPES = {"3連単", "3連複", "2連単", "2連複", "単勝", "複勝", "拡連複"}
+        current_bet_type = None
 
         for t in betting_tables:
             text = t.get_text()
@@ -625,30 +630,41 @@ def fetch_match_result(place_code: str, race_number: int, date_str: str):
                 continue
             for row in t.find_all("tr"):
                 cells = row.find_all(["td", "th"])
-                if len(cells) >= 2:
-                    bet_type_raw = cells[0].get_text(strip=True)
-                    if bet_type_raw in BET_TYPES and bet_type_raw not in seen_types:
-                        # 組番: 2番目セル
-                        combo_raw = cells[1].get_text(strip=True).replace(' ', '')
-                        
-                        # 払戻金は「円」または「¥」を含むセルを探す
-                        payout_str = ""
-                        for c in cells[1:]:
-                            txt = c.get_text(strip=True)
-                            if "¥" in txt or "円" in txt:
-                                payout_str = txt
-                                break
-                        
-                        if payout_str:
-                            val = payout_str.replace(",", "").replace("¥", "").replace("円", "")
-                            if val.isdigit() and int(val) > 0:
-                                fmt_val = f"{int(val):,}円"
-                                result["payouts"].append({
-                                    "type": bet_type_raw,
-                                    "payout": fmt_val,
-                                    "combination": combo_raw
-                                })
-                                seen_types.add(bet_type_raw)
+                if not cells: continue
+                
+                first_cell_text = cells[0].get_text(strip=True)
+                
+                if first_cell_text in BET_TYPES:
+                    current_bet_type = first_cell_text
+                    combo_cell = cells[1] if len(cells) > 1 else None
+                    payout_cells = cells[1:]
+                elif current_bet_type:
+                    combo_cell = cells[0]
+                    payout_cells = cells
+                else:
+                    current_bet_type = None
+                    continue
+                    
+                if not combo_cell: continue
+                
+                combo_raw = combo_cell.get_text(strip=True).replace(' ', '')
+                
+                payout_str = ""
+                for c in payout_cells:
+                    txt = c.get_text(strip=True)
+                    if "¥" in txt or "円" in txt:
+                        payout_str = txt
+                        break
+                
+                if payout_str:
+                    val = payout_str.replace(",", "").replace("¥", "").replace("円", "")
+                    if val.isdigit() and int(val) > 0:
+                        fmt_val = f"{int(val):,}円"
+                        result["payouts"].append({
+                            "type": current_bet_type,
+                            "payout": fmt_val,
+                            "combination": combo_raw
+                        })
 
 
         # 払戻金が取れなかった場合、別のパース方法を試みる (旧ロジック)
