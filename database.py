@@ -29,6 +29,7 @@ INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_racer_results_racer ON racer_results(racer_id)",
     "CREATE INDEX IF NOT EXISTS idx_racer_results_place ON racer_results(racer_id, place_code)",
     "CREATE INDEX IF NOT EXISTS idx_racer_profiles_name ON racer_profiles(name)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_favorite_racers_user_toban ON favorite_racers(user_id, toban)",
 ]
 
 
@@ -132,9 +133,12 @@ def init_db() -> None:
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS favorite_racers (
-            toban TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL DEFAULT 'local',
+            toban TEXT NOT NULL,
             name TEXT,
-            created_at TEXT
+            created_at TEXT,
+            UNIQUE(user_id, toban)
         )
         """
     )
@@ -157,6 +161,31 @@ def init_db() -> None:
             cursor.execute(sql)
         except sqlite3.OperationalError:
             pass
+
+    cursor.execute("PRAGMA table_info(favorite_racers)")
+    favorite_columns = {row["name"] for row in cursor.fetchall()}
+    if favorite_columns == {"toban", "name", "created_at"}:
+        cursor.execute("ALTER TABLE favorite_racers RENAME TO favorite_racers_legacy")
+        cursor.execute(
+            """
+            CREATE TABLE favorite_racers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL DEFAULT 'local',
+                toban TEXT NOT NULL,
+                name TEXT,
+                created_at TEXT,
+                UNIQUE(user_id, toban)
+            )
+            """
+        )
+        cursor.execute(
+            """
+            INSERT OR IGNORE INTO favorite_racers (user_id, toban, name, created_at)
+            SELECT 'local', toban, name, created_at
+            FROM favorite_racers_legacy
+            """
+        )
+        cursor.execute("DROP TABLE favorite_racers_legacy")
 
     for sql in INDEXES:
         cursor.execute(sql)
