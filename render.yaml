@@ -11,6 +11,12 @@ services:
         value: /data/kyotei.db
       - key: CORS_ALLOW_ORIGINS
         value: https://kyotei-advisor-web.onrender.com
+      - key: USE_SUPABASE
+        value: "True"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
     disk:
       name: kyotei-data
       mountPath: /data
