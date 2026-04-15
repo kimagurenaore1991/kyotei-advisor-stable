@@ -1495,16 +1495,19 @@ window.addEventListener('unhandledrejection', function(event) {
             if (di) di.style.display = 'none';
             
             currentRaceId = null;
+            currentPlaceName = '';
+            currentVenueCode = '';
             stopOddsAutoRefresh();
             stopCountdown();
             stopActiveRaceTimer();
+            setTimeout(() => ensureHomeBackTrap(true), 0);
         }
 
         let currentRaceId = null;
         let currentPlaceName = '';
         let currentVenueCode = '';
         let allowNativeExit = false;
-        let suppressExitPromptOnce = false;
+        let homeBackTrapArmed = false;
         let aiPredictionMode = 0; // 0:本命, 1:中穴, 2:大穴
         let customPredictionMode = 0; // 0:本命, 1:中穴, 2:大穴
         let isFirstLoad = true;
@@ -1526,19 +1529,13 @@ window.addEventListener('unhandledrejection', function(event) {
             const exitModal = document.getElementById('exit-modal');
             if (!exitModal || !exitModal.classList.contains('hidden')) return;
             exitModal.classList.remove('hidden');
-            if (!history.state || history.state.type !== 'exit-modal') {
-                history.pushState({ type: 'exit-modal' }, "");
-            }
         }
 
         function closeExitModal() {
             const exitModal = document.getElementById('exit-modal');
             if (!exitModal || exitModal.classList.contains('hidden')) return;
             exitModal.classList.add('hidden');
-            if (history.state && history.state.type === 'exit-modal') {
-                suppressExitPromptOnce = true;
-                history.back();
-            }
+            ensureHomeBackTrap();
         }
 
         function confirmExitApp() {
@@ -1546,6 +1543,7 @@ window.addEventListener('unhandledrejection', function(event) {
             const exitModal = document.getElementById('exit-modal');
             if (exitModal) exitModal.classList.add('hidden');
 
+            try { history.back(); } catch (_) { }
             try { window.open('', '_self'); } catch (_) { }
             try { window.close(); } catch (_) { }
 
@@ -1557,6 +1555,18 @@ window.addEventListener('unhandledrejection', function(event) {
             setTimeout(() => {
                 try { location.replace('about:blank'); } catch (_) { }
             }, 150);
+        }
+
+        function ensureHomeBackTrap(force = false) {
+            if (!isStandaloneMobileApp() || !isAtTopScreen()) return;
+            if (homeBackTrapArmed && !force) return;
+
+            const stateType = history.state?.type;
+            if (stateType !== 'home-root') {
+                history.replaceState({ type: 'home-root' }, "");
+            }
+            history.pushState({ type: 'home-active' }, "");
+            homeBackTrapArmed = true;
         }
 
         function getTargetDateStr(rel) {
@@ -5793,9 +5803,7 @@ window.addEventListener('unhandledrejection', function(event) {
             checkTutorial();
             // Setup Offline logic
             setupOfflineHandlers();
-            if (!history.state) {
-                history.replaceState({ type: 'home' }, "");
-            }
+            ensureHomeBackTrap(true);
 
             // Browser Back Button (Popstate) Handling
             window.addEventListener('popstate', (e) => {
@@ -5828,20 +5836,18 @@ window.addEventListener('unhandledrejection', function(event) {
                 if (handled) return;
 
                 // 3. View States (Race Detail -> Home)
-                if (suppressExitPromptOnce) {
-                    suppressExitPromptOnce = false;
-                    return;
-                }
-
                 if (e.state?.type === 'race') {
                     loadRaceDetail(e.state.id, true);
-                } else if (e.state?.type === 'exit-modal') {
-                    showExitModal();
-                } else if (!e.state || e.state?.type === 'home') {
+                    homeBackTrapArmed = false;
+                } else if (e.state?.type === 'home-root') {
+                    if (!allowNativeExit && isStandaloneMobileApp() && isAtTopScreen()) {
+                        showExitModal();
+                    }
+                } else if (!e.state || e.state?.type === 'home' || e.state?.type === 'home-active') {
                     if (currentRaceId) {
                         resetMainView();
-                    } else if (!allowNativeExit && isStandaloneMobileApp() && isAtTopScreen()) {
-                        showExitModal();
+                    } else {
+                        ensureHomeBackTrap(true);
                     }
                 }
 
