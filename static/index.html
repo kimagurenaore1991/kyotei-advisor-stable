@@ -1991,7 +1991,7 @@ window.addEventListener('unhandledrejection', function(event) {
             aiPredictionMode = mode;
             updateModeButtons();
             saveUserSettings();
-            if (currentRaceId) requestPrediction();
+            if (currentRaceId) requestPrediction('ai');
             refreshSidebarHits();
             const labels = ['本命', '中穴', '大穴'];
             showToast(`AI予想モードを「${labels[mode]}」に切り替えました`, 'info');
@@ -2001,7 +2001,7 @@ window.addEventListener('unhandledrejection', function(event) {
             customPredictionMode = mode;
             updateModeButtons();
             saveUserSettings();
-            if (currentRaceId) requestPrediction();
+            if (currentRaceId) requestPrediction('custom');
             refreshSidebarHits();
             const labels = ['本命', '中穴', '大穴'];
             showToast(`カスタム予想モードを「${labels[mode]}」に切り替えました`, 'info');
@@ -2995,7 +2995,7 @@ window.addEventListener('unhandledrejection', function(event) {
                 activeFixedHead = boatNum;
             }
             saveUserSettings();
-            if (currentRaceId) requestPrediction();
+            if (currentRaceId) requestPrediction('ai');
         }
 
         async function requestPrediction(target = 'both', recalculateAi = false, ignoreExhibition = false, silent = false) {
@@ -3009,13 +3009,15 @@ window.addEventListener('unhandledrejection', function(event) {
 
                 // ローカル保存されている上書き情報の取得
                 const overrides = requestedRaceId ? (JSON.parse(localStorage.getItem(`kyotei_override_${requestedRaceId}`)) || null) : null;
+                const settings = getSettings();
+                settings.fixed_1st = target === 'custom' ? 0 : activeFixedHead;
 
                 const res = await fetch(`${API_BASE}/races/${requestedRaceId}/predict`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         weights: getWeights(),
-                        settings: getSettings(),
+                        settings: settings,
                         overrides: overrides,
                         recalculate_ai: recalculateAi,
                         ignore_exhibition: ignoreExhibition
