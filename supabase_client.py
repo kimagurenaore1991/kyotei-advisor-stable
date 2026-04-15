@@ -75,7 +75,7 @@ def upsert_favorites(favorites_data: list[dict], retry=True):
     if not is_supabase_enabled(): return
     supabase = get_supabase_client()
     try:
-        return supabase.table("favorite_racers").upsert(favorites_data, on_conflict="toban").execute()
+        return supabase.table("favorite_racers").upsert(favorites_data, on_conflict="toban,user_id").execute()
     except Exception as e:
         if retry and ("disconnected" in str(e).lower() or "connection" in str(e).lower()):
             get_supabase_client(force_refresh=True)

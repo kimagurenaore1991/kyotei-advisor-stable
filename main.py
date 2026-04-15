@@ -273,6 +273,11 @@ def require_premium(is_premium: bool = Depends(check_premium)):
         )
     return True
 
+def get_favorites_user_id(user = Depends(get_current_user)) -> str:
+    """お気に入り保存先のユーザーIDを返す。未ログイン時はローカル共有枠を使う。"""
+    user_id = getattr(user, "id", None) if user else None
+    return str(user_id) if user_id else "local"
+
 # ── Stripe Payment Endpoints ──
 
 class CheckoutRequest(BaseModel):
@@ -2105,18 +2110,27 @@ def search_high_expectation(date: Optional[str] = Query(default=None)):
         conn.close()
 
 @app.get("/api/favorites")
-def get_favorites(toban: str = Query(default=None)):
+def get_favorites(
+    toban: str = Query(default=None),
+    user_id: str = Depends(get_favorites_user_id)
+):
     """お気に入り選手の一覧と近日出場予定を返す (toban指定時は特定の選手のみ)"""
     conn = get_db_connection()
     try:
         if toban:
             fav_rows = [{"toban": toban, "name": ""}] # 名前はentries検索で補完される可能性あり
             # 既にDBにあるか確認
-            exists = conn.execute("SELECT name FROM favorite_racers WHERE toban = ?", (toban,)).fetchone()
+            exists = conn.execute(
+                "SELECT name FROM favorite_racers WHERE user_id = ? AND toban = ?",
+                (user_id, toban)
+            ).fetchone()
             if exists:
                 fav_rows[0]["name"] = exists["name"]
         else:
-            fav_rows = conn.execute("SELECT toban, name FROM favorite_racers ORDER BY created_at DESC").fetchall()
+            fav_rows = conn.execute(
+                "SELECT toban, name FROM favorite_racers WHERE user_id = ? ORDER BY created_at DESC",
+                (user_id,)
+            ).fetchall()
         
         results = []
         now_jst = datetime.now(JST)
@@ -2157,24 +2171,31 @@ def get_favorites(toban: str = Query(default=None)):
         conn.close()
 
 @app.post("/api/favorites/toggle")
-def toggle_favorite(toban: str = Body(...), name: str = Body(...), active: bool = Body(...)):
+def toggle_favorite(
+    toban: str = Body(...),
+    name: str = Body(...),
+    active: bool = Body(...),
+    user_id: str = Depends(get_favorites_user_id)
+):
     """お気に入り登録・解除。解除時は Supabase からも削除を試みる。"""
     conn = get_db_connection()
     try:
         now_str = datetime.now(JST).isoformat()
         if active:
             conn.execute(
-                "INSERT OR REPLACE INTO favorite_racers (toban, name, created_at) VALUES (?, ?, ?)",
-                (toban, name, now_str)
+                "INSERT OR REPLACE INTO favorite_racers (user_id, toban, name, created_at) VALUES (?, ?, ?, ?)",
+                (user_id, toban, name, now_str)
             )
             from supabase_client import upsert_favorites
-            upsert_favorites([{"toban": toban, "name": name, "created_at": now_str}])
+            if user_id != "local":
+                upsert_favorites([{"user_id": user_id, "toban": toban, "name": name, "created_at": now_str}])
         else:
-            conn.execute("DELETE FROM favorite_racers WHERE toban = ?", (toban,))
+            conn.execute("DELETE FROM favorite_racers WHERE user_id = ? AND toban = ?", (user_id, toban))
             # Supabase削除 (オプション：完全に同期させたい場合)
             try:
                 from supabase_client import get_supabase_client
-                get_supabase_client().table("favorite_racers").delete().eq("toban", toban).execute()
+                if user_id != "local":
+                    get_supabase_client().table("favorite_racers").delete().eq("user_id", user_id).eq("toban", toban).execute()
             except: pass
             
         conn.commit()

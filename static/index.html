@@ -1711,9 +1711,31 @@ window.addEventListener('unhandledrejection', function(event) {
             try { localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(val)); } catch (e) { }
         }
 
+        function invalidateRaceCaches(raceId) {
+            if (!raceId) return;
+            delete raceResultCache[raceId];
+            delete raceHitCache[raceId];
+            delete lastPredictionsCache[raceId];
+            saveCache('raceResultCache', raceResultCache);
+            saveCache('raceHitCache', raceHitCache);
+            saveCache('lastPredictionsCache', lastPredictionsCache);
+        }
+
+        function invalidatePlacesCache(dateStr = getTargetDateStr(relativeDate)) {
+            if (!dateStr) return;
+            delete placesCache[dateStr];
+            try { localStorage.removeItem(APP_PREFIX + `places_${dateStr}`); } catch (e) { }
+        }
+
+        function invalidateRacesCache(placeName, dateStr = getTargetDateStr(relativeDate)) {
+            if (!placeName || !dateStr) return;
+            try { localStorage.removeItem(APP_PREFIX + `races_${placeName}_${dateStr}`); } catch (e) { }
+        }
+
         let currentPlayersData = [];
         let originalPlayersSnapshot = [];
         let activeFixedHead = 0;
+        let pendingSilentPrediction = null;
         const boatColors = [
             'bg-white text-slate-900 border-slate-300',
             'bg-slate-900 text-white border-slate-600',
@@ -1726,6 +1748,78 @@ window.addEventListener('unhandledrejection', function(event) {
         let lastPredictions = null;
         let activeRaceTimer = null; // 展示・結果のサイレント更新用
         let sseSource = null;
+
+        function isModalOpen(id) {
+            const el = document.getElementById(id);
+            return !!(el && !el.classList.contains('hidden'));
+        }
+
+        function isInteractionSensitiveState() {
+            const active = document.activeElement;
+            const isEditingField = !!(active && (
+                active.tagName === 'INPUT' ||
+                active.tagName === 'TEXTAREA' ||
+                active.tagName === 'SELECT' ||
+                active.isContentEditable
+            ));
+            return isEditingField ||
+                isModalOpen('settings-modal') ||
+                isModalOpen('keypad-modal') ||
+                isModalOpen('player-modal') ||
+                isModalOpen('search-modal') ||
+                isModalOpen('help-modal');
+        }
+
+        function applyPredictionPayload(raceId, data, target) {
+            if (raceId !== currentRaceId) return;
+
+            if (data.is_premium !== undefined) {
+                is_premium = data.is_premium;
+            }
+
+            if (!lastPredictions) {
+                lastPredictions = data.predictions;
+            } else {
+                if (target === 'ai') {
+                    lastPredictions.ai_focus = data.predictions.ai_focus;
+                    lastPredictions.ai_win_probs = data.predictions.ai_win_probs;
+                    lastPredictions.scenario = data.predictions.scenario;
+                } else if (target === 'custom') {
+                    lastPredictions.rule_focus = data.predictions.rule_focus;
+                } else {
+                    lastPredictions = data.predictions;
+                }
+            }
+
+            currentPlayersData = data.players;
+            renderRace(data.race, data.players, lastPredictions);
+
+            if (data.race.is_finished && data.race.ranking_str) {
+                const preds = lastPredictions;
+                const isHitFlag = preds.rule_focus.some(p => isHit(p.pattern, data.race.ranking_str)) ||
+                    preds.ai_focus.some(p => isHit(p.pattern, data.race.ranking_str));
+
+                if (window.dailyHitsCache) window.dailyHitsCache[currentRaceId] = isHitFlag;
+                const btn = document.getElementById(`race-btn-${currentRaceId}`);
+                if (btn) applyFinishBadge(btn, isHitFlag);
+            }
+
+            lastPredictionsCache[currentRaceId] = { race: data.race, players: data.players, predictions: lastPredictions };
+            saveCache('lastPredictionsCache', lastPredictionsCache);
+        }
+
+        function flushPendingSilentPrediction(force = false) {
+            if (!pendingSilentPrediction) return;
+            if (!force && isInteractionSensitiveState()) return;
+            if (pendingSilentPrediction.raceId !== currentRaceId) {
+                pendingSilentPrediction = null;
+                return;
+            }
+
+            const queued = pendingSilentPrediction;
+            pendingSilentPrediction = null;
+            applyPredictionPayload(queued.raceId, queued.data, queued.target);
+        }
 
         function setupSSE() {
             if (sseSource) sseSource.close();
@@ -1740,11 +1834,13 @@ window.addEventListener('unhandledrejection', function(event) {
                     console.log('[SSE] received:', data);
                     
                     if (data.type === 'race_update' || data.type === 'exhibition_update') {
+                        invalidateRaceCaches(data.race_id);
                         if (currentRaceId === data.race_id) {
                             // 現在表示中のレースならサイレント更新
                             requestPrediction('both', false, false, true);
                         }
                     } else if (data.type === 'result_announce') {
+                        invalidateRaceCaches(data.race_id);
                         // サイドバーの的中バッジを更新するために全体をリフレッシュ
                         refreshSidebarHits();
                         if (currentRaceId === data.race_id) {
@@ -1753,6 +1849,7 @@ window.addEventListener('unhandledrejection', function(event) {
                     } else if (data.event === 'places_updated' || data.type === 'places_updated') {
                         // 開催場リストが更新されたら（データ一覧同期完了時など）サイレントに再読み込み
                         console.log('[SSE] Places updated, reloading...');
+                        invalidatePlacesCache();
                         loadPlaces();
                     }
                 } catch (e) {
@@ -2455,6 +2552,8 @@ window.addEventListener('unhandledrejection', function(event) {
                 if (localStorage.getItem(APP_PREFIX + cacheKey) !== racesStr) {
                     localStorage.setItem(APP_PREFIX + cacheKey, racesStr);
                     renderRacesList(grid, races, placeName, autoLoadFirst);
+                } else if (!grid.children.length) {
+                    renderRacesList(grid, races, placeName, autoLoadFirst);
                 }
 
                 // 会場別統計の表示
@@ -2648,7 +2747,7 @@ window.addEventListener('unhandledrejection', function(event) {
                                    (!cachedResult.result.ranking_str || cachedResult.result.ranking_str === "--" || cachedResult.result.ranking_str.split('-').length < 3);
             if (isInvalidResult) {
                 console.warn("Incomplete result detected in cache. Forcing re-fetch.");
-                delete raceResultCache[raceId];
+                invalidateRaceCaches(raceId);
             }
 
             const isFinished = cachedResult && cachedResult.result && cachedResult.result.finished && !isInvalidResult;
@@ -2911,6 +3010,7 @@ window.addEventListener('unhandledrejection', function(event) {
 
         async function requestPrediction(target = 'both', recalculateAi = false, ignoreExhibition = false, silent = false) {
             try {
+                const requestedRaceId = currentRaceId;
                 // サイレント時はローディング表示をスキップ
                 const mc = document.getElementById('main-content');
                 if (!silent) {
@@ -2918,9 +3018,9 @@ window.addEventListener('unhandledrejection', function(event) {
                 }
 
                 // ローカル保存されている上書き情報の取得
-                const overrides = currentRaceId ? (JSON.parse(localStorage.getItem(`kyotei_override_${currentRaceId}`)) || null) : null;
+                const overrides = requestedRaceId ? (JSON.parse(localStorage.getItem(`kyotei_override_${requestedRaceId}`)) || null) : null;
 
-                const res = await fetch(`${API_BASE}/races/${currentRaceId}/predict`, {
+                const res = await fetch(`${API_BASE}/races/${requestedRaceId}/predict`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -2933,51 +3033,21 @@ window.addEventListener('unhandledrejection', function(event) {
                 });
                 if (!res.ok) throw new Error(`API ${res.status}`);
                 const data = await res.json();
-
-                // Sync premium status from server
-                if (data.is_premium !== undefined) {
-                    is_premium = data.is_premium;
-                }
+                if (requestedRaceId !== currentRaceId) return;
 
                 // データ更新
-                const oldDataHash = lastPredictionsCache[currentRaceId] ? JSON.stringify(lastPredictionsCache[currentRaceId].predictions) : '';
+                const oldDataHash = lastPredictionsCache[requestedRaceId] ? JSON.stringify(lastPredictionsCache[requestedRaceId].predictions) : '';
                 const newDataHash = JSON.stringify(data.predictions);
 
                 // サイレント更新時、データに変化がない場合はレンダリングをスキップして負荷軽減
                 if (silent && oldDataHash === newDataHash) return;
 
-                // 部分的更新（Merge state）
-                if (!lastPredictions) {
-                    lastPredictions = data.predictions;
-                } else {
-                    if (target === 'ai') {
-                        lastPredictions.ai_focus = data.predictions.ai_focus;
-                        lastPredictions.ai_win_probs = data.predictions.ai_win_probs;
-                        lastPredictions.scenario = data.predictions.scenario;
-                    } else if (target === 'custom') {
-                        lastPredictions.rule_focus = data.predictions.rule_focus;
-                    } else {
-                        lastPredictions = data.predictions;
-                    }
+                if (silent && isInteractionSensitiveState()) {
+                    pendingSilentPrediction = { raceId: requestedRaceId, data, target };
+                    return;
                 }
 
-                currentPlayersData = data.players;
-                renderRace(data.race, data.players, lastPredictions);
-
-                // もし終了済みのレースなら、新しい予想で的中したかをチェックしてサイドバーを更新
-                if (data.race.is_finished && data.race.ranking_str) {
-                    const preds = lastPredictions;
-                    const isHitFlag = preds.rule_focus.some(p => isHit(p.pattern, data.race.ranking_str)) ||
-                        preds.ai_focus.some(p => isHit(p.pattern, data.race.ranking_str));
-
-                    if (window.dailyHitsCache) window.dailyHitsCache[currentRaceId] = isHitFlag;
-                    const btn = document.getElementById(`race-btn-${currentRaceId}`);
-                    if (btn) applyFinishBadge(btn, isHitFlag);
-                }
-
-                // LocalStorageに予想・出走表データを保存
-                lastPredictionsCache[currentRaceId] = { race: data.race, players: data.players, predictions: lastPredictions };
-                saveCache('lastPredictionsCache', lastPredictionsCache);
+                applyPredictionPayload(requestedRaceId, data, target);
             } catch (e) {
                 console.error('requestPrediction', e);
             }
@@ -4008,6 +4078,7 @@ window.addEventListener('unhandledrejection', function(event) {
                 } else {
                     el.classList.add('hidden');
                 }
+                setTimeout(() => flushPendingSilentPrediction(), 0);
             }
         }
 
@@ -4088,22 +4159,13 @@ window.addEventListener('unhandledrejection', function(event) {
             }
         };
 
-        // Service Worker
+        // Service Worker は更新の取りこぼしを避けるため無効化
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./service-worker.js')
-                    .then(reg => {
-                        reg.addEventListener('updatefound', () => {
-                            const newWorker = reg.installing;
-                            newWorker.addEventListener('statechange', () => {
-                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                    // 新しいスレビスワーカーがインストールされたら通知やリロードを検討
-                                    console.log('New Service Worker installed.');
-                                }
-                            });
-                        });
-                    })
-                    .catch(() => { });
+            window.addEventListener('load', async () => {
+                try {
+                    const regs = await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(regs.map(reg => reg.unregister()));
+                } catch (_) { }
             });
         }
 
@@ -4121,6 +4183,8 @@ window.addEventListener('unhandledrejection', function(event) {
                 更新中...`;
 
             try {
+                invalidatePlacesCache();
+
                 // 1. サイドバーの開催場リストを更新（開いている会場は自動復元される）
                 await loadPlaces();
 
@@ -4128,11 +4192,13 @@ window.addEventListener('unhandledrejection', function(event) {
                 const openContainer = document.querySelector('[id^="races-container-"]:not(.hidden)');
                 if (openContainer) {
                     const placeName = openContainer.id.replace('races-container-', '');
+                    invalidateRacesCache(placeName);
                     await loadRaces(placeName);
                 }
 
                 // 3. 現在表示中のレースの予想データをサイレント更新
                 if (currentRaceId) {
+                    invalidateRaceCaches(currentRaceId);
                     await requestPrediction('both', false, false, true);
 
                     // オッズも更新
@@ -4272,6 +4338,7 @@ window.addEventListener('unhandledrejection', function(event) {
                 } else {
                     el.classList.add('hidden');
                 }
+                setTimeout(() => flushPendingSilentPrediction(), 0);
             }
         }
 
@@ -4974,8 +5041,7 @@ window.addEventListener('unhandledrejection', function(event) {
                             applyFinishBadge(btn, raceHitCache[raceId] || false);
                         }
 
-                        // Clear cached result so it will be re-fetched fresh
-                        delete raceResultCache[raceId];
+                        invalidateRaceCaches(raceId);
                     } catch (_) { }
                 });
 
@@ -4986,12 +5052,19 @@ window.addEventListener('unhandledrejection', function(event) {
                         const placeName = data.place_name;
                         const raceNo = data.race_number;
 
+                        invalidateRaceCaches(raceId);
+
                         // 今開いているレースならサイレント更新
                         if (currentRaceId && currentRaceId === raceId) {
                             showToast(`📢 ${placeName} ${raceNo}R 展示更新`, 'info');
                             requestPrediction('both', false, false, true); // silent=true
                         }
                     } catch (_) { }
+                });
+
+                es.addEventListener('places_updated', function () {
+                    invalidatePlacesCache();
+                    loadPlaces();
                 });
 
                 es.onerror = function () {
@@ -5035,6 +5108,7 @@ window.addEventListener('unhandledrejection', function(event) {
                 } else {
                     el.classList.add('hidden');
                 }
+                setTimeout(() => flushPendingSilentPrediction(), 0);
             }
         }
         async function performSearch() {
@@ -5353,10 +5427,17 @@ window.addEventListener('unhandledrejection', function(event) {
                     if (e.key === 'Enter') performSearch();
                 });
             }
-            
-            // SSE接続開始
-            setupSSE();
 
+            document.addEventListener('focusout', () => {
+                setTimeout(() => flushPendingSilentPrediction(), 150);
+            });
+
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) flushPendingSilentPrediction();
+            });
+
+            setInterval(() => flushPendingSilentPrediction(), 1000);
+            
             // Supabase初期化（完了後に自動でお気に入りとカートがロードされます）
             initSupabase().then(() => {
                 if (!supabaseClient) {
@@ -5713,6 +5794,7 @@ window.addEventListener('unhandledrejection', function(event) {
                     } else {
                         el.classList.add('hidden');
                     }
+                    setTimeout(() => flushPendingSilentPrediction(), 0);
                 }
             };
             
