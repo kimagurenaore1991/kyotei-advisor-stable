@@ -1278,18 +1278,6 @@ window.addEventListener('unhandledrejection', function(event) {
         </div>
     </div>
 
-    <!-- Exit Confirmation Modal (for PWA) -->
-    <div id="exit-modal" class="fixed inset-0 z-[100] hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-slate-800 border border-slate-700 rounded-xl shadow-2xl w-full max-w-xs p-6 text-center">
-            <h3 class="font-bold text-slate-200 text-lg mb-2">アプリを終了しますか？</h3>
-            <p class="text-sm text-slate-400 mb-6">現在の画面を閉じます。</p>
-            <div class="flex gap-3">
-                <button onclick="closeExitModal()" class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-bold">キャンセル</button>
-                <button onclick="confirmExitApp()" class="flex-1 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold">終了する</button>
-            </div>
-        </div>
-    </div>
-
     <script>
         const APP_VERSION = '1.1.0';
         const API_BASE = '/api';
@@ -1500,74 +1488,15 @@ window.addEventListener('unhandledrejection', function(event) {
             stopOddsAutoRefresh();
             stopCountdown();
             stopActiveRaceTimer();
-            setTimeout(() => ensureHomeBackTrap(true), 0);
         }
 
         let currentRaceId = null;
         let currentPlaceName = '';
         let currentVenueCode = '';
-        let allowNativeExit = false;
-        let homeBackTrapArmed = false;
         let aiPredictionMode = 0; // 0:本命, 1:中穴, 2:大穴
         let customPredictionMode = 0; // 0:本命, 1:中穴, 2:大穴
         let isFirstLoad = true;
         let relativeDate = 0; // 0: 今, -1: 昨日, 1: 明日
-
-        function isStandaloneMobileApp() {
-            return window.innerWidth < 768 && window.matchMedia('(display-mode: standalone)').matches;
-        }
-
-        function isAtTopScreen() {
-            const welcome = document.getElementById('welcome-screen');
-            const mainContent = document.getElementById('main-content');
-            return !currentRaceId &&
-                !!welcome && !welcome.classList.contains('hidden') &&
-                !!mainContent && mainContent.classList.contains('hidden');
-        }
-
-        function showExitModal() {
-            const exitModal = document.getElementById('exit-modal');
-            if (!exitModal || !exitModal.classList.contains('hidden')) return;
-            exitModal.classList.remove('hidden');
-        }
-
-        function closeExitModal() {
-            const exitModal = document.getElementById('exit-modal');
-            if (!exitModal || exitModal.classList.contains('hidden')) return;
-            exitModal.classList.add('hidden');
-            ensureHomeBackTrap();
-        }
-
-        function confirmExitApp() {
-            allowNativeExit = true;
-            const exitModal = document.getElementById('exit-modal');
-            if (exitModal) exitModal.classList.add('hidden');
-
-            try { history.back(); } catch (_) { }
-            try { window.open('', '_self'); } catch (_) { }
-            try { window.close(); } catch (_) { }
-
-            setTimeout(() => {
-                try { history.go(-1); } catch (_) { }
-                try { window.close(); } catch (_) { }
-            }, 50);
-
-            setTimeout(() => {
-                try { location.replace('about:blank'); } catch (_) { }
-            }, 150);
-        }
-
-        function ensureHomeBackTrap(force = false) {
-            if (!isStandaloneMobileApp() || !isAtTopScreen()) return;
-            if (homeBackTrapArmed && !force) return;
-
-            const stateType = history.state?.type;
-            if (stateType !== 'home-root') {
-                history.replaceState({ type: 'home-root' }, "");
-            }
-            history.pushState({ type: 'home-active' }, "");
-            homeBackTrapArmed = true;
-        }
 
         function getTargetDateStr(rel) {
             const d = new Date();
@@ -5803,12 +5732,10 @@ window.addEventListener('unhandledrejection', function(event) {
             checkTutorial();
             // Setup Offline logic
             setupOfflineHandlers();
-            ensureHomeBackTrap(true);
 
             // Browser Back Button (Popstate) Handling
             window.addEventListener('popstate', (e) => {
                 let handled = false;
-                const exitModal = document.getElementById('exit-modal');
 
                 // 1. Close Sidebar
                 const drawer = document.getElementById('drawer');
@@ -5828,31 +5755,15 @@ window.addEventListener('unhandledrejection', function(event) {
                     }
                 });
 
-                if (!handled && exitModal && !exitModal.classList.contains('hidden') && e.state?.type !== 'exit-modal') {
-                    exitModal.classList.add('hidden');
-                    handled = true;
-                }
-
                 if (handled) return;
 
                 // 3. View States (Race Detail -> Home)
                 if (e.state?.type === 'race') {
                     loadRaceDetail(e.state.id, true);
-                    homeBackTrapArmed = false;
-                } else if (e.state?.type === 'home-root') {
-                    if (!allowNativeExit && isStandaloneMobileApp() && isAtTopScreen()) {
-                        showExitModal();
-                    }
-                } else if (!e.state || e.state?.type === 'home' || e.state?.type === 'home-active') {
+                } else if (!e.state || e.state?.type === 'home') {
                     if (currentRaceId) {
                         resetMainView();
-                    } else {
-                        ensureHomeBackTrap(true);
                     }
-                }
-
-                if (allowNativeExit) {
-                    allowNativeExit = false;
                 }
             });
             
