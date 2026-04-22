@@ -139,6 +139,16 @@ CREATE INDEX IF NOT EXISTS idx_cart_items_user_id ON public.cart_items(user_id);
 -- 7. Row Level Security (RLS) Policies
 ALTER TABLE public.favorite_racers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cart_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.races ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.racer_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.racer_results ENABLE ROW LEVEL SECURITY;
+
+-- Allow public read access to core data tables
+CREATE POLICY "Public read access for races" ON public.races FOR SELECT USING (true);
+CREATE POLICY "Public read access for entries" ON public.entries FOR SELECT USING (true);
+CREATE POLICY "Public read access for racer_profiles" ON public.racer_profiles FOR SELECT USING (true);
+CREATE POLICY "Public read access for racer_results" ON public.racer_results FOR SELECT USING (true);
 
 -- Policies for favorite_racers
 CREATE POLICY "Users can view their own favorites" ON public.favorite_racers FOR SELECT USING (auth.uid() = user_id);
