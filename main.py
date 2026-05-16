@@ -2236,3 +2236,7 @@ def _sync_racer_profile_to_db(toban: str, data: dict):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
+@app.get("/ping")
+async def ping():
+    return "ok"
