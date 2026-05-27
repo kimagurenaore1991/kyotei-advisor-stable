@@ -1279,7 +1279,7 @@ window.addEventListener('unhandledrejection', function(event) {
     </div>
 
     <script>
-        const APP_VERSION = '1.1.0';
+        const APP_VERSION = '1.1.1';
         const API_BASE = '/api';
         
         let supabaseClient = null;
@@ -4126,7 +4126,7 @@ window.addEventListener('unhandledrejection', function(event) {
             setting: 'setting-section',
         };
 
-        window.switchTab = function(tab) {
+        function switchTab(tab) {
             if (tab === 'venue') {
                 // Trigger sidebar button click to ensure history logic runs
                 document.getElementById('menu-btn').click();
