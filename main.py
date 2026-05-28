@@ -47,18 +47,17 @@ app.add_middleware(
 
 init_db()
 
-# 選手プロフィールのメモリキャッシュ (toban -> {data, timestamp})
+# Racer profiles cache in memory
 RACER_STATS_CACHE = {}
-RACER_CACHE_TTL = 3600 # 1時間
+RACER_CACHE_TTL = 3600
 
-# 的中・回収率（daily_hits）のメモリキャッシュ
-# { "date_settings_hash": { "data": results, "ts": timestamp } }
+# Hit and recovery rate cache
 DAILY_HITS_CACHE = {}
-DAILY_HITS_CACHE_TTL = 300 # 5分 (結果が更新される可能性があるため短め)
+DAILY_HITS_CACHE_TTL = 300
 
 @app.on_event("startup")
 async def startup_event():
-    # 起動時のデータ収集戦略の決定
+    # Startup data fetch strategy
     now_jst = datetime.now(JST)
     today_iso = now_jst.strftime('%Y-%m-%d')
     
@@ -71,17 +70,15 @@ async def startup_event():
     
     loop = asyncio.get_event_loop()
     
-    # 1. データ同期・取得（初回: 公式から全取得、2回目以降: Supabaseから同期）
     try:
         if last_scrape_date != today_iso:
-            print(f"[STARTUP] {today_iso} の初回起動です。Supabaseから今日のデータを先行取得し、公式からもバックグラウンドで更新します...")
-            # 1. 昨日や今日のデータをSupabaseから最優先で取得 (UI即時表示のため)
+            print("[STARTUP] First startup today. Syncing today's data from Supabase...")
             from database import sync_specific_date_from_supabase
             yesterday_iso = (now_jst - timedelta(days=1)).strftime('%Y-%m-%d')
             await loop.run_in_executor(None, sync_specific_date_from_supabase, yesterday_iso)
             await loop.run_in_executor(None, sync_specific_date_from_supabase, today_iso)
 
-            # 2. 残りの同期と公式スクレイピングはバックグラウンドで実行
+            # Sync remaining and run background scraper
             asyncio.create_task(asyncio.to_thread(sync_from_supabase, 1))
             asyncio.create_task(asyncio.to_thread(scraper.scrape_today, now_jst))
             
@@ -89,8 +86,7 @@ async def startup_event():
                 LAST_SCRAPE_FILE.write_text(today_iso, encoding="utf-8")
             except: pass
         else:
-            print(f"[STARTUP] 本日2回目以降の起動です。バックグラウンドで同期・補填を行います...")
-            # 昨日・今日・明日のデータをSupabaseから先行取得
+            print("[STARTUP] Subsequent startup. Running sync and scrape missing in background...")
             from database import sync_specific_date_from_supabase
             yesterday_iso = (now_jst - timedelta(days=1)).strftime('%Y-%m-%d')
             tomorrow_iso = (now_jst + timedelta(days=1)).strftime('%Y-%m-%d')
@@ -101,41 +97,38 @@ async def startup_event():
             asyncio.create_task(asyncio.to_thread(sync_from_supabase, 1))
             asyncio.create_task(asyncio.to_thread(scraper.scrape_missing_today, now_jst))
             
-        # 2. まだDBが空の場合（初回起動失敗時など）のフォールバック
         asyncio.create_task(initial_fetch_if_empty())
         
     except Exception as e:
         print(f"[STARTUP ERROR] Data initialization failed: {e}")
 
-    # ロックファイルのクリーンアップ
+    # Lock file cleanup
     if LOCK_FILE.exists():
         try:
             LOCK_FILE.unlink()
         except:
             pass
     
-    # SSEコールバックをスクレイパーに登録 (スレッドから安全にメインのループにタスクを投げる)
     main_loop = asyncio.get_event_loop()
     def _sync_sse_push(event_type: str, data: dict):
         try:
             if main_loop and main_loop.is_running():
                 main_loop.call_soon_threadsafe(lambda: main_loop.create_task(sse_push(event_type, data)))
-            else:
-                # ループがまだ/既に動いていない場合はスキップ（シャットダウン時など）
-                pass
         except Exception as e:
-            # 頻繁なエラーログを避けるため、致命的な場合のみ出力
             if "Event loop is closed" not in str(e):
                 print(f"[SSE BRIDGE ERROR] {e}")
     
     scraper.sse_broadcast_callback = _sync_sse_push
+    import database
+    database.sse_broadcast_callback = _sync_sse_push
     
-    # バックグラウンドワーカーの起動
+    # Background workers
     asyncio.create_task(background_worker())
+    if USE_SUPABASE:
+        asyncio.create_task(supabase_sync_worker())
 
 async def initial_fetch_if_empty():
-    """起動時にデータが不足している場合にのみウェブから取得する"""
-    await asyncio.sleep(10) # 起動直後の負荷分散
+    await asyncio.sleep(10)
     loop = asyncio.get_event_loop()
     now_jst = datetime.now(JST)
     
@@ -145,10 +138,9 @@ async def initial_fetch_if_empty():
         
         conn = get_db_connection()
         try:
-            # 開催場があるかチェック
             exists = conn.execute("SELECT 1 FROM races WHERE race_date = ? LIMIT 1", (target_iso,)).fetchone()
             if not exists:
-                if days == 1 and now_jst.hour < 18: continue # 翌日分は18時以降
+                if days == 1 and now_jst.hour < 18: continue
                 print(f"[SYSTEM] Data missing for {target_iso}. Triggering initial fetch...")
                 await loop.run_in_executor(None, scraper.scrape_today, target_dt)
         except Exception as e:
@@ -157,7 +149,6 @@ async def initial_fetch_if_empty():
             conn.close()
 
 async def background_worker():
-    """定期的に全レース場のデータを自動更新し、日次サイクルを管理する"""
     print("[SYSTEM] Background worker started.")
     await asyncio.sleep(30)
     
@@ -170,25 +161,22 @@ async def background_worker():
             now_jst = datetime.now(JST)
             today_iso = now_jst.strftime('%Y-%m-%d')
             
-            # 1. 当日の更新 (1分おき)
+            # 1. Update active races
             await loop.run_in_executor(None, update_all_active_races)
             
-            # 2. 翌日のチェック (18時以降、10分おき)
+            # 2. Tomorrow check after 18:00
             if now_jst.hour >= 18 and (time.time() - last_tomorrow_check > 600):
                 tomorrow_dt = now_jst + timedelta(days=1)
                 await loop.run_in_executor(None, update_all_active_races, tomorrow_dt)
                 last_tomorrow_check = time.time()
                 
-            # 3. 昨日の整合性チェック (1時間おき)
+            # 3. Yesterday integrity check
             if time.time() - last_yesterday_check > 3600:
                 yesterday_dt = now_jst - timedelta(days=1)
-                # 昨日のレースが全て終了しているか、変更がないかサイレント更新
-                # update_all_active_races は終了フラグをチェックして未了分のみ取得するが、
-                # 整合性チェックとして呼び出す
                 await loop.run_in_executor(None, update_all_active_races, yesterday_dt)
                 last_yesterday_check = time.time()
 
-            # 4. 古いデータのクリーンアップ（2日以上前のデータを削除）
+            # 4. Clean up old data
             two_days_ago_dt = now_jst - timedelta(days=2)
             two_days_ago_iso = two_days_ago_dt.strftime('%Y-%m-%d')
             await loop.run_in_executor(None, cleanup_old_data, two_days_ago_iso)
@@ -197,6 +185,25 @@ async def background_worker():
             print(f"[WORKER ERROR] {e}")
         
         await asyncio.sleep(60)
+
+async def supabase_sync_worker():
+    if not USE_SUPABASE:
+        return
+    print("[SYSTEM] Supabase sync worker started.")
+    await asyncio.sleep(10)
+    while True:
+        try:
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, sync_from_supabase, 1)
+            
+            now_jst = datetime.now(JST)
+            if now_jst.hour >= 18:
+                tomorrow_iso = (now_jst + timedelta(days=1)).strftime('%Y-%m-%d')
+                from database import sync_specific_date_from_supabase
+                await loop.run_in_executor(None, sync_specific_date_from_supabase, tomorrow_iso, False)
+        except Exception as e:
+            print(f"[SUPABASE SYNC WORKER ERROR] {e}")
+        await asyncio.sleep(30)
 
 def get_today_str() -> str:
     now_jst = datetime.now(JST)
