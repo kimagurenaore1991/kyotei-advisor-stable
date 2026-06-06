@@ -18,7 +18,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -512,31 +511,6 @@ window.addEventListener('unhandledrejection', function(event) {
         </div>
 
 
-        <!-- User Auth Section -->
-        <div id="auth-container" class="mx-3 mt-4 mb-3 p-3 bg-slate-800/60 border border-slate-700 rounded-xl flex flex-col gap-2">
-            <div id="auth-guest" class="flex flex-col gap-2">
-                <p class="text-[10px] text-slate-400 text-center font-bold">データを保存・同期</p>
-                <button onclick="loginWithGoogle()" 
-                    class="flex items-center justify-center gap-2 bg-white hover:bg-slate-100 text-slate-800 px-3 py-2 rounded-lg text-sm font-bold transition-all shadow-lg active:scale-95 cursor-pointer">
-                    <img src="https://www.google.com/favicon.ico" alt="Google" class="w-4 h-4">
-                    Googleでログイン
-                </button>
-            </div>
-            <div id="auth-user" class="hidden flex items-center justify-between gap-3">
-                <div class="flex items-center gap-2 overflow-hidden">
-                    <img id="user-avatar" src="" alt="" class="w-8 h-8 rounded-full border border-slate-600 bg-slate-700">
-                    <div class="flex flex-col min-w-0">
-                        <span id="user-name" class="text-xs font-bold text-slate-200 truncate">--</span>
-                        <span id="user-email" class="text-[10px] text-slate-400 truncate">--</span>
-                    </div>
-                </div>
-                <button onclick="logout()" 
-                    class="text-[10px] text-slate-400 hover:text-red-400 font-bold px-2 py-1 bg-slate-700/50 hover:bg-red-900/20 rounded transition-colors">
-                    ログアウト
-                </button>
-            </div>
-        </div>
-
         <!-- 検索・更新ボタン -->
         <div class="mx-3 mt-3 mb-1 space-y-2">
             <div class="flex gap-1">
@@ -656,10 +630,6 @@ window.addEventListener('unhandledrejection', function(event) {
                 <!-- 結果ヘッダー -->
                 <div class="bg-slate-800 px-4 py-2 border-b border-slate-700 flex items-center gap-3">
                     <h3 class="font-bold text-slate-200 text-sm">レース結果</h3>
-                    <div id="race-recovery-display" class="hidden ml-2 flex items-center gap-1 bg-slate-700/50 px-2 py-0.5 rounded border border-slate-600 shadow-sm">
-                        <span class="text-slate-400 text-[10px]">このレースの回収率:</span>
-                        <span id="race-recovery-value" class="font-bold font-mono text-sm text-slate-300">--%</span>
-                    </div>
                     <span id="result-ranking-compact"
                         class="ml-auto font-mono font-black text-blue-300 text-sm tracking-widest"></span>
                 </div>
@@ -1080,7 +1050,7 @@ window.addEventListener('unhandledrejection', function(event) {
 
                     <h3 class="font-bold text-slate-300 mb-4 pb-2 border-b border-slate-700 text-sm">的中結果分別</h3>
                     <div class="mb-6">
-                        <select id="setting-hit-type" onchange="updateStatsAndRaceRecovery()"
+                        <select id="setting-hit-type"
                             class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-slate-200 outline-none focus:border-blue-500">
                             <option value="buy">買い目的中</option>
                             <option value="ai">AI予想目の的中</option>
@@ -1245,141 +1215,6 @@ window.addEventListener('unhandledrejection', function(event) {
         const APP_VERSION = '1.0.9';
         const API_BASE = '/api';
 
-        let supabaseClient = null;
-        let currentUser = null;
-
-        /** Supabaseの初期化と認証状態の監視 */
-        async function initSupabase() {
-            try {
-                const res = await fetch('/api/config');
-                const config = await res.json();
-                if (!config.supabaseUrl || !config.supabaseKey) {
-                    console.warn('[Supabase] Credentials not found.');
-                    return;
-                }
-                supabaseClient = window.supabase.createClient(config.supabaseUrl, config.supabaseKey);
-
-                // セッション状態の変化を監視
-                supabaseClient.auth.onAuthStateChange(async (event, session) => {
-                    currentUser = session?.user || null;
-                    updateAuthUI();
-                    if (currentUser) {
-                        console.log('[Auth] Logged in:', currentUser.email);
-                        await syncDataOnLogin();
-                    } else {
-                        console.log('[Auth] Guest mode');
-                    }
-                });
-            } catch (e) {
-                console.error('[Supabase] Init error:', e);
-            }
-        }
-
-        function updateAuthUI() {
-            const guestEl = document.getElementById('auth-guest');
-            const userEl = document.getElementById('auth-user');
-            if (currentUser) {
-                guestEl.classList.add('hidden');
-                userEl.classList.remove('hidden');
-                document.getElementById('user-name').textContent = currentUser.user_metadata.full_name || 'ユーザー';
-                document.getElementById('user-email').textContent = currentUser.email;
-                document.getElementById('user-avatar').src = currentUser.user_metadata.avatar_url || '';
-            } else {
-                guestEl.classList.remove('hidden');
-                userEl.classList.add('hidden');
-            }
-        }
-
-        async function loginWithGoogle() {
-            if (!supabaseClient) return;
-            const { error } = await supabaseClient.auth.signInWithOAuth({
-                provider: 'google',
-                options: {
-                    redirectTo: window.location.origin + '/static/index.html'
-                }
-            });
-            if (error) alert('ログインエラー: ' + error.message);
-        }
-
-        async function logout() {
-            if (!supabaseClient) return;
-            if (confirm('ログアウトしますか？')) {
-                await supabaseClient.auth.signOut();
-                location.reload(); // データをクリアしてリセット
-            }
-        }
-
-        /** ログイン時のデータ同期 */
-        async function syncDataOnLogin() {
-            // ログイン直後に設定と現在のレースのカートを同期
-            await loadSettingsFromCloud();
-            if (currentRaceId) {
-                await loadCartFromCloud(currentRaceId);
-                updateCartDisplay();
-            }
-        }
-
-        async function saveSettingsToCloud(settings) {
-            if (!supabaseClient || !currentUser) return;
-            const { error } = await supabaseClient
-                .from('user_profiles')
-                .upsert({
-                    id: currentUser.id,
-                    settings_json: settings,
-                    updated_at: new Date().toISOString()
-                });
-            if (error) console.error('[Supabase] Save settings error:', error);
-        }
-
-        async function loadSettingsFromCloud() {
-            if (!supabaseClient || !currentUser) return;
-            const { data, error } = await supabaseClient
-                .from('user_profiles')
-                .select('settings_json')
-                .eq('id', currentUser.id)
-                .single();
-            if (error) {
-                console.error('[Supabase] Load settings error:', error);
-                return;
-            }
-            if (data && data.settings_json) {
-                localStorage.setItem('kyotei_v1_user_settings', JSON.stringify(data.settings_json));
-                loadUserSettings();
-            }
-        }
-
-        async function saveCartToCloud(raceId, cart) {
-            if (!supabaseClient || !currentUser) return;
-            const { error } = await supabaseClient
-                .from('user_carts')
-                .upsert({
-                    user_id: currentUser.id,
-                    race_id: raceId,
-                    cart_data: cart,
-                    updated_at: new Date().toISOString()
-                }, { onConflict: 'user_id,race_id' });
-            if (error) console.error('[Supabase] Save cart error:', error);
-        }
-
-        async function loadCartFromCloud(raceId) {
-            if (!supabaseClient || !currentUser) return;
-            const { data, error } = await supabaseClient
-                .from('user_carts')
-                .select('cart_data')
-                .eq('user_id', currentUser.id)
-                .eq('race_id', raceId)
-                .single();
-            if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows found"
-                console.error('[Supabase] Load cart error:', error);
-                return;
-            }
-            if (data && data.cart_data) {
-                localStorage.setItem(APP_PREFIX + 'cart_' + raceId, JSON.stringify(data.cart_data));
-                loadCart();
-            }
-        }
-
-
         const places_dict = {
             "01": "桐生", "02": "戸田", "03": "江戸川", "04": "平和島", "05": "多摩川", "06": "浜名湖",
             "07": "蒲郡", "08": "常滑", "09": "津", "10": "三国", "11": "びわこ", "12": "住之江",
@@ -1410,7 +1245,6 @@ window.addEventListener('unhandledrejection', function(event) {
             if (lastVersion && lastVersion !== APP_VERSION) {
                 window.location.reload(true);
             }
-            await initSupabase();
         })();
 
         // ─── UI表示状態の初期化 ──────────────────────────────────────────────
@@ -1558,9 +1392,6 @@ window.addEventListener('unhandledrejection', function(event) {
                 document.getElementById('add-all-custom')?.classList.add('hidden');
                 document.getElementById('add-all-ai')?.classList.add('hidden');
             }
-
-            // クラウド同期
-            saveSettingsToCloud(settings);
         }
 
         function loadUserSettings() {
@@ -1711,7 +1542,7 @@ window.addEventListener('unhandledrejection', function(event) {
             // 1. 買い目的中 (カート内)
             if (hitType === 'buy') {
                 const cartKey = `cart_${raceId}`;
-                const cartData = localStorage.getItem(APP_PREFIX + cartKey);
+                const cartData = localStorage.getItem(CACHE_PREFIX + cartKey);
                 if (cartData) {
                     try {
                         const cartObj = JSON.parse(cartData);
@@ -2135,17 +1966,6 @@ window.addEventListener('unhandledrejection', function(event) {
                     });
                     
                     updatePerformanceStats();
-                    
-                    const highExCont = document.getElementById('high-expectation-results');
-                    if (highExCont) {
-                        const searchModal = document.getElementById('search-modal');
-                        const highTab = document.getElementById('search-content-high');
-                        if (searchModal && !searchModal.classList.contains('hidden') && highTab && !highTab.classList.contains('hidden')) {
-                            fetchExpectationRaces();
-                        } else {
-                            highExCont.innerHTML = '';
-                        }
-                    }
                 } else {
                     // API失敗時も的中キャッシュをリセットして統計を隠す
                     window.dailyHitsCache = null;
@@ -2179,7 +1999,7 @@ window.addEventListener('unhandledrejection', function(event) {
 
                 if (hitType === 'buy') {
                     const resultData = raceResultCache[raceId];
-                    const cartData = localStorage.getItem(APP_PREFIX + 'cart_' + raceId);
+                    const cartData = localStorage.getItem(CACHE_PREFIX + 'cart_' + raceId);
                     if (resultData && resultData.result && resultData.result.ranking_str && cartData) {
                         try {
                             const cartObj = JSON.parse(cartData);
@@ -2198,39 +2018,10 @@ window.addEventListener('unhandledrejection', function(event) {
                         } catch (e) { }
                     }
                 } else {
-                    const preds = lastPredictionsCache[raceId]?.predictions;
-                    const result = raceResultCache[raceId]?.result;
-                    
-                    if (preds && result && result.ranking_str) {
-                        const getLocalPayout = (pList) => {
-                            let p = 0;
-                            (pList || []).slice(0, settings.max_items).forEach(item => {
-                                if (isHit(item.pattern, result.ranking_str)) {
-                                    isHitFlag = true;
-                                    const match = (result.payouts || []).find(pay => pay.combination === item.pattern);
-                                    if (match) {
-                                        const val = parseInt(match.payout.replace(/[^0-9]/g, ''), 10);
-                                        if (!isNaN(val)) p += Math.floor((val / 100) * 100);
-                                    }
-                                }
-                            });
-                            return p;
-                        };
-
-                        if (hitType === 'ai' || hitType === 'both') {
-                            invest += betAmountPerRace;
-                            payout += getLocalPayout(preds.ai_focus);
-                        }
-                        if (hitType === 'custom' || hitType === 'both') {
-                            invest += betAmountPerRace;
-                            payout += getLocalPayout(preds.rule_focus);
-                        }
-                    } else {
-                        // フォールバック: サーバー側のデータを使用
-                        isHitFlag = !!data.hit;
-                        payout = data.payout || 0;
-                        invest = (hitType === 'both') ? (betAmountPerRace * 2) : betAmountPerRace;
-                    }
+                    isHitFlag = !!data.hit;
+                    payout = data.payout || 0;
+                    // AI&カスタムの両方を選択している場合は投資額を2倍（各800円ずつ等）として計算
+                    invest = (hitType === 'both') ? (betAmountPerRace * 2) : betAmountPerRace;
                 }
 
                 if (invest > 0 || isHitFlag || payout > 0) {
@@ -2276,102 +2067,6 @@ window.addEventListener('unhandledrejection', function(event) {
                         </div>`;
                 }
             });
-            
-            if (typeof updateRaceSpecificRecoveryRate === 'function') {
-                updateRaceSpecificRecoveryRate();
-            }
-        }
-
-        function updateStatsAndRaceRecovery() {
-            updatePerformanceStats();
-            if (typeof updateRaceSpecificRecoveryRate === 'function') {
-                updateRaceSpecificRecoveryRate();
-            }
-        }
-
-        function updateRaceSpecificRecoveryRate() {
-            const displayEl = document.getElementById('race-recovery-display');
-            const valEl = document.getElementById('race-recovery-value');
-            if (!displayEl || !valEl) return;
-            
-            if (!currentRaceId || !raceResultCache[currentRaceId] || !raceResultCache[currentRaceId].result || !raceResultCache[currentRaceId].result.ranking_str) {
-                displayEl.classList.add('hidden');
-                return;
-            }
-
-            const result = raceResultCache[currentRaceId].result;
-            const hitType = document.getElementById('setting-hit-type')?.value || 'both';
-            const settings = getSettings();
-            const betAmountPerRace = settings.max_items * 100;
-            
-            let invest = 0;
-            let payout = 0;
-
-            const getPayoutForPreds = (preds) => {
-                let p = 0;
-                (preds || []).slice(0, settings.max_items).forEach(item => {
-                    if (isHit(item.pattern, result.ranking_str) && result.payouts && result.payouts.length > 0) {
-                        const match = (result.payouts || []).find(pay => pay.combination === item.pattern);
-                        if (match) {
-                            const oddsVal = parseInt(match.payout.replace(/[^0-9]/g, ''), 10);
-                            if (!isNaN(oddsVal)) p += Math.floor((oddsVal / 100) * 100); // 1点100円計算
-                        }
-                    }
-                });
-                return p;
-            };
-
-            if (hitType === 'buy') {
-                const cartData = localStorage.getItem(APP_PREFIX + 'cart_' + currentRaceId);
-                if (cartData) {
-                    try {
-                        const cartObj = JSON.parse(cartData);
-                        Object.entries(cartObj).forEach(([pat, amt]) => {
-                            invest += amt;
-                            if (isHit(pat, result.ranking_str) && result.payouts && result.payouts.length > 0) {
-                                const match = result.payouts.find(p => p.combination === pat);
-                                if (match) {
-                                    const oddsVal = parseInt(match.payout.replace(/[^0-9]/g, ''), 10);
-                                    if (!isNaN(oddsVal)) payout += Math.floor((oddsVal / 100) * amt);
-                                }
-                            }
-                        });
-                    } catch(e) {}
-                }
-            } else {
-                const preds = lastPredictions || (lastPredictionsCache[currentRaceId] ? lastPredictionsCache[currentRaceId].predictions : null);
-                if (preds) {
-                    if (hitType === 'ai' || hitType === 'both') {
-                        invest += betAmountPerRace;
-                        payout += getPayoutForPreds(preds.ai_focus);
-                    }
-                    if (hitType === 'custom' || hitType === 'both') {
-                        invest += betAmountPerRace;
-                        payout += getPayoutForPreds(preds.rule_focus);
-                    }
-                } else if (window.dailyHitsCache && window.dailyHitsCache[currentRaceId]) {
-                    // 最終手段としてキャッシュ値（Server経由データ）を使用
-                    const data = window.dailyHitsCache[currentRaceId];
-                    if (typeof data === 'object') {
-                        payout = data.payout || 0;
-                        invest = (hitType === 'both') ? (betAmountPerRace * 2) : betAmountPerRace;
-                    }
-                }
-            }
-
-            if (invest > 0) {
-                const rate = Math.round((payout / invest) * 100);
-                let colorClass = 'text-slate-300';
-                if (rate >= 100) colorClass = 'text-emerald-400 drop-shadow';
-                else if (rate > 0) colorClass = 'text-amber-300';
-                else colorClass = 'text-slate-400 opacity-80';
-
-                valEl.textContent = rate + '%';
-                valEl.className = 'font-bold font-mono text-sm ' + colorClass;
-                displayEl.classList.remove('hidden');
-            } else {
-                displayEl.classList.add('hidden');
-            }
         }
 
 
@@ -2663,7 +2358,6 @@ window.addEventListener('unhandledrejection', function(event) {
             
             try {
                 loadCart(); // カート内容をロード
-                loadCartFromCloud(raceId); // クラウドから最新を取得(非同期)
             } catch (e) {
                 console.warn('loadCart error', e);
             }
@@ -2998,13 +2692,7 @@ window.addEventListener('unhandledrejection', function(event) {
                     const isHitFlag = preds.rule_focus.some(p => isHit(p.pattern, data.race.ranking_str)) ||
                         preds.ai_focus.some(p => isHit(p.pattern, data.race.ranking_str));
 
-                    if (window.dailyHitsCache && window.dailyHitsCache[currentRaceId]) {
-                        if (typeof window.dailyHitsCache[currentRaceId] === 'object') {
-                            window.dailyHitsCache[currentRaceId].hit = isHitFlag;
-                        } else {
-                            window.dailyHitsCache[currentRaceId] = { hit: isHitFlag };
-                        }
-                    }
+                    if (window.dailyHitsCache) window.dailyHitsCache[currentRaceId] = isHitFlag;
                     const btn = document.getElementById(`race-btn-${currentRaceId}`);
                     if (btn) applyFinishBadge(btn, isHitFlag);
                 }
@@ -3194,12 +2882,6 @@ window.addEventListener('unhandledrejection', function(event) {
                 </div>`;
                 mc.appendChild(card);
             });
-
-            if (race.is_finished && race.ranking_str) {
-                if (typeof updateRaceSpecificRecoveryRate === 'function') {
-                    updateRaceSpecificRecoveryRate();
-                }
-            }
         }
 
         function appendTableRows(tb, players) {
@@ -3382,10 +3064,6 @@ window.addEventListener('unhandledrejection', function(event) {
 
             // カートの払い戻し計算 (分離した関数で更新)
             updateCartResultDisplay();
-
-            if (typeof updateRaceSpecificRecoveryRate === 'function') {
-                updateRaceSpecificRecoveryRate();
-            }
 
             // バナー表示
             document.getElementById('result-banner').classList.remove('hidden');
@@ -4306,9 +3984,7 @@ window.addEventListener('unhandledrejection', function(event) {
 
         function saveCart() {
             if (currentRaceId) {
-                try {
-                    localStorage.setItem(APP_PREFIX + 'cart_' + currentRaceId, JSON.stringify(betCart));
-                } catch (e) { }
+                saveCache('cart_' + currentRaceId, betCart);
                 
                 // 全統計用の集約データも更新
                 const allCart = JSON.parse(localStorage.getItem('kyotei_v1_cart') || '{}');
@@ -4328,15 +4004,12 @@ window.addEventListener('unhandledrejection', function(event) {
                     }
                     updatePerformanceStats();
                 }
-                
-                // クラウド同期
-                saveCartToCloud(currentRaceId, betCart);
             }
         }
 
         function loadCart() {
             if (currentRaceId) {
-                const loaded = localStorage.getItem(APP_PREFIX + 'cart_' + currentRaceId);
+                const loaded = localStorage.getItem(CACHE_PREFIX + 'cart_' + currentRaceId);
                 if (loaded) betCart = JSON.parse(loaded);
                 else betCart = {};
             }
@@ -4393,24 +4066,10 @@ window.addEventListener('unhandledrejection', function(event) {
 
         function copyAndOpenTeleboat() {
             const keys = Object.keys(betCart);
-            const openTeleboat = () => {
-                const ua = navigator.userAgent.toLowerCase();
-                const isSP = /iphone|ipad|ipod|android/.test(ua);
-                const url = isSP ? "https://spweb.brtb.jp/" : "https://ib.mbrace.or.jp/";
-
-                if (isSP) {
-                    window.location.href = url;
-                } else {
-                    window.open(url, "_blank", "noopener,noreferrer");
-                }
-            };
-
             if (keys.length === 0) {
-                // カートが空の場合はそのまま開く
-                openTeleboat();
+                alert("カートが空です。予想を追加してください。");
                 return;
             }
-
             let text = "■ 買い目メモ\n";
             let total = 0;
             keys.sort().forEach(p => {
@@ -4424,7 +4083,15 @@ window.addEventListener('unhandledrejection', function(event) {
             }).catch(e => {
                 alert("コピーに失敗しました。手動でメモしてください。\n\n" + text);
             }).finally(() => {
-                openTeleboat();
+                const ua = navigator.userAgent.toLowerCase();
+                const isSP = /iphone|ipad|ipod|android/.test(ua);
+                const url = isSP ? "https://spweb.brtb.jp/" : "https://ib.mbrace.or.jp/";
+
+                if (isSP) {
+                    window.location.href = url;
+                } else {
+                    window.open(url, "_blank", "noopener,noreferrer");
+                }
             });
         }
 
@@ -4438,7 +4105,7 @@ window.addEventListener('unhandledrejection', function(event) {
             // Only calculate and show if we have current results for this race
             if (currentRaceId && currentRaceResult && raceResultCache[currentRaceId] && raceResultCache[currentRaceId].result) {
                 const result = raceResultCache[currentRaceId].result;
-                const loaded = localStorage.getItem(APP_PREFIX + 'cart_' + currentRaceId);
+                const loaded = localStorage.getItem(CACHE_PREFIX + 'cart_' + currentRaceId);
                 if (loaded) {
                     const savedCart = JSON.parse(loaded);
                     Object.keys(savedCart).forEach(pat => {
@@ -5151,30 +4818,12 @@ window.addEventListener('unhandledrejection', function(event) {
         };
 
         function createRaceCardHTML(r, colorTheme, desc) {
-            let isHitFlag = false;
-            let hitPayout = 0;
-            const hitType = document.getElementById('setting-hit-type')?.value || 'both';
-
-            if (r.is_finished) {
-                if (hitType === 'buy') {
-                    const result = raceResultCache[r.id];
-                    if (result && result.result && result.result.ranking_str) {
-                        isHitFlag = determineHitStatus(r.id, result.result.ranking_str, null);
-                    }
-                } else if (window.dailyHitsCache) {
-                    const hitData = window.dailyHitsCache[r.id];
-                    if (hitData) {
-                        isHitFlag = !!hitData.hit;
-                        hitPayout = hitData.payout || 0;
-                    }
-                }
-            }
-
-            const hitBadge = isHitFlag ? `<span class="ml-1 text-[10px] bg-red-500 border border-red-400/50 px-2 py-0.5 rounded text-white font-bold animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]">🎯的中</span>` : '';
-            const payoutHtml = (isHitFlag && hitPayout > 0 && hitType !== 'buy') 
+            const hitData = (window.dailyHitsCache && r.is_finished) ? window.dailyHitsCache[r.id] : null;
+            const hitBadge = (hitData && hitData.hit) ? `<span class="ml-1 text-[10px] bg-red-500 border border-red-400/50 px-2 py-0.5 rounded text-white font-bold animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]">🎯的中</span>` : '';
+            const payoutHtml = (hitData && hitData.hit && hitData.payout > 0) 
                 ? `<div class="text-[10px] font-bold text-emerald-400 mt-2.5 flex items-center gap-1.5 bg-emerald-900/40 border border-emerald-800/50 px-2.5 py-1.5 rounded w-full">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    払戻金: ¥${hitPayout.toLocaleString()}
+                    払戻金: ¥${hitData.payout.toLocaleString()}
                    </div>` 
                 : '';
 
