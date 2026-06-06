@@ -35,9 +35,16 @@ INDEXES = [
 
 def get_db_connection(timeout: float = 30.0) -> sqlite3.Connection:
     import os
+    from app_config import BASE_DIR
+    global DB_NAME
     db_dir = os.path.dirname(DB_NAME)
     if db_dir:
-        os.makedirs(db_dir, exist_ok=True)
+        try:
+            os.makedirs(db_dir, exist_ok=True)
+        except PermissionError:
+            print(f"[WARNING] 権限エラー: {db_dir} を作成できません。DATABASE_PATH の設定を確認してください。")
+            DB_NAME = str(BASE_DIR / "kyotei_fallback.db")
+            print(f"[WARNING] デフォルトのパスにフォールバックします: {DB_NAME}")
     conn = sqlite3.connect(DB_NAME, timeout=timeout, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL;")
