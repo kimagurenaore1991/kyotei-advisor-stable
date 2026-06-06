@@ -28,53 +28,15 @@ INDEXES = [
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_entries_race_boat ON entries(race_id, boat_number)",
     "CREATE INDEX IF NOT EXISTS idx_racer_results_racer ON racer_results(racer_id)",
     "CREATE INDEX IF NOT EXISTS idx_racer_results_place ON racer_results(racer_id, place_code)",
+    "CREATE INDEX IF NOT EXISTS idx_racer_profiles_name ON racer_profiles(name)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_favorite_racers_user_toban ON favorite_racers(user_id, toban)",
 ]
 
 
-ACTUAL_DB_PATH = DB_NAME
-
 def get_db_connection(timeout: float = 30.0) -> sqlite3.Connection:
-    global ACTUAL_DB_PATH
-    from pathlib import Path
-    import os
-    
-    # データベースの親ディレクトリが存在することを確認し、権限エラーならカレントディレクトリにフォールバック
-    try:
-        Path(ACTUAL_DB_PATH).parent.mkdir(parents=True, exist_ok=True)
-    except Exception as e:
-        fallback_path = str(Path(__file__).resolve().parent / "kyotei.db")
-        print(f"[DATABASE WARNING] Failed to create directory for {ACTUAL_DB_PATH} ({e}). Falling back to local database: {fallback_path}")
-        ACTUAL_DB_PATH = fallback_path
-        Path(ACTUAL_DB_PATH).parent.mkdir(parents=True, exist_ok=True)
-    
-    db_path = ACTUAL_DB_PATH
-    try:
-        conn = sqlite3.connect(db_path, timeout=timeout, check_same_thread=False)
-        # 整合性チェックを行い、エラーが出るか「ok」以外なら破損とみなす
-        row = conn.execute("PRAGMA integrity_check(1);").fetchone()
-        if row is None or row[0] != "ok":
-            raise sqlite3.DatabaseError("Integrity check failed")
-    except sqlite3.DatabaseError as e:
-        print(f"[DATABASE WARNING] SQLite database is malformed/corrupted: {e}. Deleting and recreating...")
-        try:
-            conn.close()
-        except:
-            pass
-        for suffix in ["", "-wal", "-shm"]:
-            try:
-                Path(db_path + suffix).unlink(missing_ok=True)
-            except Exception as del_err:
-                print(f"[DATABASE ERROR] Failed to delete file {db_path + suffix}: {del_err}")
-        conn = sqlite3.connect(db_path, timeout=timeout, check_same_thread=False)
-    
+    conn = sqlite3.connect(DB_NAME, timeout=timeout, check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    
-    # Renderのネットワークディスク(NFS)はWALモードをサポートしていないため、Render上ではDELETEモードを使用
-    if os.environ.get("RENDER"):
-        conn.execute("PRAGMA journal_mode=DELETE;")
-    else:
-        conn.execute("PRAGMA journal_mode=WAL;")
-        
+    conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA synchronous=NORMAL;")
     conn.execute(f"PRAGMA busy_timeout = {int(timeout * 1000)};")
     conn.execute("PRAGMA foreign_keys = ON;")
@@ -171,9 +133,25 @@ def init_db() -> None:
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS favorite_racers (
-            toban TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL DEFAULT 'local',
+            toban TEXT NOT NULL,
             name TEXT,
-            created_at TEXT
+            created_at TEXT,
+            UNIQUE(user_id, toban)
+        )
+        """
+    )
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS cart_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT,
+            race_id INTEGER NOT NULL,
+            cart_json TEXT NOT NULL DEFAULT '{}',
+            updated_at TEXT,
+            UNIQUE(user_id, race_id)
         )
         """
     )
@@ -184,12 +162,37 @@ def init_db() -> None:
         except sqlite3.OperationalError:
             pass
 
+    cursor.execute("PRAGMA table_info(favorite_racers)")
+    favorite_columns = {row["name"] for row in cursor.fetchall()}
+    if favorite_columns == {"toban", "name", "created_at"}:
+        cursor.execute("ALTER TABLE favorite_racers RENAME TO favorite_racers_legacy")
+        cursor.execute(
+            """
+            CREATE TABLE favorite_racers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL DEFAULT 'local',
+                toban TEXT NOT NULL,
+                name TEXT,
+                created_at TEXT,
+                UNIQUE(user_id, toban)
+            )
+            """
+        )
+        cursor.execute(
+            """
+            INSERT OR IGNORE INTO favorite_racers (user_id, toban, name, created_at)
+            SELECT 'local', toban, name, created_at
+            FROM favorite_racers_legacy
+            """
+        )
+        cursor.execute("DROP TABLE favorite_racers_legacy")
+
     for sql in INDEXES:
         cursor.execute(sql)
 
     conn.commit()
     conn.close()
-    print(f"データベース初期化完了: {ACTUAL_DB_PATH}")
+    print(f"データベース初期化完了: {DB_NAME}")
 
 
 def cleanup_old_data(threshold_date_iso: str) -> None:

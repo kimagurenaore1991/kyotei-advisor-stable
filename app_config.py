@@ -13,10 +13,17 @@ DB_NAME = os.environ.get("DATABASE_PATH", str(BASE_DIR / "kyotei.db"))
 REQUEST_TIMEOUT = 15
 # Supabase configuration
 USE_SUPABASE = os.environ.get("USE_SUPABASE", "True").lower() == "true"
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://rngzcwztmshadaevaxqz.supabase.co")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJuZ3pjd3p0bXNoYWRhZXZheHF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzNjE1MDMsImV4cCI6MjA4OTkzNzUwM30.YY8Q_7h_UwKQNOlpCPNTqMjL8iW8ZuxW70yuy7dHUk4")
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 # Note: Service role key is not usually needed for the client, but keeping it as an environment option if needed.
-# SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+# Stripe configuration
+STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+STRIPE_PRICE_ID_MONTHLY = os.environ.get("STRIPE_PRICE_ID_MONTHLY", "")
+STRIPE_PRICE_ID_90DAY = os.environ.get("STRIPE_PRICE_ID_90DAY", "")
+
+# CORS configuration
+CORS_ALLOW_ORIGINS = os.environ.get("CORS_ALLOW_ORIGINS", "*").split(",")
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
