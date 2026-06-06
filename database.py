@@ -86,7 +86,24 @@ def get_db_connection(timeout: float = 30.0) -> sqlite3.Connection:
 
 
 def init_db() -> None:
+    global DB_NAME
     conn = get_db_connection()
+    try:
+        res = conn.execute("PRAGMA quick_check;").fetchone()
+        if res and res[0] != 'ok':
+            raise sqlite3.DatabaseError("database disk image is malformed")
+    except sqlite3.Error as e:
+        if "malformed" in str(e).lower() or "corrupt" in str(e).lower():
+            print(f"CRITICAL: database {DB_NAME} is fully corrupted (quick_check failed). Deleting.")
+            conn.close()
+            try:
+                os.remove(DB_NAME)
+            except Exception as ex:
+                print(f"Failed to delete corrupt DB: {ex}")
+            conn = get_db_connection()
+        else:
+            raise
+
     cursor = conn.cursor()
 
     cursor.execute(
