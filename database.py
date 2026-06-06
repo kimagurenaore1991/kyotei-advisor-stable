@@ -31,9 +31,26 @@ INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_racer_profiles_name ON racer_profiles(name)",
 ]
 
+import os
+from app_config import BASE_DIR
 
 def get_db_connection(timeout: float = 30.0) -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_NAME, timeout=timeout, check_same_thread=False)
+    global DB_NAME
+    db_dir = os.path.dirname(DB_NAME)
+    if db_dir and not os.path.exists(db_dir):
+        try:
+            os.makedirs(db_dir, exist_ok=True)
+        except Exception as e:
+            print(f"Warning: could not create db dir {db_dir}: {e}")
+            
+    try:
+        conn = sqlite3.connect(DB_NAME, timeout=timeout, check_same_thread=False)
+    except sqlite3.OperationalError as e:
+        print(f"Error opening database {DB_NAME}: {e}. Falling back to default.")
+        fallback_db = str(BASE_DIR / "kyotei.db")
+        conn = sqlite3.connect(fallback_db, timeout=timeout, check_same_thread=False)
+        DB_NAME = fallback_db  # Update for subsequent calls
+        
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA synchronous=NORMAL;")
