@@ -47,7 +47,26 @@ def get_db_connection(timeout: float = 30.0) -> sqlite3.Connection:
         ACTUAL_DB_PATH = fallback_path
         Path(ACTUAL_DB_PATH).parent.mkdir(parents=True, exist_ok=True)
     
-    conn = sqlite3.connect(ACTUAL_DB_PATH, timeout=timeout, check_same_thread=False)
+    db_path = ACTUAL_DB_PATH
+    try:
+        conn = sqlite3.connect(db_path, timeout=timeout, check_same_thread=False)
+        # 整合性チェックを行い、エラーが出るか「ok」以外なら破損とみなす
+        row = conn.execute("PRAGMA integrity_check(1);").fetchone()
+        if row is None or row[0] != "ok":
+            raise sqlite3.DatabaseError("Integrity check failed")
+    except sqlite3.DatabaseError as e:
+        print(f"[DATABASE WARNING] SQLite database is malformed/corrupted: {e}. Deleting and recreating...")
+        try:
+            conn.close()
+        except:
+            pass
+        for suffix in ["", "-wal", "-shm"]:
+            try:
+                Path(db_path + suffix).unlink(missing_ok=True)
+            except Exception as del_err:
+                print(f"[DATABASE ERROR] Failed to delete file {db_path + suffix}: {del_err}")
+        conn = sqlite3.connect(db_path, timeout=timeout, check_same_thread=False)
+    
     conn.row_factory = sqlite3.Row
     
     # Renderのネットワークディスク(NFS)はWALモードをサポートしていないため、Render上ではDELETEモードを使用
