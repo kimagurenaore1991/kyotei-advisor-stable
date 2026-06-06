@@ -93,7 +93,6 @@ async def startup_event():
     # SSEコールバックをスクレイパーに登録
     def _sync_sse_push(event_type: str, data: dict):
         try:
-            loop = asyncio.get_event_loop()
             asyncio.run_coroutine_threadsafe(sse_push(event_type, data), loop)
         except Exception as e:
             print(f"[SSE BRIDGE ERROR] {e}")

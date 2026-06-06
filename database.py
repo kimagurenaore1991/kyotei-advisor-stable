@@ -32,9 +32,21 @@ INDEXES = [
 
 
 def get_db_connection(timeout: float = 30.0) -> sqlite3.Connection:
+    from pathlib import Path
+    import os
+    
+    # データベースの親ディレクトリが存在することを確認
+    Path(DB_NAME).parent.mkdir(parents=True, exist_ok=True)
+    
     conn = sqlite3.connect(DB_NAME, timeout=timeout, check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL;")
+    
+    # Renderのネットワークディスク(NFS)はWALモードをサポートしていないため、Render上ではDELETEモードを使用
+    if os.environ.get("RENDER"):
+        conn.execute("PRAGMA journal_mode=DELETE;")
+    else:
+        conn.execute("PRAGMA journal_mode=WAL;")
+        
     conn.execute("PRAGMA synchronous=NORMAL;")
     conn.execute(f"PRAGMA busy_timeout = {int(timeout * 1000)};")
     conn.execute("PRAGMA foreign_keys = ON;")
