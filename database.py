@@ -31,14 +31,23 @@ INDEXES = [
 ]
 
 
+ACTUAL_DB_PATH = DB_NAME
+
 def get_db_connection(timeout: float = 30.0) -> sqlite3.Connection:
+    global ACTUAL_DB_PATH
     from pathlib import Path
     import os
     
-    # データベースの親ディレクトリが存在することを確認
-    Path(DB_NAME).parent.mkdir(parents=True, exist_ok=True)
+    # データベースの親ディレクトリが存在することを確認し、権限エラーならカレントディレクトリにフォールバック
+    try:
+        Path(ACTUAL_DB_PATH).parent.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        fallback_path = str(Path(__file__).resolve().parent / "kyotei.db")
+        print(f"[DATABASE WARNING] Failed to create directory for {ACTUAL_DB_PATH} ({e}). Falling back to local database: {fallback_path}")
+        ACTUAL_DB_PATH = fallback_path
+        Path(ACTUAL_DB_PATH).parent.mkdir(parents=True, exist_ok=True)
     
-    conn = sqlite3.connect(DB_NAME, timeout=timeout, check_same_thread=False)
+    conn = sqlite3.connect(ACTUAL_DB_PATH, timeout=timeout, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     
     # Renderのネットワークディスク(NFS)はWALモードをサポートしていないため、Render上ではDELETEモードを使用
@@ -161,7 +170,7 @@ def init_db() -> None:
 
     conn.commit()
     conn.close()
-    print(f"データベース初期化完了: {DB_NAME}")
+    print(f"データベース初期化完了: {ACTUAL_DB_PATH}")
 
 
 def cleanup_old_data(threshold_date_iso: str) -> None:
