@@ -43,19 +43,45 @@ def get_db_connection(timeout: float = 30.0) -> sqlite3.Connection:
         except Exception as e:
             print(f"Warning: could not create db dir {db_dir}: {e}")
             
+    def _connect(db_path):
+        c = sqlite3.connect(db_path, timeout=timeout, check_same_thread=False)
+        c.row_factory = sqlite3.Row
+        c.execute("PRAGMA journal_mode=WAL;")
+        c.execute("PRAGMA synchronous=NORMAL;")
+        c.execute(f"PRAGMA busy_timeout = {int(timeout * 1000)};")
+        c.execute("PRAGMA foreign_keys = ON;")
+        # Test integrity with a simple query
+        c.execute("PRAGMA schema_version;")
+        return c
+
     try:
-        conn = sqlite3.connect(DB_NAME, timeout=timeout, check_same_thread=False)
-    except sqlite3.OperationalError as e:
-        print(f"Error opening database {DB_NAME}: {e}. Falling back to default.")
-        fallback_db = str(BASE_DIR / "kyotei.db")
-        conn = sqlite3.connect(fallback_db, timeout=timeout, check_same_thread=False)
-        DB_NAME = fallback_db  # Update for subsequent calls
-        
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL;")
-    conn.execute("PRAGMA synchronous=NORMAL;")
-    conn.execute(f"PRAGMA busy_timeout = {int(timeout * 1000)};")
-    conn.execute("PRAGMA foreign_keys = ON;")
+        conn = _connect(DB_NAME)
+    except sqlite3.Error as e:
+        error_str = str(e).lower()
+        if "malformed" in error_str:
+            print(f"Warning: database {DB_NAME} is malformed. Deleting and recreating.")
+            try:
+                os.remove(DB_NAME)
+                conn = _connect(DB_NAME)
+            except Exception as ex:
+                print(f"Failed to recreate {DB_NAME}: {ex}")
+                fallback_db = str(BASE_DIR / "kyotei.db")
+                conn = _connect(fallback_db)
+                DB_NAME = fallback_db
+        else:
+            print(f"Error opening database {DB_NAME}: {e}. Falling back to default.")
+            fallback_db = str(BASE_DIR / "kyotei.db")
+            if os.path.exists(fallback_db):
+                try:
+                    test_c = sqlite3.connect(fallback_db)
+                    test_c.execute("PRAGMA schema_version;")
+                    test_c.close()
+                except sqlite3.Error as fallback_err:
+                    if "malformed" in str(fallback_err).lower():
+                        os.remove(fallback_db)
+            conn = _connect(fallback_db)
+            DB_NAME = fallback_db  # Update for subsequent calls
+            
     return conn
 
 
