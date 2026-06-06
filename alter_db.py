@@ -1,23 +1,4 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-venv/
-.env
+from database import init_db
 
-# Database
-*.db
-*.sqlite3
-
-# Filesystem
-.DS_Store
-Thumbs.db
-
-# Project specific
-kyotei.db*
-LOCK_FILE
-.last_full_scrape
-test_beforeinfo.html
-*.log
-*.tmp
-temp/
+if __name__ == "__main__":
+    init_db()
