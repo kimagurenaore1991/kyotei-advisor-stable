@@ -1,23 +1,25 @@
-import sqlite3
-import json
+from __future__ import annotations
 
-db_path = 'kyotei.db'
-conn = sqlite3.connect(db_path)
-conn.row_factory = sqlite3.Row
-cursor = conn.cursor()
+import os
+from pathlib import Path
+from datetime import timezone, timedelta
 
-print("Checking for finished races in the database...")
-cursor.execute("SELECT r.id, r.place_name, r.race_number, res.ranking FROM races r JOIN race_results res ON r.id = res.race_id LIMIT 10")
-rows = cursor.fetchall()
+BASE_DIR = Path(__file__).resolve().parent
+STATIC_DIR = BASE_DIR / "static"
+LOCK_FILE = BASE_DIR / "scraping.lock"
+LAST_SCRAPE_FILE = BASE_DIR / ".last_full_scrape"
+JST = timezone(timedelta(hours=9))
+DB_NAME = os.environ.get("DATABASE_PATH", str(BASE_DIR / "kyotei.db"))
+REQUEST_TIMEOUT = 15
+# Supabase configuration
+USE_SUPABASE = os.environ.get("USE_SUPABASE", "True").lower() == "true"
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://rngzcwztmshadaevaxqz.supabase.co")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJuZ3pjd3p0bXNoYWRhZXZheHF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzNjE1MDMsImV4cCI6MjA4OTkzNzUwM30.YY8Q_7h_UwKQNOlpCPNTqMjL8iW8ZuxW70yuy7dHUk4")
+# Note: Service role key is not usually needed for the client, but keeping it as an environment option if needed.
+# SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 
-if not rows:
-    print("No finished races found. Checking all results...")
-    cursor.execute("SELECT * FROM race_results LIMIT 5")
-    results = cursor.fetchall()
-    for res in results:
-        print(dict(res))
-else:
-    for row in rows:
-        print(f"ID: {row['id']}, Place: {row['place_name']}, Race: {row['race_number']}R, Result: {row['ranking']}")
-
-conn.close()
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/123.0.0.0 Safari/537.36"
+)
