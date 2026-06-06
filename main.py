@@ -1,6 +1,6 @@
 import math
 import itertools
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from pydantic import BaseModel
 import random
@@ -8,7 +8,8 @@ import os
 import json
 import concurrent.futures
 import hashlib
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Body
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Body, Depends, Request
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from live_scraper import (
@@ -18,29 +19,45 @@ from live_scraper import (
 import scraper
 from scraper import (
     scrape_index, scrape_race_syusso, update_exhibition, update_result, 
-    update_all_active_races, get_racer_results_stats
+    update_all_active_races, get_racer_results_stats, search_racers_global,
+    scrape_today, scrape_missing_today
 )
+import stripe_handler
 import time
 import asyncio
 
-from app_config import JST, LOCK_FILE, STATIC_DIR, LAST_SCRAPE_FILE
+from app_config import (
+    JST, LOCK_FILE, STATIC_DIR, LAST_SCRAPE_FILE, 
+    SUPABASE_URL, SUPABASE_KEY, USE_SUPABASE,
+    STRIPE_PRICE_ID_MONTHLY, STRIPE_PRICE_ID_90DAY,
+    CORS_ALLOW_ORIGINS
+)
 from database import get_db_connection, init_db, cleanup_old_data, sync_from_supabase
+from supabase_client import get_supabase_client
 
 app = FastAPI(title="Kyotei Advisor MVP")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ALLOW_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 init_db()
 
-# 選手プロフィールのメモリキャッシュ (toban -> {data, timestamp})
+# Racer profiles cache in memory
 RACER_STATS_CACHE = {}
-RACER_CACHE_TTL = 3600 # 1時間
+RACER_CACHE_TTL = 3600
 
-# 的中・回収率（daily_hits）のメモリキャッシュ
-# { "date_settings_hash": { "data": results, "ts": timestamp } }
+# Hit and recovery rate cache
 DAILY_HITS_CACHE = {}
-DAILY_HITS_CACHE_TTL = 300 # 5分 (結果が更新される可能性があるため短め)
+DAILY_HITS_CACHE_TTL = 300
 
 @app.on_event("startup")
 async def startup_event():
-    # 起動時のデータ収集戦略の決定
+    # Startup data fetch strategy
     now_jst = datetime.now(JST)
     today_iso = now_jst.strftime('%Y-%m-%d')
     
@@ -53,15 +70,15 @@ async def startup_event():
     
     loop = asyncio.get_event_loop()
     
-    # 1. データ同期・取得（初回: 公式から全取得、2回目以降: Supabaseから同期）
     try:
         if last_scrape_date != today_iso:
-            print(f"[STARTUP] {today_iso} の初回起動です。Supabaseから今日のデータを先行取得し、公式からもバックグラウンドで更新します...")
-            # 1. 今日のデータをSupabaseから最優先で取得 (UI即時表示のため)
+            print("[STARTUP] First startup today. Syncing today's data from Supabase...")
             from database import sync_specific_date_from_supabase
+            yesterday_iso = (now_jst - timedelta(days=1)).strftime('%Y-%m-%d')
+            await loop.run_in_executor(None, sync_specific_date_from_supabase, yesterday_iso)
             await loop.run_in_executor(None, sync_specific_date_from_supabase, today_iso)
 
-            # 2. 残りの同期と公式スクレイピングはバックグラウンドで実行
+            # Sync remaining and run background scraper
             asyncio.create_task(asyncio.to_thread(sync_from_supabase, 1))
             asyncio.create_task(asyncio.to_thread(scraper.scrape_today, now_jst))
             
@@ -69,42 +86,49 @@ async def startup_event():
                 LAST_SCRAPE_FILE.write_text(today_iso, encoding="utf-8")
             except: pass
         else:
-            print(f"[STARTUP] 本日2回目以降の起動です。バックグラウンドで同期・補填を行います...")
-            # 今日・明日のデータをSupabaseから先行取得
+            print("[STARTUP] Subsequent startup. Running sync and scrape missing in background...")
             from database import sync_specific_date_from_supabase
+            yesterday_iso = (now_jst - timedelta(days=1)).strftime('%Y-%m-%d')
+            tomorrow_iso = (now_jst + timedelta(days=1)).strftime('%Y-%m-%d')
+            asyncio.create_task(asyncio.to_thread(sync_specific_date_from_supabase, yesterday_iso))
             asyncio.create_task(asyncio.to_thread(sync_specific_date_from_supabase, today_iso))
+            asyncio.create_task(asyncio.to_thread(sync_specific_date_from_supabase, tomorrow_iso))
             
             asyncio.create_task(asyncio.to_thread(sync_from_supabase, 1))
             asyncio.create_task(asyncio.to_thread(scraper.scrape_missing_today, now_jst))
             
-        # 2. まだDBが空の場合（初回起動失敗時など）のフォールバック
         asyncio.create_task(initial_fetch_if_empty())
         
     except Exception as e:
         print(f"[STARTUP ERROR] Data initialization failed: {e}")
 
-    # ロックファイルのクリーンアップ
+    # Lock file cleanup
     if LOCK_FILE.exists():
         try:
             LOCK_FILE.unlink()
         except:
             pass
     
-    # SSEコールバックをスクレイパーに登録
+    main_loop = asyncio.get_event_loop()
     def _sync_sse_push(event_type: str, data: dict):
         try:
-            asyncio.run_coroutine_threadsafe(sse_push(event_type, data), loop)
+            if main_loop and main_loop.is_running():
+                main_loop.call_soon_threadsafe(lambda: main_loop.create_task(sse_push(event_type, data)))
         except Exception as e:
-            print(f"[SSE BRIDGE ERROR] {e}")
+            if "Event loop is closed" not in str(e):
+                print(f"[SSE BRIDGE ERROR] {e}")
     
     scraper.sse_broadcast_callback = _sync_sse_push
+    import database
+    database.sse_broadcast_callback = _sync_sse_push
     
-    # バックグラウンドワーカーの起動
+    # Background workers
     asyncio.create_task(background_worker())
+    if USE_SUPABASE:
+        asyncio.create_task(supabase_sync_worker())
 
 async def initial_fetch_if_empty():
-    """起動時にデータが不足している場合にのみウェブから取得する"""
-    await asyncio.sleep(10) # 起動直後の負荷分散
+    await asyncio.sleep(10)
     loop = asyncio.get_event_loop()
     now_jst = datetime.now(JST)
     
@@ -114,10 +138,9 @@ async def initial_fetch_if_empty():
         
         conn = get_db_connection()
         try:
-            # 開催場があるかチェック
             exists = conn.execute("SELECT 1 FROM races WHERE race_date = ? LIMIT 1", (target_iso,)).fetchone()
             if not exists:
-                if days == 1 and now_jst.hour < 18: continue # 翌日分は18時以降
+                if days == 1 and now_jst.hour < 18: continue
                 print(f"[SYSTEM] Data missing for {target_iso}. Triggering initial fetch...")
                 await loop.run_in_executor(None, scraper.scrape_today, target_dt)
         except Exception as e:
@@ -126,7 +149,6 @@ async def initial_fetch_if_empty():
             conn.close()
 
 async def background_worker():
-    """定期的に全レース場のデータを自動更新し、日次サイクルを管理する"""
     print("[SYSTEM] Background worker started.")
     await asyncio.sleep(30)
     
@@ -139,25 +161,22 @@ async def background_worker():
             now_jst = datetime.now(JST)
             today_iso = now_jst.strftime('%Y-%m-%d')
             
-            # 1. 当日の更新 (1分おき)
+            # 1. Update active races
             await loop.run_in_executor(None, update_all_active_races)
             
-            # 2. 翌日のチェック (18時以降、10分おき)
+            # 2. Tomorrow check after 18:00
             if now_jst.hour >= 18 and (time.time() - last_tomorrow_check > 600):
                 tomorrow_dt = now_jst + timedelta(days=1)
                 await loop.run_in_executor(None, update_all_active_races, tomorrow_dt)
                 last_tomorrow_check = time.time()
                 
-            # 3. 昨日の整合性チェック (1時間おき)
+            # 3. Yesterday integrity check
             if time.time() - last_yesterday_check > 3600:
                 yesterday_dt = now_jst - timedelta(days=1)
-                # 昨日のレースが全て終了しているか、変更がないかサイレント更新
-                # update_all_active_races は終了フラグをチェックして未了分のみ取得するが、
-                # 整合性チェックとして呼び出す
                 await loop.run_in_executor(None, update_all_active_races, yesterday_dt)
                 last_yesterday_check = time.time()
 
-            # 4. 古いデータのクリーンアップ（2日以上前のデータを削除）
+            # 4. Clean up old data
             two_days_ago_dt = now_jst - timedelta(days=2)
             two_days_ago_iso = two_days_ago_dt.strftime('%Y-%m-%d')
             await loop.run_in_executor(None, cleanup_old_data, two_days_ago_iso)
@@ -166,6 +185,25 @@ async def background_worker():
             print(f"[WORKER ERROR] {e}")
         
         await asyncio.sleep(60)
+
+async def supabase_sync_worker():
+    if not USE_SUPABASE:
+        return
+    print("[SYSTEM] Supabase sync worker started.")
+    await asyncio.sleep(10)
+    while True:
+        try:
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, sync_from_supabase, 1)
+            
+            now_jst = datetime.now(JST)
+            if now_jst.hour >= 18:
+                tomorrow_iso = (now_jst + timedelta(days=1)).strftime('%Y-%m-%d')
+                from database import sync_specific_date_from_supabase
+                await loop.run_in_executor(None, sync_specific_date_from_supabase, tomorrow_iso, False)
+        except Exception as e:
+            print(f"[SUPABASE SYNC WORKER ERROR] {e}")
+        await asyncio.sleep(30)
 
 def get_today_str() -> str:
     now_jst = datetime.now(JST)
@@ -200,9 +238,106 @@ class NoCacheStaticMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(NoCacheStaticMiddleware)
 
+# ── Auth & Security Dependencies ──
+security = HTTPBearer(auto_error=False)
+
+async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+    """SupabaseのJWTトークンを検証し、ユーザー情報を取得する"""
+    if not USE_SUPABASE:
+        return {"id": "local_user", "email": "local@example.com"}
+    
+    if not credentials:
+        return None
+    
+    token = credentials.credentials
+    supabase = get_supabase_client()
+    if not supabase:
+        return None
+        
+    try:
+        # Supabase Auth APIでトークンを検証
+        res = supabase.auth.get_user(token)
+        if res and res.user:
+            return res.user
+    except Exception as e:
+        print(f"[AUTH ERROR] Token validation failed: {e}")
+    
+    return None
+
+async def check_premium(user = Depends(get_current_user)):
+    """ユーザーがプレミアム会員（またはトライアル中）かチェックする"""
+    # 【審査待ち対応】現在は一時的に全員をプレミアム扱いにする
+    return True
+    
+    # 以前の判定ロジック（バックアップ用コメントアウトは省略）
+
+def require_premium(is_premium: bool = Depends(check_premium)):
+    """プレミアム権限を必須にするためのガード"""
+    if not is_premium:
+        raise HTTPException(
+            status_code=402, 
+            detail="Premium subscription required to access this feature."
+        )
+    return True
+
+def get_favorites_user_id(user = Depends(get_current_user)) -> str:
+    """お気に入り保存先のユーザーIDを返す。未ログイン時はローカル共有枠を使う。"""
+    user_id = getattr(user, "id", None) if user else None
+    return str(user_id) if user_id else "local"
+
+# ── Stripe Payment Endpoints ──
+
+class CheckoutRequest(BaseModel):
+    plan: str # 'monthly' or '90day'
+    success_url: str
+    cancel_url: str
+
+@app.post("/api/create-checkout-session")
+async def create_checkout(req: CheckoutRequest, user = Depends(get_current_user)):
+    """Stripeの決済セッションを作成する"""
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+        
+    price_id = STRIPE_PRICE_ID_MONTHLY if req.plan == 'monthly' else STRIPE_PRICE_ID_90DAY
+    
+    res = stripe_handler.create_subscription_session(
+        user_id=user.id,
+        user_email=user.email,
+        price_id=price_id,
+        success_url=req.success_url,
+        cancel_url=req.cancel_url
+    )
+    
+    if "error" in res:
+        raise HTTPException(status_code=500, detail=res["error"])
+    return res
+
+@app.post("/api/webhooks/stripe")
+async def stripe_webhook(request: Request):
+    """Stripeからの支払い・更新通知を受信"""
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature")
+    
+    if not sig_header:
+        raise HTTPException(status_code=400, detail="Missing signature")
+        
+    success = stripe_handler.handle_stripe_webhook(payload, sig_header)
+    if not success:
+        raise HTTPException(status_code=400, detail="Webhook handling failed")
+        
+    return {"status": "success"}
+
 @app.get("/")
 def read_root():
     return RedirectResponse(url="/static/index.html")
+
+@app.get("/api/config")
+def get_frontend_config():
+    return {
+        "use_supabase": USE_SUPABASE,
+        "supabase_url": SUPABASE_URL,
+        "supabase_key": SUPABASE_KEY
+    }
 
 
 # ─────────────────────────── Server-Sent Events (SSE) ───────────────────────
@@ -584,8 +719,12 @@ def get_racer_detail(toban: str, place_code: Optional[str] = Query(None)):
     }
 
 
-@app.post("/api/scrape/today")
-def trigger_scrape_today(background_tasks: BackgroundTasks, date: Optional[str] = Query(None)):
+@app.get("/api/scrape/today")
+def scrape_today_api(background_tasks: BackgroundTasks, is_premium: bool = Depends(check_premium), date: Optional[str] = Query(None)):
+    """本日の全レースデータを手動スクレイピング (Admin/Premiumのみ許可)"""
+    if not is_premium:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+    
     if LOCK_FILE.exists():
         raise HTTPException(status_code=400, detail="既にデータ取得処理が実行中です。")
     
@@ -696,16 +835,16 @@ AI_RESULT_CACHE = {}
 def compute_settings_hash(weights: CustomWeights, settings: PredictSettings) -> str:
     """予測設定（重み、モード、券種等）をハッシュ化する"""
     s_dict = {
-        "w": weights.dict(),
-        "m": settings.max_items,
+        "w": weights.dict() if hasattr(weights, 'dict') else weights,
+        "m": int(settings.max_items),
         "bt": settings.bet_type,
-        "f1": settings.fixed_1st,
+        "f1": int(settings.fixed_1st),
         "ht": settings.hit_type,
-        "am": settings.ai_prediction_mode,
-        "cm": settings.custom_prediction_mode
+        "am": int(settings.ai_prediction_mode),
+        "cm": int(settings.custom_prediction_mode)
     }
     s_json = json.dumps(s_dict, sort_keys=True)
-    return hashlib.mdsafe_hex_digest(s_json.encode()).hexdigest() if hasattr(hashlib, 'mdsafe_hex_digest') else hashlib.md5(s_json.encode()).hexdigest()
+    return hashlib.md5(s_json.encode()).hexdigest()
 
 def compute_players_hash(race_data: dict, players_data: List[dict], weights: CustomWeights = None, settings: PredictSettings = None) -> str:
     """AIの計算に影響する項目のみを抽出してハッシュ化する"""
@@ -1190,7 +1329,7 @@ def calculate_predictions(race_data, players_data, weights: CustomWeights, setti
         return results[start_idx : end_idx]
 
     predictions = {
-        "rule_focus": generate_rule_combinations(rule_probs, settings.bet_type, settings.max_items, 0),
+        "rule_focus": generate_rule_combinations(rule_probs, settings.bet_type, settings.max_items, settings.fixed_1st),
         "ai_focus": generate_ai_combinations(ai_pattern_counts, settings.bet_type, settings.max_items, NUM_SIMS, settings.fixed_1st),
         "ai_default_focus": generate_ai_combinations(ai_pattern_counts, "3連単", 8, NUM_SIMS, 0),
         "ai_win_probs": ai_win_probs,
@@ -1372,20 +1511,19 @@ def get_daily_hits(req: PredictRequest, date: str = Query(...)):
         _, preds = calculate_predictions(rdict, players, req.weights, req.settings)
         
         ranking = rdict.get("ranking_str", "")
-        hit = False
         ht = req.settings.hit_type
-        hit_count = 0
         if ht == "custom":
-            hit_count = 1 if any(is_hit(p["pattern"], ranking) for p in preds["rule_focus"]) else 0
+            hit = any(is_hit(p["pattern"], ranking) for p in preds["rule_focus"])
         elif ht == "ai":
-            hit_count = 1 if any(is_hit(p["pattern"], ranking) for p in preds["ai_focus"]) else 0
-        else: # "both" or "buy"
-            # AIとカスタムを個別に的中判定し、的中したセット数をカウント（両方の場合は2倍の払戻）
-            hit_custom = 1 if any(is_hit(p["pattern"], ranking) for p in preds["rule_focus"]) else 0
-            hit_ai = 1 if any(is_hit(p["pattern"], ranking) for p in preds["ai_focus"]) else 0
-            hit_count = hit_custom + hit_ai
+            hit = any(is_hit(p["pattern"], ranking) for p in preds["ai_focus"])
+        elif ht == "both" or ht == "buy":
+            # BothまたはBuy時はAIかカスタムのいずれかがヒットすれば的中
+            hit = any(is_hit(p["pattern"], ranking) for p in preds["rule_focus"]) or \
+                  any(is_hit(p["pattern"], ranking) for p in preds["ai_focus"])
+        else:
+            hit = False
             
-        hit = (hit_count > 0)
+        hit_count = 1 if hit else 0
         
         # 払戻金の抽出
         payout = 0
@@ -1507,7 +1645,7 @@ def get_race_detail(race_id: int):
 
 
 @app.post("/api/races/{race_id}/predict")
-def get_custom_predict(race_id: int, req: PredictRequest):
+def get_custom_predict(race_id: int, req: PredictRequest, is_premium: bool = Depends(check_premium)):
     conn = get_db_connection()
     try:
         race = conn.execute('SELECT * FROM races WHERE id = ?', (race_id,)).fetchone()
@@ -1526,7 +1664,6 @@ def get_custom_predict(race_id: int, req: PredictRequest):
         # 保存済みの結果データを精査し、選手名に金額や不要な文字列が混じっている場合も再取得対象にする
         if not is_incomplete and race_dict.get("result_json"):
             try:
-                import json
                 res_data = json.loads(race_dict["result_json"])
                 rank_list = res_data.get("ranking", [])
                 for r in rank_list:
@@ -1642,12 +1779,59 @@ def get_custom_predict(race_id: int, req: PredictRequest):
             except Exception as e:
                 print(f"[CACHE ERROR] Failed to save AI cache: {e}")
 
+        # ── プレミアム向けコンテンツ制限（ティーザーモード） ──
+        is_sample_race = race_dict.get("race_number") in [1, 12]
+        if not is_premium and not is_sample_race:
+            # 1. AI 勝率の制限（上位1件以外を伏せる）
+            if "ai_win_probs" in predictions:
+                probs = predictions["ai_win_probs"]
+                sorted_probs = sorted(probs.items(), key=lambda x: x[1], reverse=True)
+                top_1_boat = sorted_probs[0][0] if sorted_probs else None
+                new_probs = {}
+                for b, p in probs.items():
+                    if b == top_1_boat:
+                        new_probs[b] = p
+                    else:
+                        new_probs[b] = "??" # 伏せる
+                predictions["ai_win_probs"] = new_probs
+            
+            # 2. 推奨買い目 (ai_focus / rule_focus) の制限（上位1件以外をマスク）
+            for focus_key in ["ai_focus", "rule_focus"]:
+                if focus_key in predictions:
+                    focus = predictions[focus_key]
+                    new_focus = []
+                    for idx, item in enumerate(focus):
+                        if idx < 1:
+                            new_focus.append(item)
+                        else:
+                            # 2件目以降は内容を隠蔽
+                            masked_item = item.copy() if hasattr(item, "copy") else {"pattern": "??-??-??", "prob": "??"}
+                            masked_item["pattern"] = "??-??-??"
+                            masked_item["prob"] = "??"
+                            masked_item["expectation"] = 0
+                            new_focus.append(masked_item)
+                    predictions[focus_key] = new_focus
+
+            # 3. 展開（シナリオ）の制限
+            if "scenario" in predictions and predictions["scenario"].get("active"):
+                # 内容を半分隠す
+                predictions["scenario"]["probability"] = "??" 
+                predictions["scenario"]["focus"] = "??-??"
+                predictions["scenario"]["text"] = "【Pro限定】この先はプレミアムプランで公開中"
+                
+            # 4. その他、AI詳細スコアなどを一部マスク
+            for p in scored_players:
+                if p.get("ai_mark") not in ["◎", "○"]: 
+                    p["ai_score"] = 0.0
+                    p["ai_mark"] = "Pro"
+
         return {
             "race": race_dict,
             "players": scored_players,
             "predictions": predictions,
             "current_weights": req.weights.dict(),
             "current_settings": req.settings.dict(),
+            "is_premium": is_premium # フロントエンドでの表示制御用
         }
     finally:
         conn.close()
@@ -1741,21 +1925,46 @@ def search_racers(q: str):
     """選手名または登番で選手を検索し、出場予定レースを返す"""
     conn = get_db_connection()
     try:
-        # 1. 選手を検索
+        # 1. ローカルDBを検索
         if q.isdigit():
-            # 登番で検索
             racer_rows = conn.execute(
                 "SELECT DISTINCT racer_id as toban, racer_name as name FROM entries WHERE racer_id = ? "
                 "UNION "
-                "SELECT DISTINCT racer_id as toban, '' as name FROM racer_results WHERE racer_id = ? LIMIT 10",
-                (q, q)
+                "SELECT DISTINCT racer_id as toban, '' as name FROM racer_results WHERE racer_id = ? "
+                "UNION "
+                "SELECT DISTINCT toban, name FROM racer_profiles WHERE toban = ? LIMIT 10",
+                (q, q, q)
             ).fetchall()
         else:
-            # 名前（カタカナまたは漢字）で検索
             racer_rows = conn.execute(
-                "SELECT DISTINCT racer_id as toban, racer_name as name FROM entries WHERE racer_name LIKE ? LIMIT 20",
-                (f"%{q}%",)
+                "SELECT DISTINCT racer_id as toban, racer_name as name FROM entries WHERE racer_name LIKE ? "
+                "UNION "
+                "SELECT DISTINCT toban, name FROM racer_profiles WHERE name LIKE ? LIMIT 20",
+                (f"%{q}%", f"%{q}%")
             ).fetchall()
+        
+        # 2. ローカルで見つからなかった場合、または名前検索の場合は公式サイトも併せて検索
+        # (名前検索はローカルDBに全選手がいないため、常に公式サイトを確認したほうが確実)
+        if not racer_rows or not q.isdigit():
+            print(f"[SEARCH] Local results insufficient for '{q}'. Falling back to global search...")
+            global_results = search_racers_global(q)
+            
+            # グローバルで見つかった選手をDBに保存（キャッシュ的な役割）
+            if global_results:
+                now_str = datetime.now(JST).isoformat()
+                for gr in global_results:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO racer_profiles (toban, name, updated_at) VALUES (?, ?, ?)",
+                        (gr["toban"], gr["name"], now_str)
+                    )
+                conn.commit()
+                
+                # 検索結果リストを再構築（重複排除）
+                existing_tobans = {r["toban"] for r in racer_rows if r["toban"]}
+                for gr in global_results:
+                    if gr["toban"] not in existing_tobans:
+                        # 既存リストにない項目を追加（Row objectは直接作れないため辞書形式を許容するよう後続のループで調整）
+                        racer_rows.append({"toban": gr["toban"], "name": gr["name"]})
         
         results = []
         now_jst = datetime.now(JST)
@@ -1771,13 +1980,14 @@ def search_racers(q: str):
             # お気に入り状態の確認
             is_fav = conn.execute("SELECT 1 FROM favorite_racers WHERE toban = ?", (toban,)).fetchone() is not None
 
-            # 名前の補完（entriesにない場合racer_results等から探す）
+            # 名前の補完
             if not name:
-                name_row = conn.execute("SELECT racer_name FROM entries WHERE racer_id = ? AND racer_name != '' LIMIT 1", (toban,)).fetchone()
+                name_row = conn.execute("SELECT name FROM racer_profiles WHERE toban = ?", (toban,)).fetchone()
                 if name_row:
-                    name = name_row["racer_name"]
+                    name = name_row["name"]
                 else:
-                    name = "不明"
+                    name_row = conn.execute("SELECT racer_name FROM entries WHERE racer_id = ? AND racer_name != '' LIMIT 1", (toban,)).fetchone()
+                    name = name_row["racer_name"] if name_row else "不明"
             
             # 出場予定レースを検索
             scheduled_rows = conn.execute(
@@ -1798,7 +2008,6 @@ def search_racers(q: str):
                     "boat_no": sr["boat_number"]
                 })
             
-            # 同一選手が複数行出るのを防ぐ（UNIONでもnameが違うと別行になるため）
             if not any(x["toban"] == toban for x in results):
                 results.append({
                     "toban": toban,
@@ -1812,22 +2021,22 @@ def search_racers(q: str):
         conn.close()
 
 @app.get("/api/search/high_expectation")
-def search_high_expectation():
+def search_high_expectation(date: Optional[str] = Query(default=None)):
     """AI予想に基づき、1号艇の勝率が高い『的中率重視』と、他艇の勝率が高い『期待値重視』のレースを抽出する"""
     conn = get_db_connection()
     try:
-        today_iso = datetime.now(JST).strftime('%Y-%m-%d')
-        # 本日の全レースをスキャン
+        target_iso = date if date else datetime.now(JST).strftime('%Y-%m-%d')
+        # 対象日の全レースをスキャン
         rows = conn.execute(
             "SELECT * "
             "FROM races WHERE race_date = ?",
-            (today_iso,)
+            (target_iso,)
         ).fetchall()
         
         # 選手のデータを取得
         entries = conn.execute(
             "SELECT * FROM entries WHERE race_id IN (SELECT id FROM races WHERE race_date = ?)",
-            (today_iso,)
+            (target_iso,)
         ).fetchall()
         
         entries_by_race = {}
@@ -1872,7 +2081,8 @@ def search_high_expectation():
                     "race_no": race_dict["race_number"],
                     "reason": f"1号勝率 {prob_1:.0f}%",
                     "prob": prob_1,
-                    "is_finished": is_finished
+                    "is_finished": is_finished,
+                    "ranking_str": race_dict.get("ranking_str", "")
                 })
             # 💰 期待値重視 (Value): 1号艇勝率50%未満（本命が飛びやすい） & 2~6号のいずれかが20%以上
             elif prob_1 < 50:
@@ -1891,7 +2101,8 @@ def search_high_expectation():
                         "race_no": race_dict["race_number"],
                         "reason": f"{max_other_boat}号勝率 {max_other_prob:.0f}%",
                         "prob": max_other_prob,
-                        "is_finished": is_finished
+                        "is_finished": is_finished,
+                        "ranking_str": race_dict.get("ranking_str", "")
                     })
         
         # ソート: 未終了(False)を上(0), 終了(True)を下(1)にする。その後確率順。
@@ -1906,11 +2117,27 @@ def search_high_expectation():
         conn.close()
 
 @app.get("/api/favorites")
-def get_favorites():
-    """お気に入り選手の一覧と近日出場予定を返す"""
+def get_favorites(
+    toban: str = Query(default=None),
+    user_id: str = Depends(get_favorites_user_id)
+):
+    """お気に入り選手の一覧と近日出場予定を返す (toban指定時は特定の選手のみ)"""
     conn = get_db_connection()
     try:
-        fav_rows = conn.execute("SELECT toban, name FROM favorite_racers ORDER BY created_at DESC").fetchall()
+        if toban:
+            fav_rows = [{"toban": toban, "name": ""}] # 名前はentries検索で補完される可能性あり
+            # 既にDBにあるか確認
+            exists = conn.execute(
+                "SELECT name FROM favorite_racers WHERE user_id = ? AND toban = ?",
+                (user_id, toban)
+            ).fetchone()
+            if exists:
+                fav_rows[0]["name"] = exists["name"]
+        else:
+            fav_rows = conn.execute(
+                "SELECT toban, name FROM favorite_racers WHERE user_id = ? ORDER BY created_at DESC",
+                (user_id,)
+            ).fetchall()
         
         results = []
         now_jst = datetime.now(JST)
@@ -1918,8 +2145,8 @@ def get_favorites():
         tomorrow_iso = (now_jst + timedelta(days=1)).strftime('%Y-%m-%d')
         
         for f in fav_rows:
-            toban = f["toban"]
-            name = f["name"]
+            t = f["toban"]
+            n = f["name"]
             
             # 出場予定レースを検索
             scheduled_rows = conn.execute(
@@ -1927,7 +2154,7 @@ def get_favorites():
                 "FROM entries e JOIN races r ON e.race_id = r.id "
                 "WHERE e.racer_id = ? AND r.race_date IN (?, ?) "
                 "ORDER BY r.race_date, r.race_number",
-                (toban, today_iso, tomorrow_iso)
+                (t, today_iso, tomorrow_iso)
             ).fetchall()
             
             scheduled_races = []
@@ -1941,8 +2168,8 @@ def get_favorites():
                 })
             
             results.append({
-                "toban": toban,
-                "name": name,
+                "toban": t,
+                "name": n,
                 "scheduled_races": scheduled_races
             })
             
@@ -1951,24 +2178,31 @@ def get_favorites():
         conn.close()
 
 @app.post("/api/favorites/toggle")
-def toggle_favorite(toban: str = Body(...), name: str = Body(...), active: bool = Body(...)):
+def toggle_favorite(
+    toban: str = Body(...),
+    name: str = Body(...),
+    active: bool = Body(...),
+    user_id: str = Depends(get_favorites_user_id)
+):
     """お気に入り登録・解除。解除時は Supabase からも削除を試みる。"""
     conn = get_db_connection()
     try:
         now_str = datetime.now(JST).isoformat()
         if active:
             conn.execute(
-                "INSERT OR REPLACE INTO favorite_racers (toban, name, created_at) VALUES (?, ?, ?)",
-                (toban, name, now_str)
+                "INSERT OR REPLACE INTO favorite_racers (user_id, toban, name, created_at) VALUES (?, ?, ?, ?)",
+                (user_id, toban, name, now_str)
             )
             from supabase_client import upsert_favorites
-            upsert_favorites([{"toban": toban, "name": name, "created_at": now_str}])
+            if user_id != "local":
+                upsert_favorites([{"user_id": user_id, "toban": toban, "name": name, "created_at": now_str}])
         else:
-            conn.execute("DELETE FROM favorite_racers WHERE toban = ?", (toban,))
+            conn.execute("DELETE FROM favorite_racers WHERE user_id = ? AND toban = ?", (user_id, toban))
             # Supabase削除 (オプション：完全に同期させたい場合)
             try:
                 from supabase_client import get_supabase_client
-                get_supabase_client().table("favorite_racers").delete().eq("toban", toban).execute()
+                if user_id != "local":
+                    get_supabase_client().table("favorite_racers").delete().eq("user_id", user_id).eq("toban", toban).execute()
             except: pass
             
         conn.commit()
@@ -2009,3 +2243,7 @@ def _sync_racer_profile_to_db(toban: str, data: dict):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
+@app.get("/ping")
+async def ping():
+    return "ok"

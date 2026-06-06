@@ -28,53 +28,15 @@ INDEXES = [
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_entries_race_boat ON entries(race_id, boat_number)",
     "CREATE INDEX IF NOT EXISTS idx_racer_results_racer ON racer_results(racer_id)",
     "CREATE INDEX IF NOT EXISTS idx_racer_results_place ON racer_results(racer_id, place_code)",
+    "CREATE INDEX IF NOT EXISTS idx_racer_profiles_name ON racer_profiles(name)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_favorite_racers_user_toban ON favorite_racers(user_id, toban)",
 ]
 
 
-ACTUAL_DB_PATH = DB_NAME
-
 def get_db_connection(timeout: float = 30.0) -> sqlite3.Connection:
-    global ACTUAL_DB_PATH
-    from pathlib import Path
-    import os
-    
-    # データベースの親ディレクトリが存在することを確認し、権限エラーならカレントディレクトリにフォールバック
-    try:
-        Path(ACTUAL_DB_PATH).parent.mkdir(parents=True, exist_ok=True)
-    except Exception as e:
-        fallback_path = str(Path(__file__).resolve().parent / "kyotei.db")
-        print(f"[DATABASE WARNING] Failed to create directory for {ACTUAL_DB_PATH} ({e}). Falling back to local database: {fallback_path}")
-        ACTUAL_DB_PATH = fallback_path
-        Path(ACTUAL_DB_PATH).parent.mkdir(parents=True, exist_ok=True)
-    
-    db_path = ACTUAL_DB_PATH
-    try:
-        conn = sqlite3.connect(db_path, timeout=timeout, check_same_thread=False)
-        # 整合性チェックを行い、エラーが出るか「ok」以外なら破損とみなす
-        row = conn.execute("PRAGMA integrity_check(1);").fetchone()
-        if row is None or row[0] != "ok":
-            raise sqlite3.DatabaseError("Integrity check failed")
-    except sqlite3.DatabaseError as e:
-        print(f"[DATABASE WARNING] SQLite database is malformed/corrupted: {e}. Deleting and recreating...")
-        try:
-            conn.close()
-        except:
-            pass
-        for suffix in ["", "-wal", "-shm"]:
-            try:
-                Path(db_path + suffix).unlink(missing_ok=True)
-            except Exception as del_err:
-                print(f"[DATABASE ERROR] Failed to delete file {db_path + suffix}: {del_err}")
-        conn = sqlite3.connect(db_path, timeout=timeout, check_same_thread=False)
-    
+    conn = sqlite3.connect(DB_NAME, timeout=timeout, check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    
-    # Renderのネットワークディスク(NFS)はWALモードをサポートしていないため、Render上ではDELETEモードを使用
-    if os.environ.get("RENDER"):
-        conn.execute("PRAGMA journal_mode=DELETE;")
-    else:
-        conn.execute("PRAGMA journal_mode=WAL;")
-        
+    conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA synchronous=NORMAL;")
     conn.execute(f"PRAGMA busy_timeout = {int(timeout * 1000)};")
     conn.execute("PRAGMA foreign_keys = ON;")
@@ -171,9 +133,25 @@ def init_db() -> None:
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS favorite_racers (
-            toban TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL DEFAULT 'local',
+            toban TEXT NOT NULL,
             name TEXT,
-            created_at TEXT
+            created_at TEXT,
+            UNIQUE(user_id, toban)
+        )
+        """
+    )
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS cart_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT,
+            race_id INTEGER NOT NULL,
+            cart_json TEXT NOT NULL DEFAULT '{}',
+            updated_at TEXT,
+            UNIQUE(user_id, race_id)
         )
         """
     )
@@ -184,12 +162,37 @@ def init_db() -> None:
         except sqlite3.OperationalError:
             pass
 
+    cursor.execute("PRAGMA table_info(favorite_racers)")
+    favorite_columns = {row["name"] for row in cursor.fetchall()}
+    if favorite_columns == {"toban", "name", "created_at"}:
+        cursor.execute("ALTER TABLE favorite_racers RENAME TO favorite_racers_legacy")
+        cursor.execute(
+            """
+            CREATE TABLE favorite_racers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL DEFAULT 'local',
+                toban TEXT NOT NULL,
+                name TEXT,
+                created_at TEXT,
+                UNIQUE(user_id, toban)
+            )
+            """
+        )
+        cursor.execute(
+            """
+            INSERT OR IGNORE INTO favorite_racers (user_id, toban, name, created_at)
+            SELECT 'local', toban, name, created_at
+            FROM favorite_racers_legacy
+            """
+        )
+        cursor.execute("DROP TABLE favorite_racers_legacy")
+
     for sql in INDEXES:
         cursor.execute(sql)
 
     conn.commit()
     conn.close()
-    print(f"データベース初期化完了: {ACTUAL_DB_PATH}")
+    print(f"データベース初期化完了: {DB_NAME}")
 
 
 def cleanup_old_data(threshold_date_iso: str) -> None:
@@ -215,8 +218,9 @@ def cleanup_old_data(threshold_date_iso: str) -> None:
 
 # ─────────────────────────── Supabase Sync ───────────────────────────
 _syncing_dates = set()
+sse_broadcast_callback = None
 
-def sync_specific_date_from_supabase(date_iso: str):
+def sync_specific_date_from_supabase(date_iso: str, fallback_to_scraper=True):
     """
     指定された日付のデータのみをSupabaseから取得し、ローカルSQLiteに反映する。
     初回起動時や日付切り替え時のパフォーマン向上を目的に、対象範囲を絞って高速に同期する。
@@ -237,18 +241,24 @@ def sync_specific_date_from_supabase(date_iso: str):
         races_res = supabase.table("races").select("*").eq("race_date", date_iso).execute()
         races = races_res.data
         if not races:
-            print(f"[SUPABASE] No race data found for {date_iso}. Falling back to official scraper.")
-            import scraper
-            import datetime
-            try:
-                target_dt = datetime.datetime.strptime(date_iso, '%Y-%m-%d').replace(tzinfo=datetime.timezone(datetime.timedelta(hours=9)))
-                scraper.scrape_today(target_dt)
-            except Exception as e:
-                print(f"[SCRAPER FALLBACK ERROR] {e}")
+            print(f"[SUPABASE] No race data found for {date_iso}.")
+            if fallback_to_scraper:
+                print(f"[SUPABASE] Falling back to official scraper.")
+                import scraper
+                import datetime
+                try:
+                    target_dt = datetime.datetime.strptime(date_iso, '%Y-%m-%d').replace(tzinfo=datetime.timezone(datetime.timedelta(hours=9)))
+                    scraper.scrape_today(target_dt)
+                except Exception as e:
+                    print(f"[SCRAPER FALLBACK ERROR] {e}")
             return
             
         conn = get_db_connection()
         cursor = conn.cursor()
+        
+        # Sync前の既存レース状態を取得
+        cursor.execute("SELECT id, place_code, race_number, is_exhibition_done, is_finished, ranking_str FROM races WHERE race_date = ?", (date_iso,))
+        local_races = { (row["place_code"], row["race_number"]): dict(row) for row in cursor.fetchall() }
         
         for r in races:
             # SQLite用に変換
@@ -256,17 +266,31 @@ def sync_specific_date_from_supabase(date_iso: str):
             result_json = json.dumps(r['result_json']) if r.get('result_json') else None
             odds_json = json.dumps(r['odds_json']) if r.get('odds_json') else None
             
-            cursor.execute('''
-                INSERT OR REPLACE INTO races (
-                    race_date, place_code, place_name, race_number, race_title,
-                    weather, wind_direction, wind_speed, wave_height,
-                    is_exhibition_done, scheduled_time, is_finished, ranking_str,
-                    ai_predictions_json, result_json, odds_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (r['race_date'], r['place_code'], r['place_name'], r['race_number'], r.get('race_title', ''),
-                  r.get('weather'), r.get('wind_direction'), r.get('wind_speed'), r.get('wave_height'),
-                  r.get('is_exhibition_done'), r.get('scheduled_time'), r.get('is_finished'), r.get('ranking_str'),
-                  ai_pred, result_json, odds_json))
+            existing_id = local_races.get((r['place_code'], r['race_number']), {}).get('id')
+            if existing_id:
+                cursor.execute('''
+                    INSERT OR REPLACE INTO races (
+                        id, race_date, place_code, place_name, race_number, race_title,
+                        weather, wind_direction, wind_speed, wave_height,
+                        is_exhibition_done, scheduled_time, is_finished, ranking_str,
+                        ai_predictions_json, result_json, odds_json, day_label
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (existing_id, r['race_date'], r['place_code'], r['place_name'], r['race_number'], r.get('race_title', ''),
+                      r.get('weather'), r.get('wind_direction'), r.get('wind_speed'), r.get('wave_height'),
+                      r.get('is_exhibition_done'), r.get('scheduled_time'), r.get('is_finished'), r.get('ranking_str'),
+                      ai_pred, result_json, odds_json, r.get('day_label', '')))
+            else:
+                cursor.execute('''
+                    INSERT OR REPLACE INTO races (
+                        race_date, place_code, place_name, race_number, race_title,
+                        weather, wind_direction, wind_speed, wave_height,
+                        is_exhibition_done, scheduled_time, is_finished, ranking_str,
+                        ai_predictions_json, result_json, odds_json, day_label
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (r['race_date'], r['place_code'], r['place_name'], r['race_number'], r.get('race_title', ''),
+                      r.get('weather'), r.get('wind_direction'), r.get('wind_speed'), r.get('wave_height'),
+                      r.get('is_exhibition_done'), r.get('scheduled_time'), r.get('is_finished'), r.get('ranking_str'),
+                      ai_pred, result_json, odds_json, r.get('day_label', '')))
         
         # 2. Entriesの取得 (指定日のみ)
         entries_res = supabase.table("entries").select("*").eq("race_date", date_iso).execute()
@@ -298,7 +322,63 @@ def sync_specific_date_from_supabase(date_iso: str):
                           e.get('parts_exchange', ''), e.get('weight_adjustment', 0.0), e.get('pre_inspection_time'), e.get('propeller', '')))
         
         conn.commit()
+        
+        # Sync後の最新レース状態を取得して変更検知
+        cursor.execute("SELECT id, place_code, race_number, is_exhibition_done, is_finished, ranking_str, place_name FROM races WHERE race_date = ?", (date_iso,))
+        updated_races = { (row["place_code"], row["race_number"]): dict(row) for row in cursor.fetchall() }
+        
         conn.close()
+        
+        any_changes = False
+        finished_events = []
+        exhibition_events = []
+        
+        for key, new_r in updated_races.items():
+            old_r = local_races.get(key)
+            if not old_r:
+                any_changes = True
+                if new_r.get("is_finished"):
+                    finished_events.append(new_r)
+                elif new_r.get("is_exhibition_done"):
+                    exhibition_events.append(new_r)
+            else:
+                if (old_r.get("is_exhibition_done") != new_r.get("is_exhibition_done") or
+                    old_r.get("is_finished") != new_r.get("is_finished") or
+                    old_r.get("ranking_str") != new_r.get("ranking_str")):
+                    any_changes = True
+                
+                # トランジション判定
+                if new_r.get("is_finished") and not old_r.get("is_finished"):
+                    finished_events.append(new_r)
+                elif new_r.get("is_exhibition_done") and not old_r.get("is_exhibition_done"):
+                    exhibition_events.append(new_r)
+        
+        if sse_broadcast_callback:
+            for r in exhibition_events:
+                try:
+                    sse_broadcast_callback("exhibition_updated", {
+                        "race_id": r["id"],
+                        "place_name": r["place_name"],
+                        "race_number": r["race_number"]
+                    })
+                except Exception as ex_err:
+                    print(f"[SSE ERROR] sync_specific_date exhibition notify: {ex_err}")
+            for r in finished_events:
+                try:
+                    sse_broadcast_callback("race_finished", {
+                        "race_id": r["id"],
+                        "place_name": r["place_name"],
+                        "race_number": r["race_number"],
+                        "ranking_str": r["ranking_str"] or ""
+                    })
+                except Exception as fin_err:
+                    print(f"[SSE ERROR] sync_specific_date finish notify: {fin_err}")
+            if any_changes:
+                try:
+                    sse_broadcast_callback("places_updated", {"date": date_iso})
+                except Exception as pl_err:
+                    print(f"[SSE ERROR] sync_specific_date places notify: {pl_err}")
+                    
         print(f"[SUPABASE] Targeted sync success for {date_iso}: {len(races)} races, {len(entries) if entries else 0} entries.")
     except Exception as e:
         print(f"[SUPABASE ERROR] sync_specific_date_from_supabase: {e}")
@@ -331,23 +411,41 @@ def sync_from_supabase(days=1):
         conn = get_db_connection()
         cursor = conn.cursor()
         
+        # Sync前の既存レース状態を取得
+        cursor.execute("SELECT id, race_date, place_code, race_number, is_exhibition_done, is_finished, ranking_str FROM races WHERE race_date >= ?", (threshold_date_iso,))
+        local_races = { (row["race_date"], row["place_code"], row["race_number"]): dict(row) for row in cursor.fetchall() }
+        
         for r in races:
             # SQLite用に変換
             ai_pred = json.dumps(r['ai_predictions_json']) if r.get('ai_predictions_json') else None
             result_json = json.dumps(r['result_json']) if r.get('result_json') else None
             odds_json = json.dumps(r['odds_json']) if r.get('odds_json') else None
             
-            cursor.execute('''
-                INSERT OR REPLACE INTO races (
-                    race_date, place_code, place_name, race_number, race_title,
-                    weather, wind_direction, wind_speed, wave_height,
-                    is_exhibition_done, scheduled_time, is_finished, ranking_str,
-                    ai_predictions_json, result_json, odds_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (r['race_date'], r['place_code'], r['place_name'], r['race_number'], r.get('race_title', ''),
-                  r.get('weather'), r.get('wind_direction'), r.get('wind_speed'), r.get('wave_height'),
-                  r.get('is_exhibition_done'), r.get('scheduled_time'), r.get('is_finished'), r.get('ranking_str'),
-                  ai_pred, result_json, odds_json))
+            existing_id = local_races.get((r['race_date'], r['place_code'], r['race_number']), {}).get('id')
+            if existing_id:
+                cursor.execute('''
+                    INSERT OR REPLACE INTO races (
+                        id, race_date, place_code, place_name, race_number, race_title,
+                        weather, wind_direction, wind_speed, wave_height,
+                        is_exhibition_done, scheduled_time, is_finished, ranking_str,
+                        ai_predictions_json, result_json, odds_json, day_label
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (existing_id, r['race_date'], r['place_code'], r['place_name'], r['race_number'], r.get('race_title', ''),
+                      r.get('weather'), r.get('wind_direction'), r.get('wind_speed'), r.get('wave_height'),
+                      r.get('is_exhibition_done'), r.get('scheduled_time'), r.get('is_finished'), r.get('ranking_str'),
+                      ai_pred, result_json, odds_json, r.get('day_label', '')))
+            else:
+                cursor.execute('''
+                    INSERT OR REPLACE INTO races (
+                        race_date, place_code, place_name, race_number, race_title,
+                        weather, wind_direction, wind_speed, wave_height,
+                        is_exhibition_done, scheduled_time, is_finished, ranking_str,
+                        ai_predictions_json, result_json, odds_json, day_label
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (r['race_date'], r['place_code'], r['place_name'], r['race_number'], r.get('race_title', ''),
+                      r.get('weather'), r.get('wind_direction'), r.get('wind_speed'), r.get('wave_height'),
+                      r.get('is_exhibition_done'), r.get('scheduled_time'), r.get('is_finished'), r.get('ranking_str'),
+                      ai_pred, result_json, odds_json, r.get('day_label', '')))
         
         # 2. Entriesの取得
         entries_res = supabase.table("entries").select("*").gte("race_date", threshold_date_iso).execute()
@@ -379,7 +477,63 @@ def sync_from_supabase(days=1):
                           e.get('parts_exchange', ''), e.get('weight_adjustment', 0.0), e.get('pre_inspection_time'), e.get('propeller', '')))
         
         conn.commit()
+        
+        # Sync後の最新レース状態を取得して変更検知
+        cursor.execute("SELECT id, race_date, place_code, race_number, is_exhibition_done, is_finished, ranking_str, place_name FROM races WHERE race_date >= ?", (threshold_date_iso,))
+        updated_races = { (row["race_date"], row["place_code"], row["race_number"]): dict(row) for row in cursor.fetchall() }
+        
         conn.close()
+        
+        changed_dates = set()
+        finished_events = []
+        exhibition_events = []
+        
+        for key, new_r in updated_races.items():
+            old_r = local_races.get(key)
+            if not old_r:
+                changed_dates.add(key[0])
+                if new_r.get("is_finished"):
+                    finished_events.append(new_r)
+                elif new_r.get("is_exhibition_done"):
+                    exhibition_events.append(new_r)
+            else:
+                if (old_r.get("is_exhibition_done") != new_r.get("is_exhibition_done") or
+                    old_r.get("is_finished") != new_r.get("is_finished") or
+                    old_r.get("ranking_str") != new_r.get("ranking_str")):
+                    changed_dates.add(key[0])
+                
+                # トランジション判定
+                if new_r.get("is_finished") and not old_r.get("is_finished"):
+                    finished_events.append(new_r)
+                elif new_r.get("is_exhibition_done") and not old_r.get("is_exhibition_done"):
+                    exhibition_events.append(new_r)
+                    
+        if sse_broadcast_callback:
+            for r in exhibition_events:
+                try:
+                    sse_broadcast_callback("exhibition_updated", {
+                        "race_id": r["id"],
+                        "place_name": r["place_name"],
+                        "race_number": r["race_number"]
+                    })
+                except Exception as ex_err:
+                    print(f"[SSE ERROR] sync_from_supabase exhibition notify: {ex_err}")
+            for r in finished_events:
+                try:
+                    sse_broadcast_callback("race_finished", {
+                        "race_id": r["id"],
+                        "place_name": r["place_name"],
+                        "race_number": r["race_number"],
+                        "ranking_str": r["ranking_str"] or ""
+                    })
+                except Exception as fin_err:
+                    print(f"[SSE ERROR] sync_from_supabase finish notify: {fin_err}")
+            for date_str in sorted(changed_dates):
+                try:
+                    sse_broadcast_callback("places_updated", {"date": date_str})
+                except Exception as pl_err:
+                    print(f"[SSE ERROR] sync_from_supabase places notify: {pl_err}")
+                    
         print(f"[SUPABASE] Sync success: {len(races)} races, {len(entries) if entries else 0} entries.")
     except Exception as e:
         print(f"[SUPABASE ERROR] sync_from_supabase: {e}")

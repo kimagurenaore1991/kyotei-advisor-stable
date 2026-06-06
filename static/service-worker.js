@@ -1,63 +1,22 @@
-const CACHE_NAME = 'kyotei-mvp-cache-v2';
-const urlsToCache = [
-  './index.html',
-  './manifest.json',
-];
-
+// Service Worker caching is intentionally disabled.
+// If an older worker is still registered in a browser, this one removes itself.
 self.addEventListener('install', event => {
-  self.skipWaiting(); // 新しいバージョンを即座にアクティブにする
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => {
-        return cache.addAll(urlsToCache);
-      })
-  );
+  self.skipWaiting();
 });
 
-// 古いキャッシュを削除
 self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.map(cache => {
-          if (cache !== CACHE_NAME) {
-            return caches.delete(cache);
-          }
-        })
-      );
-    })
-  );
+  event.waitUntil((async () => {
+    try {
+      const cacheNames = await caches.keys();
+      await Promise.all(cacheNames.map(name => caches.delete(name)));
+    } catch (_) {}
+
+    try {
+      await self.registration.unregister();
+    } catch (_) {}
+  })());
 });
 
-self.addEventListener('fetch', event => {
-  // APIへのリクエストはキャッシュしない
-  if (event.request.url.includes('/api/')) {
-    return;
-  }
-
-  // index.html は Network-first (常に最新を試みる)
-  if (event.request.url.endsWith('index.html') || event.request.url.endsWith('/')) {
-    event.respondWith(
-      fetch(event.request)
-        .then(response => {
-          const clonedResponse = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clonedResponse));
-          return response;
-        })
-        .catch(() => caches.match(event.request))
-    );
-    return;
-  }
-  
-  // その他は Cache-first
-  event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        if (response) {
-          return response;
-        }
-        return fetch(event.request);
-      })
-  );
+self.addEventListener('fetch', () => {
+  // no-op
 });
-
