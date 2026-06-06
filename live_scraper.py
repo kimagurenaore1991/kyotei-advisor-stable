@@ -653,7 +653,7 @@ def fetch_match_result(place_code: str, race_number: int, date_str: str):
 
         # 払戻金が取れなかった場合、別のパース方法を試みる (旧ロジック)
         if not result["payouts"]:
-            for t in tables:
+            for t in soup.find_all("table"):
                 text = t.get_text()
                 if "払戻金" in text or "3連単" in text:
                     for row in t.find_all("tr"):
