@@ -1317,7 +1317,7 @@ def calculate_predictions(race_data, players_data, weights: CustomWeights, setti
         return results[start_idx : end_idx]
 
     predictions = {
-        "rule_focus": generate_rule_combinations(rule_probs, settings.bet_type, settings.max_items, settings.fixed_1st),
+        "rule_focus": generate_rule_combinations(rule_probs, settings.bet_type, settings.max_items, 0),
         "ai_focus": generate_ai_combinations(ai_pattern_counts, settings.bet_type, settings.max_items, NUM_SIMS, settings.fixed_1st),
         "ai_default_focus": generate_ai_combinations(ai_pattern_counts, "3連単", 8, NUM_SIMS, 0),
         "ai_win_probs": ai_win_probs,
