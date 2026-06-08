@@ -643,6 +643,12 @@ def get_status():
     return {"is_scraping": LOCK_FILE.exists()}
 
 
+@app.get("/ping")
+@app.get("/{path:path}/ping")
+def ping(path: str = ""):
+    return {"status": "ok", "message": "pong"}
+
+
 @app.get("/api/racers/{toban}")
 def get_racer_detail(toban: str, place_code: Optional[str] = Query(None)):
     """選手の詳細情報（プロフィール・コース別成績・会場別過去着順）を取得する"""
