@@ -1742,9 +1742,6 @@ window.addEventListener('unhandledrejection', function(event) {
                     if (data.type === 'race_update' || data.type === 'exhibition_update') {
                         if (currentRaceId === data.race_id) {
                             // 現在表示中のレースならサイレント更新
-                            localStorage.removeItem(`kyotei_override_${currentRaceId}`);
-                            delete lastPredictionsCache[currentRaceId];
-                            saveCache('lastPredictionsCache', lastPredictionsCache);
                             requestPrediction('both', false, false, true);
                         }
                     } else if (data.type === 'result_announce') {
@@ -3697,25 +3694,7 @@ window.addEventListener('unhandledrejection', function(event) {
                 }
                 const data = await res.json();
 
-                // 公式の展示/欠場データをローカル上書きにも反映する。
-                // 古い上書きが残ると、次回予想APIで欠場フラグを元に戻してしまうため。
-                const officialOverrides = (data.players || []).map(p => ({
-                    boat_number: p.boat_number,
-                    entry_course: p.calc_course ?? p.entry_course ?? p.boat_number,
-                    exhibition_time: p.calc_ex ?? p.exhibition_time ?? 6.80,
-                    start_timing: p.calc_st ?? p.start_timing ?? 0.15,
-                    tilt: p.tilt ?? 0.0,
-                    is_absent: !!p.is_absent
-                }));
-                localStorage.setItem(`kyotei_override_${currentRaceId}`, JSON.stringify(officialOverrides));
-
-                currentPlayersData = data.players || [];
-                lastPredictions = data.predictions;
-                lastPredictionsCache[currentRaceId] = { race: data.race, players: data.players, predictions: lastPredictions };
-                saveCache('lastPredictionsCache', lastPredictionsCache);
-                renderRace(data.race, data.players, lastPredictions);
-
-                // 再描画後に入力欄の丸め表示も整える
+                // 入力欄のみを更新し、予想の再計算は行わない (ユーザーが反映ボタンを押すまで待機)
                 currentPlayersData.forEach(p => {
                     const pData = data.players.find(x => x.boat_number === p.boat_number);
                     if (!pData) return;
@@ -3747,7 +3726,7 @@ window.addEventListener('unhandledrejection', function(event) {
                     });
                 });
 
-                showToast('展示・欠場情報を取得し、予想を再計算しました。', 'ok');
+                showToast('展示情報を入力欄に取得しました。「反映」ボタンを押すと予想に適用されます。', 'ok');
             } catch (e) {
                 alert('展示情報の取得中にエラーが発生しました。');
             }
@@ -5010,9 +4989,6 @@ window.addEventListener('unhandledrejection', function(event) {
                         // 今開いているレースならサイレント更新
                         if (currentRaceId && currentRaceId === raceId) {
                             showToast(`📢 ${placeName} ${raceNo}R 展示更新`, 'info');
-                            localStorage.removeItem(`kyotei_override_${currentRaceId}`);
-                            delete lastPredictionsCache[currentRaceId];
-                            saveCache('lastPredictionsCache', lastPredictionsCache);
                             requestPrediction('both', false, false, true); // silent=true
                         }
                     } catch (_) { }
