@@ -1721,8 +1721,7 @@ def get_custom_predict(race_id: int, req: PredictRequest, is_premium: bool = Dep
                         p["calc_st"] = p["start_timing"]
 
         # 現時点の選手データ・レース条件 + 重み設定からハッシュを計算
-        # NOTE: scored_players_raw は展示/欠場の上書き適用後の値を使う。
-        # ここでDBのplayersに戻すと、欠場指定がAI再計算に反映されない。
+        scored_players_raw = [dict(p) for p in players]
         p_hash = compute_players_hash(race_dict, scored_players_raw, req.weights, req.settings)
 
         ai_cache = None
@@ -1878,12 +1877,6 @@ def scrape_exhibition(race_id: int):
     if race_id in AI_RESULT_CACHE:
         del AI_RESULT_CACHE[race_id]
 
-    try:
-        from database import push_race_to_supabase
-        push_race_to_supabase(race_id)
-    except Exception as e:
-        print(f"[SUPABASE ERROR] scrape_exhibition sync: {e}")
-
     race_data = get_race_detail(race_id)
     race_data["scraped_exhibition"] = exhibition
     race_data["scraped_weather"] = data.get("weather_info", {})
@@ -1914,20 +1907,9 @@ def update_exhibition(race_id: int, updates: List[ExhibitionUpdate]):
                      1 if update.is_absent else 0,
                      race_id, update.boat_number)
                 )
-        conn.execute('UPDATE races SET ai_predictions_json = NULL WHERE id = ?', (race_id,))
         conn.commit()
     finally:
         conn.close()
-
-    if race_id in AI_RESULT_CACHE:
-        del AI_RESULT_CACHE[race_id]
-
-    try:
-        from database import push_race_to_supabase
-        push_race_to_supabase(race_id)
-    except Exception as e:
-        print(f"[SUPABASE ERROR] update_exhibition sync: {e}")
-
     return get_race_detail(race_id)
 
 
