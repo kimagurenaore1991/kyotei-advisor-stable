@@ -483,12 +483,13 @@ def update_exhibition(jcd, race_no, target_dt: datetime.datetime = None):
                 cursor.execute('''
                     UPDATE entries SET
                         exhibition_time = ?, start_timing = ?, entry_course = ?, tilt = ?,
-                        parts_exchange = ?, weight_adjustment = ?, propeller = ?
+                        is_absent = ?, parts_exchange = ?, weight_adjustment = ?, propeller = ?
                     WHERE race_id = (
                         SELECT id FROM races WHERE race_date = ? AND place_code = ? AND race_number = ?
                     ) AND boat_number = ?
                 ''', (ex_data.get("exhibition_time", 0.0), ex_data.get("start_timing", 0.15),
                       ex_data.get("entry_course", boat_num), ex_data.get("tilt", 0.0),
+                      1 if ex_data.get("is_absent") else 0,
                       ex_data.get("parts_exchange", ""), ex_data.get("weight_adjustment", 0.0), ex_data.get("propeller", ""),
                       iso_date, jcd, race_no, boat_num))
             # 展示データ更新時はAIキャッシュを無効化して再計算させる
@@ -499,6 +500,7 @@ def update_exhibition(jcd, race_no, target_dt: datetime.datetime = None):
             # Supabase同期
             cursor.execute('SELECT id FROM races WHERE race_date = ? AND place_code = ? AND race_number = ?', (iso_date, jcd, race_no))
             row = cursor.fetchone()
+            conn.commit()
             if row:
                 race_id = row[0]
                 push_race_to_supabase(race_id)
