@@ -48,28 +48,13 @@ def upsert_entries(entries_data: list[dict], retry=True):
         return None
 
 def upsert_racer_results(results_data: list[dict], retry=True):
-    if not is_supabase_enabled(): return
-    supabase = get_supabase_client()
-    try:
-        return supabase.table("racer_results").upsert(results_data, on_conflict="racer_id,place_code,race_date,race_no").execute()
-    except Exception as e:
-        if retry and ("disconnected" in str(e).lower() or "connection" in str(e).lower()):
-            get_supabase_client(force_refresh=True)
-            return upsert_racer_results(results_data, retry=False)
-        print(f"[SUPABASE ERROR] upsert_racer_results: {e}")
-        return None
+    # Disable Supabase sync to save API requests and DB storage
+    return None
 
 def upsert_racer_profiles(profiles_data: list[dict], retry=True):
-    if not is_supabase_enabled(): return
-    supabase = get_supabase_client()
-    try:
-        return supabase.table("racer_profiles").upsert(profiles_data, on_conflict="toban").execute()
-    except Exception as e:
-        if retry and ("disconnected" in str(e).lower() or "connection" in str(e).lower()):
-            get_supabase_client(force_refresh=True)
-            return upsert_racer_profiles(profiles_data, retry=False)
-        print(f"[SUPABASE ERROR] upsert_racer_profiles: {e}")
-        return None
+    # Disable Supabase sync to save API requests and DB storage
+    return None
+
 
 def upsert_favorites(favorites_data: list[dict], retry=True):
     if not is_supabase_enabled(): return

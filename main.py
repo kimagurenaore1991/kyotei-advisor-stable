@@ -69,17 +69,36 @@ async def startup_event():
         except:
             pass
     
+    def check_local_data_exists(date_iso: str) -> bool:
+        conn = get_db_connection()
+        try:
+            row = conn.execute("SELECT 1 FROM races WHERE race_date = ? LIMIT 1", (date_iso,)).fetchone()
+            return row is not None
+        except:
+            return False
+        finally:
+            conn.close()
+    
     loop = asyncio.get_event_loop()
     
     # 1. データ同期・取得（初回: 公式から全取得、2回目以降: Supabaseから同期）
     try:
+        from database import sync_specific_date_from_supabase
+        yesterday_iso = (now_jst - timedelta(days=1)).strftime('%Y-%m-%d')
+        tomorrow_iso = (now_jst + timedelta(days=1)).strftime('%Y-%m-%d')
+
         if last_scrape_date != today_iso:
-            print(f"[STARTUP] {today_iso} の初回起動です。Supabaseから今日のデータを先行取得し、公式からもバックグラウンドで更新します...")
-            # 1. 昨日や今日のデータをSupabaseから最優先で取得 (UI即時表示のため)
-            from database import sync_specific_date_from_supabase
-            yesterday_iso = (now_jst - timedelta(days=1)).strftime('%Y-%m-%d')
-            await loop.run_in_executor(None, sync_specific_date_from_supabase, yesterday_iso)
-            await loop.run_in_executor(None, sync_specific_date_from_supabase, today_iso)
+            print(f"[STARTUP] {today_iso} の初回起動です。必要に応じてSupabaseからデータを先行取得し、公式からもバックグラウンドで更新します...")
+            # 1. 昨日や今日のデータをSupabaseから最優先で取得 (ローカルに無い場合のみ)
+            if not check_local_data_exists(yesterday_iso):
+                await loop.run_in_executor(None, sync_specific_date_from_supabase, yesterday_iso)
+            else:
+                print(f"[STARTUP] {yesterday_iso} のローカルデータが存在するため、Supabaseからの同期をスキップします。")
+
+            if not check_local_data_exists(today_iso):
+                await loop.run_in_executor(None, sync_specific_date_from_supabase, today_iso)
+            else:
+                print(f"[STARTUP] {today_iso} のローカルデータが存在するため、Supabaseからの同期をスキップします。")
 
             # 2. 残りの同期と公式スクレイピングはバックグラウンドで実行
             asyncio.create_task(asyncio.to_thread(sync_from_supabase, 1))
@@ -90,13 +109,13 @@ async def startup_event():
             except: pass
         else:
             print(f"[STARTUP] 本日2回目以降の起動です。バックグラウンドで同期・補填を行います...")
-            # 昨日・今日・明日のデータをSupabaseから先行取得
-            from database import sync_specific_date_from_supabase
-            yesterday_iso = (now_jst - timedelta(days=1)).strftime('%Y-%m-%d')
-            tomorrow_iso = (now_jst + timedelta(days=1)).strftime('%Y-%m-%d')
-            asyncio.create_task(asyncio.to_thread(sync_specific_date_from_supabase, yesterday_iso))
-            asyncio.create_task(asyncio.to_thread(sync_specific_date_from_supabase, today_iso))
-            asyncio.create_task(asyncio.to_thread(sync_specific_date_from_supabase, tomorrow_iso))
+            # 昨日・今日・明日のデータをSupabaseから先行取得 (ローカルに無い場合のみ)
+            if not check_local_data_exists(yesterday_iso):
+                asyncio.create_task(asyncio.to_thread(sync_specific_date_from_supabase, yesterday_iso))
+            if not check_local_data_exists(today_iso):
+                asyncio.create_task(asyncio.to_thread(sync_specific_date_from_supabase, today_iso))
+            if not check_local_data_exists(tomorrow_iso):
+                asyncio.create_task(asyncio.to_thread(sync_specific_date_from_supabase, tomorrow_iso))
             
             asyncio.create_task(asyncio.to_thread(sync_from_supabase, 1))
             asyncio.create_task(asyncio.to_thread(scraper.scrape_missing_today, now_jst))
