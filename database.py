@@ -267,8 +267,9 @@ def sync_specific_date_from_supabase(date_iso: str):
             print(f"[SUPABASE] Sync disabled or client not initialized for {date_iso}.")
             return
         
-        # 1. Racesの取得 (指定日のみ)
-        races_res = supabase.table("races").select("*").eq("race_date", date_iso).execute()
+        # 1. Racesの取得 (指定日のみ) - 不要なJSONデータは除外して取得し帯域を節約
+        columns = "race_date,place_code,place_name,race_number,race_title,weather,wind_direction,wind_speed,wave_height,is_exhibition_done,scheduled_time,is_finished,ranking_str,result_json,day_label"
+        races_res = supabase.table("races").select(columns).eq("race_date", date_iso).execute()
         races = races_res.data
         if not races:
             print(f"[SUPABASE] No race data found for {date_iso}. Falling back to official scraper.")
@@ -285,10 +286,20 @@ def sync_specific_date_from_supabase(date_iso: str):
         cursor = conn.cursor()
         
         for r in races:
-            # SQLite用に変換
-            ai_pred = json.dumps(r['ai_predictions_json']) if r.get('ai_predictions_json') else None
+            # Preserve existing local AI predictions and odds to avoid overwriting them with None during sync
+            existing = cursor.execute('''
+                SELECT ai_predictions_json, odds_json FROM races 
+                WHERE race_date = ? AND place_code = ? AND race_number = ?
+            ''', (r['race_date'], r['place_code'], r['race_number'])).fetchone()
+            
+            if existing:
+                ai_pred = existing['ai_predictions_json']
+                odds_json = existing['odds_json']
+            else:
+                ai_pred = None
+                odds_json = None
+                
             result_json = json.dumps(r['result_json']) if r.get('result_json') else None
-            odds_json = json.dumps(r['odds_json']) if r.get('odds_json') else None
             
             cursor.execute('''
                 INSERT OR REPLACE INTO races (
@@ -354,8 +365,9 @@ def sync_from_supabase(days=1):
     threshold_date_iso = threshold_dt.strftime('%Y-%m-%d')
     
     try:
-        # 1. Racesの取得
-        races_res = supabase.table("races").select("*").gte("race_date", threshold_date_iso).execute()
+        # 1. Racesの取得 - 不要なJSONデータは除外して取得し帯域を節約
+        columns = "race_date,place_code,place_name,race_number,race_title,weather,wind_direction,wind_speed,wave_height,is_exhibition_done,scheduled_time,is_finished,ranking_str,result_json,day_label"
+        races_res = supabase.table("races").select(columns).gte("race_date", threshold_date_iso).execute()
         races = races_res.data
         
         if not races:
@@ -366,10 +378,20 @@ def sync_from_supabase(days=1):
         cursor = conn.cursor()
         
         for r in races:
-            # SQLite用に変換
-            ai_pred = json.dumps(r['ai_predictions_json']) if r.get('ai_predictions_json') else None
+            # Preserve existing local AI predictions and odds to avoid overwriting them with None during sync
+            existing = cursor.execute('''
+                SELECT ai_predictions_json, odds_json FROM races 
+                WHERE race_date = ? AND place_code = ? AND race_number = ?
+            ''', (r['race_date'], r['place_code'], r['race_number'])).fetchone()
+            
+            if existing:
+                ai_pred = existing['ai_predictions_json']
+                odds_json = existing['odds_json']
+            else:
+                ai_pred = None
+                odds_json = None
+                
             result_json = json.dumps(r['result_json']) if r.get('result_json') else None
-            odds_json = json.dumps(r['odds_json']) if r.get('odds_json') else None
             
             cursor.execute('''
                 INSERT OR REPLACE INTO races (
@@ -433,7 +455,11 @@ def push_race_to_supabase(race_id_local: int):
         r = dict(row)
         race_data = r.copy()
         race_data.pop('id', None)
-        for col in ['ai_predictions_json', 'result_json', 'odds_json']:
+        # Exclude heavy JSON fields to save Supabase storage and bandwidth
+        race_data.pop('odds_json', None)
+        race_data.pop('ai_predictions_json', None)
+        
+        for col in ['result_json']:
             val = race_data.get(col)
             if val is not None:
                 try: race_data[col] = json.loads(val)
