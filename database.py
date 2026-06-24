@@ -314,7 +314,8 @@ def sync_specific_date_from_supabase(date_iso: str):
                   ai_pred, result_json, odds_json))
         
         # 2. Entriesの取得 (指定日のみ)
-        entries_res = supabase.table("entries").select("*").eq("race_date", date_iso).execute()
+        entry_columns = "race_date,place_code,race_number,boat_number,racer_name,racer_class,racer_id,global_win_rate,global_2_quinella,local_win_rate,local_2_quinella,motor_number,motor_2_quinella,boat_number_machine,boat_2_quinella,exhibition_time,start_timing,entry_course,arrival_order,race_time,tilt,is_absent,parts_exchange,weight_adjustment,pre_inspection_time,propeller"
+        entries_res = supabase.table("entries").select(entry_columns).eq("race_date", date_iso).execute()
         entries = entries_res.data
         
         if entries:
@@ -406,7 +407,8 @@ def sync_from_supabase(days=1):
                   ai_pred, result_json, odds_json))
         
         # 2. Entriesの取得
-        entries_res = supabase.table("entries").select("*").gte("race_date", threshold_date_iso).execute()
+        entry_columns = "race_date,place_code,race_number,boat_number,racer_name,racer_class,racer_id,global_win_rate,global_2_quinella,local_win_rate,local_2_quinella,motor_number,motor_2_quinella,boat_number_machine,boat_2_quinella,exhibition_time,start_timing,entry_course,arrival_order,race_time,tilt,is_absent,parts_exchange,weight_adjustment,pre_inspection_time,propeller"
+        entries_res = supabase.table("entries").select(entry_columns).gte("race_date", threshold_date_iso).execute()
         entries = entries_res.data
         
         if entries:

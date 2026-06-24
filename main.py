@@ -182,6 +182,7 @@ async def background_worker():
     
     last_yesterday_check = 0
     last_tomorrow_check = 0
+    last_cleanup_check = 0
     
     while True:
         try:
@@ -208,9 +209,11 @@ async def background_worker():
                 last_yesterday_check = time.time()
 
             # 4. 古いデータのクリーンアップ（2日以上前のデータを削除）
-            two_days_ago_dt = now_jst - timedelta(days=2)
-            two_days_ago_iso = two_days_ago_dt.strftime('%Y-%m-%d')
-            await loop.run_in_executor(None, cleanup_old_data, two_days_ago_iso)
+            if time.time() - last_cleanup_check > 43200:
+                two_days_ago_dt = now_jst - timedelta(days=2)
+                two_days_ago_iso = two_days_ago_dt.strftime('%Y-%m-%d')
+                await loop.run_in_executor(None, cleanup_old_data, two_days_ago_iso)
+                last_cleanup_check = time.time()
                 
         except Exception as e:
             print(f"[WORKER ERROR] {e}")
